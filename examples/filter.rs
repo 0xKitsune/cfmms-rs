@@ -1,9 +1,6 @@
 use std::str::FromStr;
 
-use ethers::{
-    providers::ProviderError,
-    types::{BlockNumber, H160},
-};
+use ethers::{providers::ProviderError, types::H160};
 
 use pair_sync::{
     dex::{Dex, DexType},
@@ -18,11 +15,11 @@ async fn main() -> Result<(), ProviderError> {
     let mut dexes = vec![];
 
     //Add UniswapV3
-    dexes.push(Dex {
-        factory_address: H160::from_str("0x1F98431c8aD98523631AE4a59f267346ea31F984").unwrap(),
-        dex_type: DexType::UniswapV3,
-        creation_block: BlockNumber::Number(ethers::types::U64([12369621])),
-    });
+    dexes.push(Dex::new(
+        "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+        DexType::UniswapV3,
+        12369621,
+    ));
 
     //Sync pairs
     let pairs = sync::sync_pairs_with_throttle(dexes, rpc_endpoint, 10).await?;

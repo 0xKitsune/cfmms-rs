@@ -16,15 +16,11 @@ pub enum DexType {
 }
 
 impl Dex {
-    pub fn new(address: String, dex_type: DexType, creation_block: BlockNumber) -> Dex {
-        if creation_block.as_number().is_none() {
-            panic!("A valid BlockNumber::Number must be supplied as the creation block when initializing a new Dex")
-        }
-
+    pub fn new(factory_address: &str, dex_type: DexType, creation_block: u64) -> Dex {
         Dex {
-            factory_address: H160::from_slice(address.as_bytes()),
+            factory_address: H160::from_slice(factory_address.as_bytes()),
             dex_type,
-            creation_block,
+            creation_block: BlockNumber::Number(creation_block.into()),
         }
     }
 
