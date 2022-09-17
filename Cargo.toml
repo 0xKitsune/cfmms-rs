@@ -1,0 +1,11 @@
+[package]
+name = "pair_sync"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+ethers = { version = "0.17.0", features = ["abigen", "ipc"] }
+tokio = { version = "1.21.0", features = ["full"] }
+futures = "0.3.24"
+indicatif = "0.17.1"
