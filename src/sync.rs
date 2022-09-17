@@ -60,45 +60,39 @@ pub async fn sync_pairs(
 
     let mut handles = vec![];
 
-    //Initialize progress bars
-    let get_pairs_multi_progress_bar = MultiProgress::new();
-    let get_pairs_progress_bar_style =
-        ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7} Blocks")
-            .unwrap()
-            .progress_chars("##-");
-
-    let get_reserves_multi_progress_bar = MultiProgress::new();
-    let get_reserves_progress_bar_style =
-        ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7} Pairs")
-            .unwrap()
-            .progress_chars("##-");
+    //Initialize multi progress bar
+    let multi_progress_bar = MultiProgress::new();
 
     //For each dex supplied, get all pair created events and get reserve values
     for dex in dexes {
         let async_provider = async_provider.clone();
 
-        let get_pairs_progress_bar = get_pairs_multi_progress_bar.add(ProgressBar::new(0));
-        get_pairs_progress_bar.set_style(get_pairs_progress_bar_style.clone());
-
-        let get_reserves_progress_bar = get_reserves_multi_progress_bar.add(ProgressBar::new(0));
-        get_reserves_progress_bar.set_style(get_reserves_progress_bar_style.clone());
+        let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
 
         handles.push(tokio::spawn(async move {
+            progress_bar.set_style(
+                ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7} Blocks")
+                    .unwrap()
+                    .progress_chars("##-"),
+            );
+
             let pairs = get_all_pairs(
                 dex,
                 async_provider.clone(),
                 BlockNumber::Number(current_block),
-                get_pairs_progress_bar,
+                progress_bar.clone(),
             )
             .await?;
 
-            let pairs = get_pair_reserves(
-                pairs,
-                dex.factory_address,
-                async_provider,
-                get_reserves_progress_bar,
-            )
-            .await?;
+            progress_bar.reset();
+            progress_bar.set_style(
+                ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7} Pairs")
+                    .unwrap()
+                    .progress_chars("##-"),
+            );
+
+            let pairs =
+                get_pair_reserves(pairs, dex.factory_address, async_provider, progress_bar).await?;
 
             Ok::<_, ProviderError>(pairs)
         }));
@@ -436,43 +430,42 @@ pub async fn sync_pairs_with_ipc(
 
     let mut handles = vec![];
 
-    //Initialize progress bars
-    let get_pairs_multi_progress_bar = MultiProgress::new();
-    let get_pairs_progress_bar_style =
-        ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7} Blocks")
-            .unwrap()
-            .progress_chars("##-");
-
-    let get_reserves_multi_progress_bar = MultiProgress::new();
-    let get_reserves_progress_bar_style =
-        ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7} Pairs")
-            .unwrap()
-            .progress_chars("##-");
+    //Initialize multi progress bar
+    let multi_progress_bar = MultiProgress::new();
 
     //For each dex supplied, get all pair created events and get reserve values
     for dex in dexes {
         let async_provider = async_provider.clone();
 
-        let get_pairs_progress_bar = get_pairs_multi_progress_bar.add(ProgressBar::new(0));
-        get_pairs_progress_bar.set_style(get_pairs_progress_bar_style.clone());
-
-        let get_reserves_progress_bar = get_reserves_multi_progress_bar.add(ProgressBar::new(0));
-        get_reserves_progress_bar.set_style(get_reserves_progress_bar_style.clone());
+        let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
 
         handles.push(tokio::spawn(async move {
+            progress_bar.set_style(
+                ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7} Blocks")
+                    .unwrap()
+                    .progress_chars("##-"),
+            );
+
             let pairs = get_all_pairs_with_ipc(
                 dex,
                 async_provider.clone(),
                 BlockNumber::Number(current_block),
-                get_pairs_progress_bar,
+                progress_bar.clone(),
             )
             .await?;
+
+            progress_bar.reset();
+            progress_bar.set_style(
+                ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7} Pairs")
+                    .unwrap()
+                    .progress_chars("##-"),
+            );
 
             let pairs = get_pair_reserves_with_ipc(
                 pairs,
                 dex.factory_address,
                 async_provider,
-                get_reserves_progress_bar,
+                progress_bar,
             )
             .await?;
 
@@ -815,46 +808,44 @@ pub async fn sync_pairs_with_throttle(
 
     let mut handles = vec![];
 
-    //Initialize progress bars
-    let get_pairs_multi_progress_bar = MultiProgress::new();
-    let get_pairs_progress_bar_style =
-        ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7} Blocks")
-            .unwrap()
-            .progress_chars("##-");
-
-    let get_reserves_multi_progress_bar = MultiProgress::new();
-    let get_reserves_progress_bar_style =
-        ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7} Pairs")
-            .unwrap()
-            .progress_chars("##-");
+    //Initialize multi progress bar
+    let multi_progress_bar = MultiProgress::new();
 
     //For each dex supplied, get all pair created events and get reserve values
     for dex in dexes {
         let async_provider = async_provider.clone();
         let request_throttle = request_throttle.clone();
-
-        let get_pairs_progress_bar = get_pairs_multi_progress_bar.add(ProgressBar::new(0));
-        get_pairs_progress_bar.set_style(get_pairs_progress_bar_style.clone());
-
-        let get_reserves_progress_bar = get_reserves_multi_progress_bar.add(ProgressBar::new(0));
-        get_reserves_progress_bar.set_style(get_reserves_progress_bar_style.clone());
+        let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
 
         handles.push(tokio::spawn(async move {
+            progress_bar.set_style(
+                ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7} Blocks")
+                    .unwrap()
+                    .progress_chars("##-"),
+            );
+
             let pairs = get_all_pairs_with_throttle(
                 dex,
                 async_provider.clone(),
                 BlockNumber::Number(current_block),
                 request_throttle.clone(),
-                get_pairs_progress_bar,
+                progress_bar.clone(),
             )
             .await?;
+
+            progress_bar.reset();
+            progress_bar.set_style(
+                ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7} Pairs")
+                    .unwrap()
+                    .progress_chars("##-"),
+            );
 
             let pairs = get_pair_reserves_with_throttle(
                 pairs,
                 dex.factory_address,
                 async_provider,
                 request_throttle,
-                get_reserves_progress_bar,
+                progress_bar,
             )
             .await?;
 
