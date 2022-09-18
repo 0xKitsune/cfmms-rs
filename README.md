@@ -1,5 +1,5 @@
 # pair_sync
-A simple library to get all pairs from any Dex and sync reserves. 
+A simple library to get all pairs from any supported Dex and sync reserves. 
 
 ```rust
 //Initialize a vec to hold all the dexes
