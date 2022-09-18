@@ -2,8 +2,8 @@
 
 A simple library to get all pairs from any supported Dex and sync reserves.
 
-- [The pair_sync crate is on crates.io](https://crates.io/crates/pair_sync)
-- [Documentation in progress on docs.rs](https://docs.rs/pair_sync/0.1.0/pair_sync/)
+- [Crates.io](https://crates.io/crates/pair_sync)
+- [Documentation in progress](https://docs.rs/pair_sync/0.1.0/pair_sync/)
 
 
 Filename: src/sync-pairs.rs
