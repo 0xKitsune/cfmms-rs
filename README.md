@@ -1,7 +1,4 @@
 # pair_sync
-
-Note: This repo is not finished yet, I am adding filters and additional Dex variants.
-
 A simple library to get all pairs from any Dex and sync reserves. 
 
 ```rust
@@ -30,12 +27,6 @@ let pairs: Vec<Pair> = sync::sync_pairs(dexes, rpc_endpoint).await?;
 | UniswapV3  | ✅||
 
 
-
-### Running Examples
-
-
-
-### Filters
 
 
 
