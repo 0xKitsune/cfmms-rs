@@ -44,7 +44,7 @@ async fn main() -> Result<(), ProviderError> {
     ));
 
     //Sync pairs
-    sync::sync_pairs(dexes, rpc_endpoint).await?;
+    let pairs: Vec<Pair> = sync::sync_pairs(dexes, rpc_endpoint).await?;
 
     Ok(())
 }
