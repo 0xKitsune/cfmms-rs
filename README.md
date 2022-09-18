@@ -1,6 +1,6 @@
 # pair_sync
 
-Note: This repo is not finished yet. The progress bar needs patching, I am adding filters and additional Dex variants.
+Note: This repo is not finished yet, I am adding filters and additional Dex variants.
 
 A simple library to get all pairs from any Dex and sync reserves. 
 
