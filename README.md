@@ -6,7 +6,7 @@ A simple library to get all pairs from any supported Dex and sync reserves.
 - [Documentation in progress](https://docs.rs/pair_sync/0.1.0/pair_sync/)
 
 
-Filename: src/sync-pairs.rs
+Filename: examples/sync-pairs.rs
 ```rust
 use ethers::providers::ProviderError;
 
