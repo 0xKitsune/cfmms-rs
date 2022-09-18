@@ -50,7 +50,7 @@ async fn main() -> Result<(), ProviderError> {
 }
 ```
 
-### Supported Dexes
+## Supported Dexes
 
 | Dex | Status |
 |----------|------|
@@ -58,7 +58,7 @@ async fn main() -> Result<(), ProviderError> {
 | UniswapV3  | ✅||
 
 
-### Running Examples
+## Running Examples
 
 To run any of the examples, supply your node endpoint to the endpoint variable in each example file. For example in `sync-pairs.rs`:
 
@@ -70,28 +70,28 @@ To run any of the examples, supply your node endpoint to the endpoint variable i
 Once you have supplied a node endpoint, you can simply run `cargo run --example <example_name>`.
 
 
-### Filters
+## Filters
 
 #### `filter_blacklisted_tokens`
-Removes any pair from a `Vec<Pair>` where either `token_a` or `token_b` matches a blacklisted address.
+- Removes any pair from a `Vec<Pair>` where either `token_a` or `token_b` matches a blacklisted address.
 
 #### `filter_blacklisted_pools`
-Removes any pair from a `Vec<Pair>` where the `pair_address` matches a blacklisted address.
+- Removes any pair from a `Vec<Pair>` where the `pair_address` matches a blacklisted address.
 
 #### `filter_blacklisted_addresses`
-Removes any pair from a `Vec<Pair>` where either `token_a`, `token_b` or the `pair_address` matches a blacklisted address.
+- Removes any pair from a `Vec<Pair>` where either `token_a`, `token_b` or the `pair_address` matches a blacklisted address.
 
 
-### Upcoming Filters
+## Upcoming Filters
 
 #### `filter_pools_below_usd_threshold`
-Removes any pair where the USD value of the pool is below the specified USD threshold.
+- Removes any pair where the USD value of the pool is below the specified USD threshold.
 
 #### `filter_pools_below_weth_threshold`
-Removes any pair where the USD value of the pool is below the specified WETH threshold.
+- Removes any pair where the USD value of the pool is below the specified WETH threshold.
 
 #### `filter_fee_tokens`
-Removes any pair where  where either `token_a` or `token_b` is a token with fee on transfer.
+- Removes any pair where  where either `token_a` or `token_b` is a token with fee on transfer.
 
 
 
