@@ -21,8 +21,11 @@ async fn main() -> Result<(), ProviderError> {
 
     //Add UniswapV2
     dexes.push(Dex::new(
+        //Specify the factory address
         "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
+        //Specify the dex variant
         DexType::UniswapV2,
+        //Specify the factory contract's creation block number
         2638438,
     ));
 
