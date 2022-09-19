@@ -1,9 +1,6 @@
 use std::str::FromStr;
 
-use ethers::{
-    types::{BlockNumber, H160, H256},
-    utils::hex::FromHexError,
-};
+use ethers::types::{BlockNumber, H160, H256};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Dex {
