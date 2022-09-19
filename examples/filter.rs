@@ -16,7 +16,7 @@ async fn main() -> Result<(), ProviderError> {
 
     //Add UniswapV3
     dexes.push(Dex::new(
-        "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+        H160::from_str("0x1F98431c8aD98523631AE4a59f267346ea31F984").unwrap(),
         DexType::UniswapV3,
         12369621,
     ));

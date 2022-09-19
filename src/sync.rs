@@ -797,6 +797,7 @@ pub async fn sync_pairs_with_throttle(
     requests_per_second_limit: usize,
 ) -> Result<Vec<Pair>, ProviderError> {
     //Initialize a new http provider
+
     let provider: Provider<Http> = Provider::<Http>::try_from(provider_endpoint)
         .expect("Could not initialize the provider from the supplied endpoint.");
 

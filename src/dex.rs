@@ -1,6 +1,9 @@
 use std::str::FromStr;
 
-use ethers::types::{BlockNumber, H160, H256};
+use ethers::{
+    types::{BlockNumber, H160, H256},
+    utils::hex::FromHexError,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Dex {
@@ -16,9 +19,9 @@ pub enum DexType {
 }
 
 impl Dex {
-    pub fn new(factory_address: &str, dex_type: DexType, creation_block: u64) -> Dex {
+    pub fn new(factory_address: H160, dex_type: DexType, creation_block: u64) -> Dex {
         Dex {
-            factory_address: H160::from_slice(factory_address.as_bytes()),
+            factory_address,
             dex_type,
             creation_block: BlockNumber::Number(creation_block.into()),
         }
