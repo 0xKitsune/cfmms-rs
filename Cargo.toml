@@ -2,6 +2,12 @@
 name = "pair_sync"
 version = "0.2.0"
 edition = "2021"
+license = "MIT"
+description = "A simple library to get all pairs from any supported Dex and sync reserves."
+readme = "README.md"
+homepage = "https://github.com/0xKitsune/pair_sync"
+repository = "https://github.com/0xKitsune/pair_sync"
+keywords = ["ethereum", "mev", "dex"]
 
 
 [dependencies]
