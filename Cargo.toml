@@ -1,14 +1,7 @@
 [package]
 name = "pair_sync"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
-authors = ["0xKitsune"]
-license = "MIT"
-description = "A simple library to get all pairs from any supported Dex and sync reserves."
-readme = "README.md"
-homepage = "https://github.com/0xKitsune/pair_sync"
-repository = "https://github.com/0xKitsune/pair_sync"
-keywords = ["ethereum", "mev", "dex"]
 
 
 [dependencies]
@@ -16,3 +9,4 @@ ethers = { version = "0.17.0", features = ["abigen", "ipc"] }
 tokio = { version = "1.21.0", features = ["full"] }
 futures = "0.3.24"
 indicatif = "0.17.1"
+thiserror = "1.0.36"
