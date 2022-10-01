@@ -1,8 +1,4 @@
-use std::{
-    ops::{Shr},
-    str::FromStr,
-    sync::Arc,
-};
+use std::{ops::Shr, str::FromStr, sync::Arc};
 
 use crate::{abi, error::PairSyncError};
 use ethers::{
