@@ -8,15 +8,13 @@ A simple library to get all pairs from any supported Dex and sync reserves.
 
 Filename: examples/sync-pairs.rs
 ```rust
-use ethers::providers::{Http, Provider, ProviderError};
-use pair_sync::{dex::Dex, dex::PoolVariant, sync};
 
 #[tokio::main]
-async fn main() -> Result<(), ProviderError> {
-    //Add rpc endpoint here:
-    let rpc_endpoint = "";
-    let provider = Provider::<Http>::try_from(rpc_endpoint).unwrap();
-
+async fn main() -> Result<(), Box<dyn Error>> {
+    //Create a new provider
+    let provider = Arc::new(Provider::<Http>::try_from("rpc_endpoint_here").unwrap());
+    
+    //Initialize a new vec of Dexes
     let mut dexes = vec![];
 
     //Add UniswapV2
@@ -45,6 +43,7 @@ async fn main() -> Result<(), ProviderError> {
 
     //Sync pairs
     let pools: Vec<Pool> = sync::sync_pairs(dexes, provider).await?;
+
 
     Ok(())
 }
