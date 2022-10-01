@@ -1,14 +1,12 @@
 use std::{
-    ops::{Shl, Shr},
+    ops::{Shr},
     str::FromStr,
     sync::Arc,
 };
 
 use crate::{abi, error::PairSyncError};
 use ethers::{
-    abi::AbiEncode,
-    prelude::ContractError,
-    providers::{JsonRpcClient, Provider, ProviderError},
+    providers::{JsonRpcClient, Provider},
     types::{H160, H256, U256},
 };
 
@@ -291,7 +289,7 @@ impl PoolVariant {
 
                     (reserve_x, reserve_y)
                 } else {
-                    (0 as u128, 0 as u128)
+                    (0_u128, 0_u128)
                 };
 
                 Ok((reserve_0, reserve_1))
