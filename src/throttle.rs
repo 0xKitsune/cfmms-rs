@@ -30,21 +30,20 @@ impl RequestThrottle {
     }
 
     pub fn increment_or_sleep(&mut self, inc: usize) {
-        if self.enabled {
-            if SystemTime::now()
+        if self.enabled
+            && SystemTime::now()
                 .duration_since(self.last_request_timestamp)
                 .unwrap()
                 .as_secs()
                 < 1
-            {
-                if self.requests_per_second == self.requests_per_second_limit {
-                    sleep(Duration::from_secs(1));
-                    self.requests_per_second = 0;
-                    self.last_request_timestamp = SystemTime::now();
-                } else {
-                    self.requests_per_second += inc;
-                    self.last_request_timestamp = SystemTime::now();
-                }
+        {
+            if self.requests_per_second == self.requests_per_second_limit {
+                sleep(Duration::from_secs(1));
+                self.requests_per_second = 0;
+                self.last_request_timestamp = SystemTime::now();
+            } else {
+                self.requests_per_second += inc;
+                self.last_request_timestamp = SystemTime::now();
             }
         }
     }

@@ -121,9 +121,7 @@ impl Pool {
         provider: Arc<Provider<P>>,
     ) -> Result<(u128, u128), PairSyncError<P>>
 where {
-        self.pool_variant
-            .get_reserves(self.token_a, self.token_b, self.address, provider)
-            .await
+        self.pool_variant.get_reserves(self.address, provider).await
     }
 
     pub async fn update_reserves<P: JsonRpcClient>(
@@ -132,7 +130,7 @@ where {
     ) -> Result<(), PairSyncError<P>> {
         let (reserve0, reserve1) = self
             .pool_variant
-            .get_reserves(self.token_a, self.token_b, self.address, provider)
+            .get_reserves(self.address, provider)
             .await?;
 
         self.reserve_0 = reserve0;
@@ -258,8 +256,6 @@ impl PoolVariant {
 
     pub async fn get_reserves<P: JsonRpcClient>(
         &self,
-        token_a: H160,
-        token_b: H160,
         pair_address: H160,
         provider: Arc<Provider<P>>,
     ) -> Result<(u128, u128), PairSyncError<P>> {
