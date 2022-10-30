@@ -132,6 +132,7 @@ async fn get_all_pools<P: 'static + JsonRpcClient>(
                         .topic0(ValueOrArray::Value(
                             dex.pool_variant.pool_created_event_signature(),
                         ))
+                        .address(dex.factory_address)
                         .from_block(BlockNumber::Number(U64([from_block])))
                         .to_block(BlockNumber::Number(U64([to_block]))),
                 )
