@@ -164,56 +164,51 @@ where {
     {
         let (reserve_0, reserve_1) = self.get_reserves(provider.clone()).await?;
 
-        let reserve_0 = (reserve_0 * 10u128.pow(self.token_a_decimals.into())) as f64;
-        let reserve_1 = (reserve_1 * 10u128.pow(self.token_b_decimals.into())) as f64;
-
         match self.pool_variant {
             PoolVariant::UniswapV2 => {
                 if self.a_to_b {
+                    let reserve_0 = reserve_0 as f64 / 10f64.powf(self.token_a_decimals.into());
+                    let reserve_1 = reserve_1 as f64 / 10f64.powf(self.token_b_decimals.into());
+
                     if a_per_b {
                         Ok(reserve_0 / reserve_1)
                     } else {
                         Ok(reserve_1 / reserve_0)
                     }
-                } else if a_per_b {
-                    Ok(reserve_1 / reserve_0)
                 } else {
-                    Ok(reserve_0 / reserve_1)
+                    let reserve_0 = reserve_0 as f64 / 10f64.powf(self.token_b_decimals.into());
+                    let reserve_1 = reserve_1 as f64 / 10f64.powf(self.token_a_decimals.into());
+
+                    if a_per_b {
+                        Ok(reserve_1 / reserve_0)
+                    } else {
+                        Ok(reserve_0 / reserve_1)
+                    }
                 }
             }
 
             PoolVariant::UniswapV3 => {
-                //TODO: double check this
                 if self.a_to_b {
+                    let reserve_0 = reserve_0 as f64 / 10f64.powf(self.token_a_decimals.into());
+                    let reserve_1 = reserve_1 as f64 / 10f64.powf(self.token_b_decimals.into());
+
                     if a_per_b {
                         Ok(reserve_0 / reserve_1)
                     } else {
                         Ok(reserve_1 / reserve_0)
                     }
-                } else if a_per_b {
-                    Ok(reserve_1 / reserve_0)
                 } else {
-                    Ok(reserve_0 / reserve_1)
+                    let reserve_0 = reserve_0 as f64 / 10f64.powf(self.token_b_decimals.into());
+                    let reserve_1 = reserve_1 as f64 / 10f64.powf(self.token_a_decimals.into());
+
+                    if a_per_b {
+                        Ok(reserve_1 / reserve_0)
+                    } else {
+                        Ok(reserve_0 / reserve_1)
+                    }
                 }
             }
         }
-    }
-
-    pub async fn update_token_a<P: 'static + JsonRpcClient>(
-        &mut self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<(), PairSyncError<P>> {
-        self.token_a_decimals = abi::IErc20::new(self.token_a, provider.clone())
-            .decimals()
-            .call()
-            .await?;
-
-        self.token_b_decimals = abi::IErc20::new(self.token_a, provider)
-            .decimals()
-            .call()
-            .await?;
-
-        Ok(())
     }
 
     pub async fn update_token_decimals<P: 'static + JsonRpcClient>(
@@ -225,7 +220,7 @@ where {
             .call()
             .await?;
 
-        self.token_b_decimals = abi::IErc20::new(self.token_a, provider)
+        self.token_b_decimals = abi::IErc20::new(self.token_b, provider)
             .decimals()
             .call()
             .await?;

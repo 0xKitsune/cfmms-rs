@@ -157,9 +157,9 @@ pub async fn filter_pools_below_usd_threshold_with_throttle<P: 'static + JsonRpc
             };
 
             //Get weth value of token a in pool
-            let token_a_weth_value_in_pool =
-                ((token_a_reserves * 10u128.pow(pool.token_a_decimals.into())) as f64)
-                    / token_a_price_per_weth;
+            let token_a_weth_value_in_pool = token_a_reserves as f64
+                / 10f64.powf(pool.token_a_decimals.into())
+                / token_a_price_per_weth;
 
             //Calculate token_a usd value
             let token_a_usd_value_in_pool = token_a_weth_value_in_pool * usd_price_per_weth;
@@ -192,9 +192,9 @@ pub async fn filter_pools_below_usd_threshold_with_throttle<P: 'static + JsonRpc
             };
 
             //Get weth value of token a in pool
-            let token_b_weth_value_in_pool =
-                ((token_b_reserves * 10u128.pow(pool.token_b_decimals.into())) as f64)
-                    / token_b_price_per_weth;
+            let token_b_weth_value_in_pool = token_b_reserves as f64
+                * 10f64.powf(pool.token_b_decimals.into())
+                / token_b_price_per_weth;
 
             //Calculate token_b usd value
             let token_b_usd_value_in_pool = token_b_weth_value_in_pool * usd_price_per_weth;
@@ -360,9 +360,9 @@ pub async fn filter_pools_below_weth_threshold_with_throttle<P: 'static + JsonRp
             };
 
             //Get weth value of token a in pool
-            let token_a_weth_value_in_pool =
-                ((token_a_reserves * 10u128.pow(pool.token_a_decimals.into())) as f64)
-                    / token_a_price_per_weth;
+            let token_a_weth_value_in_pool = token_a_reserves as f64
+                / 10f64.powf(pool.token_a_decimals.into())
+                / token_a_price_per_weth;
 
             let token_b_price_per_weth = token_weth_prices
                 .lock()
@@ -392,9 +392,9 @@ pub async fn filter_pools_below_weth_threshold_with_throttle<P: 'static + JsonRp
             };
 
             //Get weth value of token a in pool
-            let token_b_weth_value_in_pool =
-                ((token_b_reserves * 10u128.pow(pool.token_b_decimals.into())) as f64)
-                    / token_b_price_per_weth;
+            let token_b_weth_value_in_pool = token_b_reserves as f64
+                / 10f64.powf(pool.token_b_decimals.into())
+                / token_b_price_per_weth;
 
             //Compare the sum of token_a and token_b usd value against the specified threshold
             let total_weth_value_in_pool = token_a_weth_value_in_pool + token_b_weth_value_in_pool;
