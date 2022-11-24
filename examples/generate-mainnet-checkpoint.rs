@@ -6,8 +6,8 @@ use ethers::{
 };
 
 use pair_sync::{
+    checkpoint::generate_checkpoint,
     dex::{Dex, DexVariant},
-    sync,
 };
 
 #[tokio::main]
@@ -20,12 +20,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     //Add UniswapV2
     dexes.push(Dex::new(
-        //Specify the factory address
         H160::from_str("0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f").unwrap(),
-        //Specify the dex variant
         DexVariant::UniswapV2,
-        //Specify the factory contract's creation block number
-        2638438,
+        10000835,
     ));
 
     //Add Sushiswap
@@ -42,8 +39,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         12369621,
     ));
 
-    //Sync pairs
-    sync::sync_pairs(dexes, provider, false).await?;
+    //Sync pools and generate checkpoint
+    generate_checkpoint(dexes, provider, String::from("pool_sync_checkpoint")).await?;
 
     Ok(())
 }

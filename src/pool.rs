@@ -1,13 +1,84 @@
-use std::{ops::Shr, str::FromStr, sync::Arc};
-
-use crate::{abi, error::PairSyncError};
-use ethers::{
-    providers::{JsonRpcClient, Provider},
-    types::{H160, H256, U256},
+use std::{
+    ops::{Div, Mul},
+    sync::Arc,
 };
 
-#[derive(Debug)]
-pub struct Pool {
+use crate::{abi, dex::DexVariant, error::PairSyncError};
+use ethers::{
+    providers::{JsonRpcClient, Provider},
+    types::{H160, U256},
+};
+use num_bigfloat::BigFloat;
+
+//To add a new pool variant, add an enum that holds the new pool variant struct
+//Each struct should have the following functions (as well as any helper functions to get reserves, get tokens, ect):
+// - new_from_address
+// - calculate price (base_token) -> f64
+//This may get updated/changed as more pool variants get added
+
+#[derive(Clone, Copy)]
+pub enum Pool {
+    UniswapV2(UniswapV2Pool),
+    UniswapV3(UniswapV3Pool),
+}
+
+impl Pool {
+    //Creates a new pool with all pool data populated from the pair address.
+    pub async fn new_from_address<P: 'static + JsonRpcClient>(
+        pair_address: H160,
+        dex_variant: DexVariant,
+        provider: Arc<Provider<P>>,
+    ) -> Result<Self, PairSyncError<P>> {
+        match dex_variant {
+            DexVariant::UniswapV2 => Ok(Pool::UniswapV2(
+                UniswapV2Pool::new_from_address(pair_address, provider).await?,
+            )),
+
+            DexVariant::UniswapV3 => Ok(Pool::UniswapV3(
+                UniswapV3Pool::new_from_address(pair_address, provider).await?,
+            )),
+        }
+    }
+
+    pub async fn sync_pool<P: 'static + JsonRpcClient>(
+        &mut self,
+        provider: Arc<Provider<P>>,
+    ) -> Result<(), PairSyncError<P>> {
+        match self {
+            Pool::UniswapV2(pool) => pool.sync_pool(provider).await,
+            Pool::UniswapV3(pool) => pool.sync_pool(provider).await,
+        }
+    }
+
+    //Get price of base token per pair token
+    pub fn calculate_price(&self, base_token: H160) -> f64 {
+        match self {
+            Pool::UniswapV2(pool) => pool.calculate_price(base_token),
+            Pool::UniswapV3(pool) => pool.calculate_price(base_token),
+        }
+    }
+
+    pub async fn get_pool_data<P: 'static + JsonRpcClient>(
+        &mut self,
+        provider: Arc<Provider<P>>,
+    ) -> Result<(), PairSyncError<P>> {
+        match self {
+            Pool::UniswapV2(pool) => pool.get_pool_data(provider).await?,
+            Pool::UniswapV3(pool) => pool.get_pool_data(provider).await?,
+        }
+        Ok(())
+    }
+
+    pub fn address(&self) -> H160 {
+        match self {
+            Pool::UniswapV2(pool) => pool.address(),
+            Pool::UniswapV3(pool) => pool.address(),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct UniswapV2Pool {
     pub address: H160,
     pub token_a: H160,
     pub token_a_decimals: u8,
@@ -17,16 +88,9 @@ pub struct Pool {
     pub reserve_0: u128,
     pub reserve_1: u128,
     pub fee: u32,
-    pub pool_variant: PoolVariant,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum PoolVariant {
-    UniswapV2,
-    UniswapV3,
-}
-
-impl Pool {
+impl UniswapV2Pool {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         address: H160,
@@ -38,9 +102,8 @@ impl Pool {
         reserve_0: u128,
         reserve_1: u128,
         fee: u32,
-        pool_variant: PoolVariant,
-    ) -> Pool {
-        Pool {
+    ) -> UniswapV2Pool {
+        UniswapV2Pool {
             address,
             token_a,
             token_a_decimals,
@@ -50,32 +113,15 @@ impl Pool {
             reserve_0,
             reserve_1,
             fee,
-            pool_variant,
         }
     }
 
-    pub fn empty_pool(pool_variant: PoolVariant) -> Pool {
-        Pool {
-            address: H160::zero(),
-            token_a: H160::zero(),
-            token_a_decimals: 0,
-            token_b: H160::zero(),
-            token_b_decimals: 0,
-            a_to_b: false,
-            reserve_0: 0,
-            reserve_1: 0,
-            fee: 0,
-            pool_variant,
-        }
-    }
-
-    pub async fn new_pool_from_address<P: 'static + JsonRpcClient>(
+    //Creates a new instance of the pool from the pair address, and syncs the pool data
+    pub async fn new_from_address<P: 'static + JsonRpcClient>(
         pair_address: H160,
-        fee: u32,
-        pool_variant: PoolVariant,
         provider: Arc<Provider<P>>,
-    ) -> Result<Pool, PairSyncError<P>> {
-        let mut pool = Pool {
+    ) -> Result<Self, PairSyncError<P>> {
+        let mut pool = UniswapV2Pool {
             address: pair_address,
             token_a: H160::zero(),
             token_a_decimals: 0,
@@ -84,208 +130,76 @@ impl Pool {
             a_to_b: false,
             reserve_0: 0,
             reserve_1: 0,
-            fee,
-            pool_variant,
+            fee: 300,
         };
 
-        pool.token_a = pool_variant
-            .get_token_0(pair_address, provider.clone())
-            .await?;
-        pool.token_b = pool_variant
-            .get_token_1(pair_address, provider.clone())
-            .await?;
+        pool.token_a = pool.get_token_0(pair_address, provider.clone()).await?;
+        pool.token_b = pool.get_token_1(pair_address, provider.clone()).await?;
+        pool.a_to_b = true;
 
-        pool.update_token_decimals(provider.clone()).await?;
-        pool.update_a_to_b(provider.clone()).await?;
-        pool.update_reserves(provider).await?;
+        (pool.token_a_decimals, pool.token_b_decimals) =
+            pool.get_token_decimals(provider.clone()).await?;
+
+        (pool.reserve_0, pool.reserve_1) = pool.get_reserves(provider).await?;
 
         Ok(pool)
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.token_a == H160::zero()
-    }
+    pub async fn get_pool_data<P: 'static + JsonRpcClient>(
+        &mut self,
+        provider: Arc<Provider<P>>,
+    ) -> Result<(), PairSyncError<P>> {
+        self.token_a = self.get_token_0(self.address, provider.clone()).await?;
+        self.token_b = self.get_token_1(self.address, provider.clone()).await?;
+        self.a_to_b = true;
 
-    pub fn reserves_are_zero(&self) -> bool {
-        self.reserve_0 == 0 && self.reserve_1 == 0
+        (self.token_a_decimals, self.token_b_decimals) =
+            self.get_token_decimals(provider.clone()).await?;
+
+        Ok(())
     }
 
     pub async fn get_reserves<P: JsonRpcClient>(
         &self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<(u128, u128), PairSyncError<P>>
-where {
-        self.pool_variant.get_reserves(self.address, provider).await
-    }
-
-    pub async fn update_reserves<P: JsonRpcClient>(
-        &mut self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<(), PairSyncError<P>> {
-        let (reserve0, reserve1) = self
-            .pool_variant
-            .get_reserves(self.address, provider)
-            .await?;
-
-        self.reserve_0 = reserve0;
-        self.reserve_1 = reserve1;
-
-        Ok(())
-    }
-
-    pub async fn get_token_0<P: JsonRpcClient>(
-        &self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<H160, PairSyncError<P>> {
-        self.pool_variant.get_token_0(self.address, provider).await
-    }
-
-    pub async fn update_a_to_b<P: JsonRpcClient>(
-        &mut self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<(), PairSyncError<P>> {
-        let token0 = self
-            .pool_variant
-            .get_token_0(self.address, provider)
-            .await?;
-
-        self.a_to_b = token0 == self.token_a;
-
-        Ok(())
-    }
-
-    pub async fn get_price<P>(
-        &self,
-        a_per_b: bool,
-        provider: Arc<Provider<P>>,
-    ) -> Result<f64, PairSyncError<P>>
-    where
-        P: JsonRpcClient,
-    {
-        let (reserve_0, reserve_1) = self.get_reserves(provider.clone()).await?;
-
-        match self.pool_variant {
-            PoolVariant::UniswapV2 => {
-                if self.a_to_b {
-                    let reserve_0 = reserve_0 as f64 / 10f64.powf(self.token_a_decimals.into());
-                    let reserve_1 = reserve_1 as f64 / 10f64.powf(self.token_b_decimals.into());
-
-                    if a_per_b {
-                        Ok(reserve_0 / reserve_1)
-                    } else {
-                        Ok(reserve_1 / reserve_0)
-                    }
-                } else {
-                    let reserve_0 = reserve_0 as f64 / 10f64.powf(self.token_b_decimals.into());
-                    let reserve_1 = reserve_1 as f64 / 10f64.powf(self.token_a_decimals.into());
-
-                    if a_per_b {
-                        Ok(reserve_1 / reserve_0)
-                    } else {
-                        Ok(reserve_0 / reserve_1)
-                    }
-                }
-            }
-
-            PoolVariant::UniswapV3 => {
-                if self.a_to_b {
-                    let reserve_0 = reserve_0 as f64 / 10f64.powf(self.token_a_decimals.into());
-                    let reserve_1 = reserve_1 as f64 / 10f64.powf(self.token_b_decimals.into());
-
-                    if a_per_b {
-                        Ok(reserve_0 / reserve_1)
-                    } else {
-                        Ok(reserve_1 / reserve_0)
-                    }
-                } else {
-                    let reserve_0 = reserve_0 as f64 / 10f64.powf(self.token_b_decimals.into());
-                    let reserve_1 = reserve_1 as f64 / 10f64.powf(self.token_a_decimals.into());
-
-                    if a_per_b {
-                        Ok(reserve_1 / reserve_0)
-                    } else {
-                        Ok(reserve_0 / reserve_1)
-                    }
-                }
-            }
-        }
-    }
-
-    pub async fn update_token_decimals<P: 'static + JsonRpcClient>(
-        &mut self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<(), PairSyncError<P>> {
-        self.token_a_decimals = abi::IErc20::new(self.token_a, provider.clone())
-            .decimals()
-            .call()
-            .await?;
-
-        self.token_b_decimals = abi::IErc20::new(self.token_b, provider)
-            .decimals()
-            .call()
-            .await?;
-
-        Ok(())
-    }
-}
-
-impl PoolVariant {
-    pub fn pool_created_event_signature(&self) -> H256 {
-        match self {
-            PoolVariant::UniswapV2 => {
-                H256::from_str("0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9")
-                    .unwrap()
-            }
-            PoolVariant::UniswapV3 => {
-                H256::from_str("0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118")
-                    .unwrap()
-            }
-        }
-    }
-
-    pub async fn get_reserves<P: JsonRpcClient>(
-        &self,
-        pair_address: H160,
         provider: Arc<Provider<P>>,
     ) -> Result<(u128, u128), PairSyncError<P>> {
-        match self {
-            PoolVariant::UniswapV2 => {
-                //Initialize a new instance of the Pool
-                let v2_pair = abi::IUniswapV2Pair::new(pair_address, provider);
+        //Initialize a new instance of the Pool
+        let v2_pair = abi::IUniswapV2Pair::new(self.address, provider);
 
-                // Make a call to get the reserves
-                let (reserve_0, reserve_1, _) = match v2_pair.get_reserves().call().await {
-                    Ok(result) => result,
+        // Make a call to get the reserves
+        let (reserve_0, reserve_1, _) = match v2_pair.get_reserves().call().await {
+            Ok(result) => result,
 
-                    Err(contract_error) => {
-                        return Err(PairSyncError::ContractError(contract_error))
-                    }
-                };
+            Err(contract_error) => return Err(PairSyncError::ContractError(contract_error)),
+        };
 
-                Ok((reserve_0, reserve_1))
-            }
-            PoolVariant::UniswapV3 => {
-                let v3_pool = abi::IUniswapV3Pool::new(pair_address, provider.clone());
+        Ok((reserve_0, reserve_1))
+    }
 
-                let liquidity =
-                    U256::from_big_endian(&v3_pool.liquidity().call().await?.to_be_bytes());
-                let slot_0 = v3_pool.slot_0().call().await?;
+    pub async fn sync_pool<P: 'static + JsonRpcClient>(
+        &mut self,
+        provider: Arc<Provider<P>>,
+    ) -> Result<(), PairSyncError<P>> {
+        (self.reserve_0, self.reserve_1) = self.get_reserves(provider).await?;
 
-                //Sqrt price is stored as a Q64.96 so we need to shift the sqrt_price by 96 to be represented as just the integer numbers
-                let sqrt_price = slot_0.0.shr(96);
+        Ok(())
+    }
 
-                let (reserve_0, reserve_1) = if !sqrt_price.is_zero() {
-                    let reserve_x = (liquidity / sqrt_price).as_u128();
-                    let reserve_y = (liquidity * sqrt_price).as_u128();
+    pub async fn get_token_decimals<P: 'static + JsonRpcClient>(
+        &mut self,
+        provider: Arc<Provider<P>>,
+    ) -> Result<(u8, u8), PairSyncError<P>> {
+        let token_a_decimals = abi::IErc20::new(self.token_a, provider.clone())
+            .decimals()
+            .call()
+            .await?;
 
-                    (reserve_x, reserve_y)
-                } else {
-                    (0_u128, 0_u128)
-                };
+        let token_b_decimals = abi::IErc20::new(self.token_b, provider)
+            .decimals()
+            .call()
+            .await?;
 
-                Ok((reserve_0, reserve_1))
-            }
-        }
+        Ok((token_a_decimals, token_b_decimals))
     }
 
     pub async fn get_token_0<P: JsonRpcClient>(
@@ -293,22 +207,14 @@ impl PoolVariant {
         pair_address: H160,
         provider: Arc<Provider<P>>,
     ) -> Result<H160, PairSyncError<P>> {
-        match self {
-            //Can match on v2 or v3 because they both have the same interface for token0, token1
-            PoolVariant::UniswapV2 | PoolVariant::UniswapV3 => {
-                //Initialize a new instance of the Pool
-                let v2_pair = abi::IUniswapV2Pair::new(pair_address, provider);
+        let v2_pair = abi::IUniswapV2Pair::new(pair_address, provider);
 
-                // Make a call to get token0 to initialize a_to_b
-                let token0 = match v2_pair.token_0().call().await {
-                    Ok(result) => result,
-                    Err(contract_error) => {
-                        return Err(PairSyncError::ContractError(contract_error))
-                    }
-                };
-                Ok(token0)
-            }
-        }
+        let token0 = match v2_pair.token_0().call().await {
+            Ok(result) => result,
+            Err(contract_error) => return Err(PairSyncError::ContractError(contract_error)),
+        };
+
+        Ok(token0)
     }
 
     pub async fn get_token_1<P: JsonRpcClient>(
@@ -316,21 +222,269 @@ impl PoolVariant {
         pair_address: H160,
         provider: Arc<Provider<P>>,
     ) -> Result<H160, PairSyncError<P>> {
-        match self {
-            //Can match on v2 or v3 because they both have the same interface for token0, token1
-            PoolVariant::UniswapV2 | PoolVariant::UniswapV3 => {
-                //Initialize a new instance of the Pool
-                let v2_pair = abi::IUniswapV2Pair::new(pair_address, provider);
+        let v2_pair = abi::IUniswapV2Pair::new(pair_address, provider);
 
-                // Make a call to get token0 to initialize a_to_b
-                let token0 = match v2_pair.token_0().call().await {
-                    Ok(result) => result,
-                    Err(contract_error) => {
-                        return Err(PairSyncError::ContractError(contract_error))
-                    }
-                };
-                Ok(token0)
+        let token1 = match v2_pair.token_1().call().await {
+            Ok(result) => result,
+            Err(contract_error) => return Err(PairSyncError::ContractError(contract_error)),
+        };
+
+        Ok(token1)
+    }
+
+    pub fn calculate_price(&self, base_token: H160) -> f64 {
+        if self.a_to_b {
+            let reserve_0 = self.reserve_0 as f64 / 10f64.powf(self.token_a_decimals.into());
+            let reserve_1 = self.reserve_1 as f64 / 10f64.powf(self.token_b_decimals.into());
+
+            if base_token == self.token_a {
+                reserve_0 / reserve_1
+            } else {
+                reserve_1 / reserve_0
+            }
+        } else {
+            //else if b to a
+            let reserve_0 = self.reserve_0 as f64 / 10f64.powf(self.token_b_decimals.into());
+            let reserve_1 = self.reserve_1 as f64 / 10f64.powf(self.token_a_decimals.into());
+
+            if base_token == self.token_a {
+                reserve_1 / reserve_0
+            } else {
+                reserve_0 / reserve_1
             }
         }
+    }
+
+    pub fn address(&self) -> H160 {
+        self.address
+    }
+}
+#[derive(Clone, Copy)]
+pub struct UniswapV3Pool {
+    pub address: H160,
+    pub token_a: H160,
+    pub token_a_decimals: u8,
+    pub token_b: H160,
+    pub token_b_decimals: u8,
+    pub a_to_b: bool,
+    pub liquidity: u128,
+    pub sqrt_price: U256,
+    pub fee: u32,
+}
+
+impl UniswapV3Pool {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        address: H160,
+        token_a: H160,
+        token_a_decimals: u8,
+        token_b: H160,
+        token_b_decimals: u8,
+        a_to_b: bool,
+        liquidity: u128,
+        sqrt_price: U256,
+        fee: u32,
+    ) -> UniswapV3Pool {
+        UniswapV3Pool {
+            address,
+            token_a,
+            token_a_decimals,
+            token_b,
+            token_b_decimals,
+            a_to_b,
+            liquidity,
+            sqrt_price,
+            fee,
+        }
+    }
+
+    //Creates a new instance of the pool from the pair address
+    pub async fn new_from_address<P: 'static + JsonRpcClient>(
+        pair_address: H160,
+        provider: Arc<Provider<P>>,
+    ) -> Result<Self, PairSyncError<P>> {
+        let mut pool = UniswapV3Pool {
+            address: pair_address,
+            token_a: H160::zero(),
+            token_a_decimals: 0,
+            token_b: H160::zero(),
+            token_b_decimals: 0,
+            a_to_b: false,
+            liquidity: 0,
+            sqrt_price: U256::zero(),
+            fee: 300,
+        };
+
+        pool.token_a = pool.get_token_0(provider.clone()).await?;
+        pool.token_b = pool.get_token_1(provider.clone()).await?;
+        pool.a_to_b = true;
+
+        pool.fee = pool.get_fee(provider.clone()).await?;
+
+        (pool.token_a_decimals, pool.token_b_decimals) =
+            pool.get_token_decimals(provider.clone()).await?;
+
+        (pool.liquidity, pool.sqrt_price) =
+            pool.get_liquidity_and_sqrt_price(provider.clone()).await?;
+
+        Ok(pool)
+    }
+
+    pub async fn get_pool_data<P: 'static + JsonRpcClient>(
+        &mut self,
+        provider: Arc<Provider<P>>,
+    ) -> Result<(), PairSyncError<P>> {
+        self.token_a = self.get_token_0(provider.clone()).await?;
+        self.token_b = self.get_token_1(provider.clone()).await?;
+        self.a_to_b = true;
+
+        (self.token_a_decimals, self.token_b_decimals) =
+            self.get_token_decimals(provider.clone()).await?;
+
+        Ok(())
+    }
+
+    pub async fn get_liquidity_and_sqrt_price<P: JsonRpcClient>(
+        &self,
+        provider: Arc<Provider<P>>,
+    ) -> Result<(u128, U256), PairSyncError<P>> {
+        let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
+
+        //Sqrt price is stored as a Q64.96 so we need to left shift the liquidity by 96 to be represented as Q64.96
+        //We cant right shift sqrt_price because it could move the value to 0, making divison by 0 to get reserve_x
+        let liquidity = &v3_pool.liquidity().call().await?;
+        let sqrt_price = v3_pool.slot_0().call().await?.0;
+
+        Ok((*liquidity, sqrt_price))
+    }
+
+    pub async fn sync_pool<P: 'static + JsonRpcClient>(
+        &mut self,
+        provider: Arc<Provider<P>>,
+    ) -> Result<(), PairSyncError<P>> {
+        (self.liquidity, self.sqrt_price) =
+            self.get_liquidity_and_sqrt_price(provider.clone()).await?;
+
+        (self.liquidity, self.sqrt_price) = self.get_liquidity_and_sqrt_price(provider).await?;
+
+        Ok(())
+    }
+
+    pub async fn get_token_decimals<P: 'static + JsonRpcClient>(
+        &mut self,
+        provider: Arc<Provider<P>>,
+    ) -> Result<(u8, u8), PairSyncError<P>> {
+        let token_a_decimals = abi::IErc20::new(self.token_a, provider.clone())
+            .decimals()
+            .call()
+            .await?;
+
+        let token_b_decimals = abi::IErc20::new(self.token_b, provider)
+            .decimals()
+            .call()
+            .await?;
+
+        Ok((token_a_decimals, token_b_decimals))
+    }
+
+    pub async fn get_fee<P: 'static + JsonRpcClient>(
+        &mut self,
+        provider: Arc<Provider<P>>,
+    ) -> Result<u32, PairSyncError<P>> {
+        let fee = abi::IUniswapV3Pool::new(self.address, provider.clone())
+            .fee()
+            .call()
+            .await?;
+
+        Ok(fee)
+    }
+
+    pub async fn get_token_0<P: JsonRpcClient>(
+        &self,
+        provider: Arc<Provider<P>>,
+    ) -> Result<H160, PairSyncError<P>> {
+        let v2_pair = abi::IUniswapV2Pair::new(self.address, provider);
+
+        let token0 = match v2_pair.token_0().call().await {
+            Ok(result) => result,
+            Err(contract_error) => return Err(PairSyncError::ContractError(contract_error)),
+        };
+
+        Ok(token0)
+    }
+
+    pub async fn get_token_1<P: JsonRpcClient>(
+        &self,
+        provider: Arc<Provider<P>>,
+    ) -> Result<H160, PairSyncError<P>> {
+        let v2_pair = abi::IUniswapV2Pair::new(self.address, provider);
+
+        let token1 = match v2_pair.token_1().call().await {
+            Ok(result) => result,
+            Err(contract_error) => return Err(PairSyncError::ContractError(contract_error)),
+        };
+
+        Ok(token1)
+    }
+
+    pub fn calculate_virtual_reserves(&self) -> (u128, u128) {
+        let price = BigFloat::from_u128(
+            ((self.sqrt_price.overflowing_mul(self.sqrt_price).0) >> 128).as_u128(),
+        )
+        .div(&BigFloat::from(2f64.powf(64.0)))
+        .mul(BigFloat::from_f64(10f64.powf(
+            (self.token_a_decimals as i8 - self.token_b_decimals as i8) as f64,
+        )));
+
+        let sqrt_price = price.sqrt();
+        let liquidity = BigFloat::from_u128(self.liquidity);
+
+        //Sqrt price is stored as a Q64.96 so we need to left shift the liquidity by 96 to be represented as Q64.96
+        //We cant right shift sqrt_price because it could move the value to 0, making divison by 0 to get reserve_x
+        let liquidity = liquidity;
+
+        let (reserve_0, reserve_1) = if !sqrt_price.is_zero() {
+            let reserve_x = liquidity.div(sqrt_price);
+            let reserve_y = liquidity.mul(sqrt_price);
+
+            (reserve_x, reserve_y)
+        } else {
+            (BigFloat::from(0), BigFloat::from(0))
+        };
+
+        (
+            reserve_0
+                .to_u128()
+                .expect("Could not convert reserve_0 to uin128"),
+            reserve_1
+                .to_u128()
+                .expect("Could not convert reserve_1 to uin128"),
+        )
+    }
+
+    pub fn calculate_price(&self, base_token: H160) -> f64 {
+        let price = BigFloat::from_u128(
+            ((self.sqrt_price.overflowing_mul(self.sqrt_price).0) >> 128).as_u128(),
+        )
+        .div(&BigFloat::from(2f64.powf(64.0)))
+        .mul(BigFloat::from_f64(10f64.powf(
+            (self.token_a_decimals as i8 - self.token_b_decimals as i8) as f64,
+        )));
+
+        if self.a_to_b {
+            if self.token_a == base_token {
+                price.to_f64()
+            } else {
+                1.0 / price.to_f64()
+            }
+        } else if self.token_a == base_token {
+            1.0 / price.to_f64()
+        } else {
+            price.to_f64()
+        }
+    }
+
+    pub fn address(&self) -> H160 {
+        self.address
     }
 }
