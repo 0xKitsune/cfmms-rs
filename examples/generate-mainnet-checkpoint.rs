@@ -5,7 +5,7 @@ use ethers::{
     types::H160,
 };
 
-use pool_sync::{
+use pair_sync::{
     checkpoint::generate_checkpoint,
     dex::{Dex, DexVariant},
 };

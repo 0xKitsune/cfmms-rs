@@ -2,7 +2,7 @@ use std::{error::Error, sync::Arc};
 
 use ethers::providers::{Http, Provider};
 
-use pool_sync::checkpoint::sync_pools_from_checkpoint;
+use pair_sync::checkpoint::sync_pools_from_checkpoint;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
