@@ -1,4 +1,5 @@
 mod abi;
+pub mod checkpoint;
 pub mod dex;
 pub mod error;
 pub mod filter;

@@ -5,7 +5,10 @@ use ethers::{
     types::H160,
 };
 
-use pair_sync::{dex::Dex, pool::PoolVariant, sync};
+use pool_sync::{
+    dex::{Dex, DexVariant},
+    sync,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -18,10 +21,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     //Add UniswapV3
     dexes.push(Dex::new(
         H160::from_str("0x1F98431c8aD98523631AE4a59f267346ea31F984").unwrap(),
-        PoolVariant::UniswapV3,
+        DexVariant::UniswapV3,
         12369621,
     ));
     //Sync pairs
-    sync::sync_pairs_with_throttle(dexes, provider, 3).await?;
+    sync::sync_pairs_with_throttle(dexes, provider, 5, false).await?;
     Ok(())
 }

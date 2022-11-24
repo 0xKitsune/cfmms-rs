@@ -1,25 +1,20 @@
-use std::{str::FromStr, sync::Arc, time::Duration};
+use std::{error::Error, str::FromStr, sync::Arc};
 
 use ethers::{
-    providers::{Ipc, Provider},
+    providers::{Http, Provider},
     types::H160,
 };
+
 use pool_sync::{
+    checkpoint::generate_checkpoint,
     dex::{Dex, DexVariant},
-    sync,
 };
-use std::error::Error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    //Add ipc endpoint here:
-    let ipc_endpoint = "";
-
-    let provider: Arc<Provider<Ipc>> = Arc::new(
-        Provider::connect_ipc(ipc_endpoint)
-            .await?
-            .interval(Duration::from_millis(2000)),
-    );
+    //Add rpc endpoint here:
+    let rpc_endpoint = "";
+    let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
     let mut dexes = vec![];
 
@@ -27,7 +22,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     dexes.push(Dex::new(
         H160::from_str("0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f").unwrap(),
         DexVariant::UniswapV2,
-        2638438,
+        10000835,
     ));
 
     //Add Sushiswap
@@ -44,8 +39,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         12369621,
     ));
 
-    //Sync pairs
-    sync::sync_pairs(dexes, provider, false).await?;
+    //Sync pools and generate checkpoint
+    generate_checkpoint(dexes, provider, String::from("pool_sync_checkpoint")).await?;
 
     Ok(())
 }
