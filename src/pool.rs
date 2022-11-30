@@ -260,7 +260,7 @@ impl UniswapV2Pool {
         self.address
     }
 
-    pub async fn simulate_swap(&self, token_in: H160, amount_in: u128) -> U256 {
+    pub fn simulate_swap(&self, token_in: H160, amount_in: u128) -> U256 {
         let (reserve_0, reserve_1, common_decimals) = convert_to_common_decimals(
             self.reserve_0,
             self.token_a_decimals,
