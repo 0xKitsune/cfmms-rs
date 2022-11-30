@@ -1,4 +1,5 @@
 use std::{
+    cmp::Ordering,
     ops::{Div, Mul},
     sync::Arc,
 };
@@ -258,6 +259,52 @@ impl UniswapV2Pool {
     pub fn address(&self) -> H160 {
         self.address
     }
+
+    pub async fn simulate_swap(&self, token_in: H160, amount_in: u128) -> U256 {
+        let (reserve_0, reserve_1, common_decimals) = convert_to_common_decimals(
+            self.reserve_0,
+            self.token_a_decimals,
+            self.reserve_1,
+            self.token_b_decimals,
+        );
+
+        //Apply fee on amount in
+        //Fee will always be .3% for Univ2
+        let amount_in = amount_in.mul(997).div(1000);
+
+        // x * y = k
+        // (x + ∆x) * (y - ∆y) = k
+        // y - (k/(x + ∆x)) = ∆y
+        let k = reserve_0 * reserve_1;
+
+        if self.token_a == token_in {
+            if self.a_to_b {
+                U256::from(convert_to_decimals(
+                    reserve_1 - (k * (self.reserve_0 + amount_in)),
+                    common_decimals,
+                    self.token_b_decimals,
+                ))
+            } else {
+                U256::from(convert_to_decimals(
+                    reserve_0 - (k * (self.reserve_1 + amount_in)),
+                    common_decimals,
+                    self.token_a_decimals,
+                ))
+            }
+        } else if self.a_to_b {
+            U256::from(convert_to_decimals(
+                reserve_0 - (k * (self.reserve_1 + amount_in)),
+                common_decimals,
+                self.token_a_decimals,
+            ))
+        } else {
+            U256::from(convert_to_decimals(
+                reserve_1 - (k * (self.reserve_0 + amount_in)),
+                common_decimals,
+                self.token_b_decimals,
+            ))
+        }
+    }
 }
 #[derive(Clone, Copy)]
 pub struct UniswapV3Pool {
@@ -486,5 +533,90 @@ impl UniswapV3Pool {
 
     pub fn address(&self) -> H160 {
         self.address
+    }
+
+    pub async fn simulate_swap<P: 'static + JsonRpcClient>(
+        &self,
+        token_in: H160,
+        amount_in: u128,
+        v3_quoter_address: H160,
+        provider: Arc<Provider<P>>,
+    ) -> Result<U256, PairSyncError<P>> {
+        let v3_quoter = abi::IUniswapV3Quoter::new(v3_quoter_address, provider);
+
+        if self.token_a == token_in {
+            if self.a_to_b {
+                Ok(v3_quoter
+                    .quote_exact_input_single(
+                        self.token_a,
+                        self.token_b,
+                        self.fee,
+                        U256::from(amount_in),
+                        U256::zero(),
+                    )
+                    .call()
+                    .await?)
+            } else {
+                Ok(v3_quoter
+                    .quote_exact_input_single(
+                        self.token_b,
+                        self.token_a,
+                        self.fee,
+                        U256::from(amount_in),
+                        U256::zero(),
+                    )
+                    .call()
+                    .await?)
+            }
+        } else if self.a_to_b {
+            Ok(v3_quoter
+                .quote_exact_input_single(
+                    self.token_b,
+                    self.token_a,
+                    self.fee,
+                    U256::from(amount_in),
+                    U256::zero(),
+                )
+                .call()
+                .await?)
+        } else {
+            Ok(v3_quoter
+                .quote_exact_input_single(
+                    self.token_a,
+                    self.token_b,
+                    self.fee,
+                    U256::from(amount_in),
+                    U256::zero(),
+                )
+                .call()
+                .await?)
+        }
+    }
+}
+
+fn convert_to_decimals(amount: u128, decimals: u8, target_decimals: u8) -> u128 {
+    match target_decimals.cmp(&decimals) {
+        Ordering::Less => amount * 10u128.pow((decimals - target_decimals) as u32),
+        Ordering::Greater => amount * 10u128.pow((target_decimals - decimals) as u32),
+        Ordering::Equal => amount,
+    }
+}
+
+fn convert_to_common_decimals(
+    amount_a: u128,
+    a_decimals: u8,
+    amount_b: u128,
+    b_decimals: u8,
+) -> (u128, u128, u8) {
+    match a_decimals.cmp(&b_decimals) {
+        Ordering::Less => {
+            let amount_a = convert_to_decimals(amount_a, a_decimals, b_decimals);
+            (amount_a, amount_b, b_decimals)
+        }
+        Ordering::Greater => {
+            let amount_b = convert_to_decimals(amount_b, b_decimals, a_decimals);
+            (amount_a, amount_b, a_decimals)
+        }
+        Ordering::Equal => (amount_a, amount_b, a_decimals),
     }
 }
