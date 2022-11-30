@@ -1,4 +1,5 @@
 use std::{
+    cmp::Ordering,
     ops::{Div, Mul},
     sync::Arc,
 };
@@ -6,7 +7,7 @@ use std::{
 use crate::{abi, dex::DexVariant, error::PairSyncError};
 use ethers::{
     providers::{JsonRpcClient, Provider},
-    types::{H160, H256, U256},
+    types::{H160, U256},
 };
 use num_bigfloat::BigFloat;
 
@@ -270,7 +271,6 @@ impl UniswapV2Pool {
         //Apply fee on amount in
         //Fee will always be .3% for Univ2
         let amount_in = amount_in.mul(997).div(1000);
-        let mut amount_out = 0_u128;
 
         // x * y = k
         // (x + ∆x) * (y - ∆y) = k
@@ -279,35 +279,31 @@ impl UniswapV2Pool {
 
         if self.token_a == token_in {
             if self.a_to_b {
-                amount_out = convert_to_decimals(
+                U256::from(convert_to_decimals(
                     reserve_1 - (k * (self.reserve_0 + amount_in)),
                     common_decimals,
                     self.token_b_decimals,
-                );
+                ))
             } else {
-                amount_out = convert_to_decimals(
+                U256::from(convert_to_decimals(
                     reserve_0 - (k * (self.reserve_1 + amount_in)),
                     common_decimals,
                     self.token_a_decimals,
-                );
+                ))
             }
+        } else if self.a_to_b {
+            U256::from(convert_to_decimals(
+                reserve_0 - (k * (self.reserve_1 + amount_in)),
+                common_decimals,
+                self.token_a_decimals,
+            ))
         } else {
-            if self.a_to_b {
-                amount_out = convert_to_decimals(
-                    reserve_0 - (k * (self.reserve_1 + amount_in)),
-                    common_decimals,
-                    self.token_a_decimals,
-                );
-            } else {
-                amount_out = convert_to_decimals(
-                    reserve_1 - (k * (self.reserve_0 + amount_in)),
-                    common_decimals,
-                    self.token_b_decimals,
-                );
-            }
+            U256::from(convert_to_decimals(
+                reserve_1 - (k * (self.reserve_0 + amount_in)),
+                common_decimals,
+                self.token_b_decimals,
+            ))
         }
-
-        U256::from(amount_out)
     }
 }
 #[derive(Clone, Copy)]
@@ -548,11 +544,9 @@ impl UniswapV3Pool {
     ) -> Result<U256, PairSyncError<P>> {
         let v3_quoter = abi::IUniswapV3Quoter::new(v3_quoter_address, provider);
 
-        let mut amount_out = U256::zero();
-
         if self.token_a == token_in {
             if self.a_to_b {
-                amount_out = v3_quoter
+                Ok(v3_quoter
                     .quote_exact_input_single(
                         self.token_a,
                         self.token_b,
@@ -561,9 +555,9 @@ impl UniswapV3Pool {
                         U256::zero(),
                     )
                     .call()
-                    .await?;
+                    .await?)
             } else {
-                amount_out = v3_quoter
+                Ok(v3_quoter
                     .quote_exact_input_single(
                         self.token_b,
                         self.token_a,
@@ -572,45 +566,39 @@ impl UniswapV3Pool {
                         U256::zero(),
                     )
                     .call()
-                    .await?;
+                    .await?)
             }
+        } else if self.a_to_b {
+            Ok(v3_quoter
+                .quote_exact_input_single(
+                    self.token_b,
+                    self.token_a,
+                    self.fee,
+                    U256::from(amount_in),
+                    U256::zero(),
+                )
+                .call()
+                .await?)
         } else {
-            if self.a_to_b {
-                amount_out = v3_quoter
-                    .quote_exact_input_single(
-                        self.token_b,
-                        self.token_a,
-                        self.fee,
-                        U256::from(amount_in),
-                        U256::zero(),
-                    )
-                    .call()
-                    .await?;
-            } else {
-                amount_out = v3_quoter
-                    .quote_exact_input_single(
-                        self.token_a,
-                        self.token_b,
-                        self.fee,
-                        U256::from(amount_in),
-                        U256::zero(),
-                    )
-                    .call()
-                    .await?;
-            }
+            Ok(v3_quoter
+                .quote_exact_input_single(
+                    self.token_a,
+                    self.token_b,
+                    self.fee,
+                    U256::from(amount_in),
+                    U256::zero(),
+                )
+                .call()
+                .await?)
         }
-
-        Ok(amount_out)
     }
 }
 
 fn convert_to_decimals(amount: u128, decimals: u8, target_decimals: u8) -> u128 {
-    if target_decimals > decimals {
-        amount * 10u128.pow((target_decimals - decimals) as u32)
-    } else if target_decimals < decimals {
-        amount * 10u128.pow((decimals - target_decimals) as u32)
-    } else {
-        amount
+    match target_decimals.cmp(&decimals) {
+        Ordering::Less => amount * 10u128.pow((decimals - target_decimals) as u32),
+        Ordering::Greater => amount * 10u128.pow((target_decimals - decimals) as u32),
+        Ordering::Equal => amount,
     }
 }
 
@@ -620,13 +608,15 @@ fn convert_to_common_decimals(
     amount_b: u128,
     b_decimals: u8,
 ) -> (u128, u128, u8) {
-    if a_decimals > b_decimals {
-        let amount_b = convert_to_decimals(amount_b, b_decimals, a_decimals);
-        (amount_a, amount_b, a_decimals)
-    } else if a_decimals < b_decimals {
-        let amount_a = convert_to_decimals(amount_a, a_decimals, b_decimals);
-        (amount_a, amount_b, b_decimals)
-    } else {
-        (amount_a, amount_b, a_decimals)
+    match a_decimals.cmp(&b_decimals) {
+        Ordering::Less => {
+            let amount_a = convert_to_decimals(amount_a, a_decimals, b_decimals);
+            (amount_a, amount_b, b_decimals)
+        }
+        Ordering::Greater => {
+            let amount_b = convert_to_decimals(amount_b, b_decimals, a_decimals);
+            (amount_a, amount_b, a_decimals)
+        }
+        Ordering::Equal => (amount_a, amount_b, a_decimals),
     }
 }
