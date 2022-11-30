@@ -78,7 +78,7 @@ impl Pool {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct UniswapV2Pool {
     pub address: H160,
     pub token_a: H160,
@@ -122,18 +122,10 @@ impl UniswapV2Pool {
         pair_address: H160,
         provider: Arc<Provider<P>>,
     ) -> Result<Self, PairSyncError<P>> {
-        let mut pool = UniswapV2Pool {
-            address: pair_address,
-            token_a: H160::zero(),
-            token_a_decimals: 0,
-            token_b: H160::zero(),
-            token_b_decimals: 0,
-            a_to_b: false,
-            reserve_0: 0,
-            reserve_1: 0,
-            fee: 300,
-        };
+        let mut pool = UniswapV2Pool::default();
 
+        pool.address = pair_address;
+        pool.fee = 300;
         pool.token_a = pool.get_token_0(pair_address, provider.clone()).await?;
         pool.token_b = pool.get_token_1(pair_address, provider.clone()).await?;
         pool.a_to_b = true;
@@ -306,7 +298,7 @@ impl UniswapV2Pool {
         }
     }
 }
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct UniswapV3Pool {
     pub address: H160,
     pub token_a: H160,
@@ -350,18 +342,9 @@ impl UniswapV3Pool {
         pair_address: H160,
         provider: Arc<Provider<P>>,
     ) -> Result<Self, PairSyncError<P>> {
-        let mut pool = UniswapV3Pool {
-            address: pair_address,
-            token_a: H160::zero(),
-            token_a_decimals: 0,
-            token_b: H160::zero(),
-            token_b_decimals: 0,
-            a_to_b: false,
-            liquidity: 0,
-            sqrt_price: U256::zero(),
-            fee: 300,
-        };
+        let mut pool = UniswapV3Pool::default();
 
+        pool.address = pair_address;
         pool.token_a = pool.get_token_0(provider.clone()).await?;
         pool.token_b = pool.get_token_1(provider.clone()).await?;
         pool.a_to_b = true;
