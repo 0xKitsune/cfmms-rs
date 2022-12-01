@@ -1,8 +1,14 @@
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    ops::{BitAnd, Shr},
+    str::FromStr,
+    sync::Arc,
+};
 
 use ethers::{
+    prelude::k256::elliptic_curve::consts::U160,
     providers::{JsonRpcClient, Provider},
-    types::{H160, U256},
+    types::{H160, I256, U256},
 };
 use num_bigfloat::BigFloat;
 
@@ -294,22 +300,184 @@ impl UniswapV3Pool {
                 .await?)
         }
     }
+}
 
-    fn get_sqrt_ratio_at_tick() {}
+//Univ3 swap simulation logic
 
-    fn next_initialized_tick_within_one_word() {}
+const MIN_TICK: i32 = -887272;
+const MAX_TICK: i32 = 887272;
 
-    fn cross() {}
+impl UniswapV3Pool {
+    pub fn get_sqrt_ratio_at_tick(tick: i32) -> U256 {
+        let abs_tick = if tick < 0 {
+            let le_bytes = &mut [0u8; 32];
+            (-I256::from(tick)).to_little_endian(le_bytes);
+            U256::from_little_endian(le_bytes)
+        } else {
+            U256::from(tick)
+        };
 
-    fn compute_swap_step() {}
+        if abs_tick > U256::from(MAX_TICK) {
+            //TODO: create uniswap v3 simulation error,
+            //revert T, maybe add more descriptive errors
+        }
 
-    fn get_next_sqrt_price_from_input() {}
+        let mut ratio = if abs_tick.bitand(U256::from(0x1)) != U256::zero() {
+            U256::from("0xfffcb933bd6fad37aa2d162d1a594001")
+        } else {
+            U256::from("0x100000000000000000000000000000000")
+        };
 
-    fn get_amount_0_delta() {}
+        ratio = if !abs_tick.bitand(U256::from(0x2)).is_zero() {
+            (ratio * U256::from("0xfff97272373d413259a46990580e213a")).shr(128)
+        } else if !abs_tick.bitand(U256::from(0x4)).is_zero() {
+            (ratio * U256::from("0xfff2e50f5f656932ef12357cf3c7fdcc")).shr(128)
+        } else if !abs_tick.bitand(U256::from(0x8)).is_zero() {
+            (ratio * U256::from("0xffe5caca7e10e4e61c3624eaa0941cd0")).shr(128)
+        } else if !abs_tick.bitand(U256::from(0x10)).is_zero() {
+            (ratio * U256::from("0xffcb9843d60f6159c9db58835c926644")).shr(128)
+        } else if !abs_tick.bitand(U256::from(0x20)).is_zero() {
+            (ratio * U256::from("0xff973b41fa98c081472e6896dfb254c0")).shr(128)
+        } else if !abs_tick.bitand(U256::from(0x40)).is_zero() {
+            (ratio * U256::from("0xff2ea16466c96a3843ec78b326b52861")).shr(128)
+        } else if !abs_tick.bitand(U256::from(0x80)).is_zero() {
+            (ratio * U256::from("0xfe5dee046a99a2a811c461f1969c3053")).shr(128)
+        } else if !abs_tick.bitand(U256::from(0x100)).is_zero() {
+            (ratio * U256::from("0xfcbe86c7900a88aedcffc83b479aa3a4")).shr(128)
+        } else if !abs_tick.bitand(U256::from(0x200)).is_zero() {
+            (ratio * U256::from("0xf987a7253ac413176f2b074cf7815e54")).shr(128)
+        } else if !abs_tick.bitand(U256::from(0x400)).is_zero() {
+            (ratio * U256::from("0xf3392b0822b70005940c7a398e4b70f3")).shr(128)
+        } else if !abs_tick.bitand(U256::from(0x800)).is_zero() {
+            (ratio * U256::from("0xe7159475a2c29b7443b29c7fa6e889d9")).shr(128)
+        } else if !abs_tick.bitand(U256::from(0x1000)).is_zero() {
+            (ratio * U256::from("0xd097f3bdfd2022b8845ad8f792aa5825")).shr(128)
+        } else if !abs_tick.bitand(U256::from(0x2000)).is_zero() {
+            (ratio * U256::from("0xa9f746462d870fdf8a65dc1f90e061e5")).shr(128)
+        } else if !abs_tick.bitand(U256::from(0x4000)).is_zero() {
+            (ratio * U256::from("0x70d869a156d2a1b890bb3df62baf32f7")).shr(128)
+        } else if !abs_tick.bitand(U256::from(0x8000)).is_zero() {
+            (ratio * U256::from("0x31be135f97d08fd981231505542fcfa6")).shr(128)
+        } else if !abs_tick.bitand(U256::from(0x10000)).is_zero() {
+            (ratio * U256::from("0x9aa508b5b7a84e1c677de54f3e99bc9")).shr(128)
+        } else if !abs_tick.bitand(U256::from(0x20000)).is_zero() {
+            (ratio * U256::from("0x5d6af8dedb81196699c329225ee604")).shr(128)
+        } else if !abs_tick.bitand(U256::from(0x40000)).is_zero() {
+            (ratio * U256::from("0x2216e584f5fa1ea926041bedfe98")).shr(128)
+        } else if !abs_tick.bitand(U256::from(0x80000)).is_zero() {
+            (ratio * U256::from("0x48a170391f7dc42444e8fa2")).shr(128)
+        } else {
+            ratio
+        };
 
-    fn get_amount_1_delta() {}
+        if tick > 0 {
+            ratio = U256::MAX / ratio;
+        }
 
-    fn mul_div() {}
+        if (ratio.shr(32) + (ratio % (1 << 32))).is_zero() {
+            U256::zero()
+        } else {
+            U256::one()
+        }
+    }
 
-    fn add_delta() {}
+    //Returns next and initialized
+    fn next_initialized_tick_within_one_word(
+        tick_mapping: HashMap<i16, U256>,
+        tick: i32,
+        tick_spacing: i32,
+        lte: bool,
+    ) -> (i32, bool) {
+        //TODO: update this
+        (0, false)
+    }
+
+    fn cross(tick_mapping: HashMap<i16, U256>, tick: i32) -> i128 {
+        //TODO: update this
+        0
+    }
+
+    // //returns (
+    //         uint160 sqrtRatioNextX96,
+    //         uint256 amountIn,
+    //         uint256 amountOut,
+    //         uint256 feeAmount
+    //     )
+    fn compute_swap_step(
+        sqrt_ratio_current_x_96: U256,
+        sqrt_ratio_target_x_96: U256,
+        liquidity: u128,
+        amount_remaining: I256,
+        fee_pips: u32,
+    ) -> (U256, U256, U256, U256) {
+        //TODO: update this
+        (U256::zero(), U256::zero(), U256::zero(), U256::zero())
+    }
+
+    // returns (uint160 sqrtQX96)
+    fn get_next_sqrt_price_from_input(
+        sqrt_price: U256,
+        liquidity: u128,
+        amount_in: U256,
+        zero_for_one: bool,
+    ) -> (U256) {
+        //TODO: update this
+        U256::zero()
+    }
+
+    // returns (uint160 sqrtQX96)
+    fn get_next_sqrt_price_From_amount_0_rounding_up(
+        sqrt_price: U256,
+        liquidity: u128,
+        amount_in: U256,
+        zero_for_one: bool,
+    ) -> U256 {
+        //TODO: update this
+        U256::zero()
+    }
+
+    // returns (uint160 sqrtQX96)
+    fn get_next_sqrt_price_From_amount_1_rounding_down(
+        sqrt_price: U256,
+        liquidity: u128,
+        amount_in: U256,
+        zero_for_one: bool,
+    ) -> U256 {
+        //TODO: update this
+        U256::zero()
+    }
+
+    // returns (uint256 amount0)
+    fn get_amount_0_delta(
+        sqrt_ratio_a_x_96: U256,
+        sqrt_ratio_b_x_96: U256,
+        liquidity: u128,
+        round_up: bool,
+    ) -> U256 {
+        //TODO: update this
+        U256::zero()
+    }
+
+    // returns (uint256 amount1)
+    fn get_amount_1_delta(
+        sqrt_ratio_a_x_96: U256,
+        sqrt_ratio_b_x_96: U256,
+        liquidity: u128,
+        round_up: bool,
+    ) -> U256 {
+        //TODO: update this
+        U256::zero()
+    }
+
+    // returns (uint256 result)
+    fn mul_div(a: U256, b: U256, denominator: U256) -> U256 {
+        //TODO: update this
+        U256::zero()
+    }
+
+    // returns (uint128 z)
+    fn add_delta(x: u128, y: u128) -> u128 {
+        //TODO: update this
+        0
+    }
 }
