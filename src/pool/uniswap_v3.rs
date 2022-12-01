@@ -8,8 +8,6 @@ use num_bigfloat::BigFloat;
 
 use crate::{abi, error::PairSyncError};
 
-use super::{convert_to_common_decimals, convert_to_decimals};
-
 #[derive(Clone, Copy)]
 pub struct UniswapV3Pool {
     pub address: H160,
