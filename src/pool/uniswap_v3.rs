@@ -302,4 +302,16 @@ impl UniswapV3Pool {
     fn next_initialized_tick_within_one_word() {}
 
     fn cross() {}
+
+    fn compute_swap_step() {}
+
+    fn get_next_sqrt_price_from_input() {}
+
+    fn get_amount_0_delta() {}
+
+    fn get_amount_1_delta() {}
+
+    fn mul_div() {}
+
+    fn add_delta() {}
 }
