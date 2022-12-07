@@ -27,7 +27,8 @@ pub struct UniswapV3Pool {
     pub sqrt_price: U256,
     pub tick: i32,
     pub tick_spacing: i32,
-    pub liquidity_net: i32,
+    pub liquidity_net: i128,
+    pub initialized: bool,
     pub fee: u32,
 }
 
@@ -44,7 +45,8 @@ impl UniswapV3Pool {
         sqrt_price: U256,
         tick: i32,
         tick_spacing: i32,
-        liquidity_net: i32,
+        liquidity_net: i128,
+        initialized: bool,
         fee: u32,
     ) -> UniswapV3Pool {
         UniswapV3Pool {
@@ -59,6 +61,7 @@ impl UniswapV3Pool {
             tick,
             tick_spacing,
             liquidity_net,
+            initialized,
             fee,
         }
     }
@@ -80,6 +83,7 @@ impl UniswapV3Pool {
             tick: 0,
             tick_spacing: 0,
             liquidity_net: 0,
+            initialized: false,
             fee: 300,
         };
 
@@ -96,7 +100,9 @@ impl UniswapV3Pool {
         pool.tick = slot_0.1;
         pool.sqrt_price = slot_0.0;
 
-        pool.liquidity_net = pool.get_liquidity_net(pool.tick, provider.clone()).await?;
+        let tick_info = pool.get_tick_info(pool.tick, provider.clone()).await?;
+        pool.liquidity_net = tick_info.1;
+        pool.initialized = tick_info.7;
 
         Ok(pool)
     }
@@ -222,12 +228,20 @@ impl UniswapV3Pool {
         &self,
         tick: i32,
         provider: Arc<Provider<P>>,
-    ) -> Result<i32, PairSyncError<P>> {
+    ) -> Result<i128, PairSyncError<P>> {
         let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
-        let tick_info_bytes = v3_pool.ticks(tick).call().await?;
+        let tick_info = self.get_tick_info(tick, provider.clone()).await?;
+        Ok(tick_info.1)
+    }
 
-        Ok(0)
-        //TODO:
+    pub async fn get_initialized<P: JsonRpcClient>(
+        &self,
+        tick: i32,
+        provider: Arc<Provider<P>>,
+    ) -> Result<bool, PairSyncError<P>> {
+        let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
+        let tick_info = self.get_tick_info(tick, provider.clone()).await?;
+        Ok(tick_info.7)
     }
 
     pub async fn get_slot_0<P: JsonRpcClient>(
