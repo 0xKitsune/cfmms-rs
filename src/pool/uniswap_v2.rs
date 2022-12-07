@@ -240,7 +240,7 @@ impl UniswapV2Pool {
         }
     }
 
-    pub fn simulate_swap_mut(&self, token_in: H160, amount_in: u128) -> u128 {
+    pub fn simulate_swap_mut(&mut self, token_in: H160, amount_in: u128) -> u128 {
         let (reserve_0, reserve_1, common_decimals) = convert_to_common_decimals(
             self.reserve_0,
             self.token_a_decimals,
@@ -259,30 +259,50 @@ impl UniswapV2Pool {
 
         if self.token_a == token_in {
             if self.a_to_b {
-                convert_to_decimals(
+                let amount_out = convert_to_decimals(
                     reserve_1 - (k * (self.reserve_0 + amount_in)),
                     common_decimals,
                     self.token_b_decimals,
-                )
+                );
+
+                self.reserve_0 -= amount_in;
+                self.reserve_1 += amount_out;
+
+                amount_out
             } else {
-                convert_to_decimals(
+                let amount_out = convert_to_decimals(
                     reserve_0 - (k * (self.reserve_1 + amount_in)),
                     common_decimals,
                     self.token_a_decimals,
-                )
+                );
+
+                self.reserve_0 += amount_out;
+                self.reserve_1 -= amount_in;
+
+                amount_out
             }
         } else if self.a_to_b {
-            convert_to_decimals(
+            let amount_out = convert_to_decimals(
                 reserve_0 - (k * (self.reserve_1 + amount_in)),
                 common_decimals,
                 self.token_a_decimals,
-            )
+            );
+
+            self.reserve_0 += amount_out;
+            self.reserve_1 -= amount_in;
+
+            amount_out
         } else {
-            convert_to_decimals(
+            let amount_out = convert_to_decimals(
                 reserve_1 - (k * (self.reserve_0 + amount_in)),
                 common_decimals,
                 self.token_b_decimals,
-            )
+            );
+
+            self.reserve_0 -= amount_in;
+            self.reserve_1 += amount_out;
+
+            amount_out
         }
     }
 }

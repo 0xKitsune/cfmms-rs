@@ -79,7 +79,7 @@ impl Pool {
         }
     }
 
-    pub fn simulate_swap_mut(&self, token_in: H160, amount_in: u128) -> u128 {
+    pub fn simulate_swap_mut(&mut self, token_in: H160, amount_in: u128) -> u128 {
         match self {
             Pool::UniswapV2(pool) => pool.simulate_swap_mut(token_in, amount_in),
             Pool::UniswapV3(pool) => pool.simulate_swap_mut(token_in, amount_in),
