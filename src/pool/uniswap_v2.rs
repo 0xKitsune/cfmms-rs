@@ -194,6 +194,9 @@ impl UniswapV2Pool {
         self.address
     }
 
+    //TODO: add decode sync log data, make it an associated function as well as a method?
+    //TODO: Update pool from sync log method
+
     pub fn simulate_swap(&self, token_in: H160, amount_in: u128) -> u128 {
         let (reserve_0, reserve_1, common_decimals) = convert_to_common_decimals(
             self.reserve_0,
