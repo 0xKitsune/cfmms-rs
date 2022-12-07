@@ -24,6 +24,7 @@ pub struct UniswapV3Pool {
     pub a_to_b: bool,
     pub liquidity: u128,
     pub sqrt_price: U256,
+    pub tick_spacing: i32,
     pub fee: u32,
 }
 
@@ -38,6 +39,7 @@ impl UniswapV3Pool {
         a_to_b: bool,
         liquidity: u128,
         sqrt_price: U256,
+        tick_spacing: i32,
         fee: u32,
     ) -> UniswapV3Pool {
         UniswapV3Pool {
@@ -49,6 +51,7 @@ impl UniswapV3Pool {
             a_to_b,
             liquidity,
             sqrt_price,
+            tick_spacing,
             fee,
         }
     }
@@ -67,14 +70,15 @@ impl UniswapV3Pool {
             a_to_b: false,
             liquidity: 0,
             sqrt_price: U256::zero(),
+            tick_spacing: 0,
             fee: 300,
         };
 
         pool.token_a = pool.get_token_0(provider.clone()).await?;
         pool.token_b = pool.get_token_1(provider.clone()).await?;
         pool.a_to_b = true;
-
         pool.fee = pool.get_fee(provider.clone()).await?;
+        pool.tick_spacing = pool.get_tick_spacing(provider.clone()).await?;
 
         (pool.token_a_decimals, pool.token_b_decimals) =
             pool.get_token_decimals(provider.clone()).await?;
@@ -96,7 +100,18 @@ impl UniswapV3Pool {
         (self.token_a_decimals, self.token_b_decimals) =
             self.get_token_decimals(provider.clone()).await?;
 
+        self.fee = self.get_fee(provider.clone()).await?;
+        self.tick_spacing = self.get_tick_spacing(provider.clone()).await?;
+
         Ok(())
+    }
+
+    pub async fn get_tick_spacing<P: JsonRpcClient>(
+        &self,
+        provider: Arc<Provider<P>>,
+    ) -> Result<i32, PairSyncError<P>> {
+        let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
+        Ok(v3_pool.tick_spacing().call().await?)
     }
 
     pub async fn get_liquidity_and_sqrt_price<P: JsonRpcClient>(

@@ -28,7 +28,7 @@ abigen!(
         function liquidity() external view returns (uint128)
         function slot0() external view returns (uint160, int24, uint16, uint16, uint16, uint8, bool)
         function fee() external view returns (uint24)
-        
+        function tickSpacing() external view returns (int24)
     ]"#;
 
     IUniswapV3Quoter,

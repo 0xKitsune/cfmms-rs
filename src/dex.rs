@@ -176,6 +176,7 @@ impl Dex {
                     a_to_b: false,
                     liquidity: 0,
                     sqrt_price: U256::zero(),
+                    tick_spacing: 0,
                     fee,
                 }))
             }
