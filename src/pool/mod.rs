@@ -71,6 +71,20 @@ impl Pool {
             Pool::UniswapV3(pool) => pool.address(),
         }
     }
+
+    pub fn simulate_swap(&self, token_in: H160, amount_in: u128) -> u128 {
+        match self {
+            Pool::UniswapV2(pool) => pool.simulate_swap(token_in, amount_in),
+            Pool::UniswapV3(pool) => pool.simulate_swap(token_in, amount_in),
+        }
+    }
+
+    pub fn simulate_swap_mut(&self, token_in: H160, amount_in: u128) -> u128 {
+        match self {
+            Pool::UniswapV2(pool) => pool.simulate_swap_mut(token_in, amount_in),
+            Pool::UniswapV3(pool) => pool.simulate_swap_mut(token_in, amount_in),
+        }
+    }
 }
 
 fn convert_to_decimals(amount: u128, decimals: u8, target_decimals: u8) -> u128 {

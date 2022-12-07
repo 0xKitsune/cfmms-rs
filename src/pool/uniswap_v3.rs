@@ -243,62 +243,14 @@ impl UniswapV3Pool {
         self.address
     }
 
-    pub async fn simulate_swap<P: 'static + JsonRpcClient>(
-        &self,
-        token_in: H160,
-        amount_in: u128,
-        v3_quoter_address: H160,
-        provider: Arc<Provider<P>>,
-    ) -> Result<U256, PairSyncError<P>> {
-        let v3_quoter = abi::IUniswapV3Quoter::new(v3_quoter_address, provider);
+    pub fn simulate_swap(&self, token_in: H160, amount_in: u128) -> u128 {
+        //TODO: update this
+        0
+    }
 
-        if self.token_a == token_in {
-            if self.a_to_b {
-                Ok(v3_quoter
-                    .quote_exact_input_single(
-                        self.token_a,
-                        self.token_b,
-                        self.fee,
-                        U256::from(amount_in),
-                        U256::zero(),
-                    )
-                    .call()
-                    .await?)
-            } else {
-                Ok(v3_quoter
-                    .quote_exact_input_single(
-                        self.token_b,
-                        self.token_a,
-                        self.fee,
-                        U256::from(amount_in),
-                        U256::zero(),
-                    )
-                    .call()
-                    .await?)
-            }
-        } else if self.a_to_b {
-            Ok(v3_quoter
-                .quote_exact_input_single(
-                    self.token_b,
-                    self.token_a,
-                    self.fee,
-                    U256::from(amount_in),
-                    U256::zero(),
-                )
-                .call()
-                .await?)
-        } else {
-            Ok(v3_quoter
-                .quote_exact_input_single(
-                    self.token_a,
-                    self.token_b,
-                    self.fee,
-                    U256::from(amount_in),
-                    U256::zero(),
-                )
-                .call()
-                .await?)
-        }
+    pub fn simulate_swap_mut(&mut self, token_in: H160, amount_in: u128) -> u128 {
+        //TODO: update this
+        0
     }
 }
 
