@@ -84,7 +84,7 @@ impl UniswapV3Pool {
             tick_spacing: 0,
             liquidity_net: 0,
             initialized: false,
-            fee: 300,
+            fee: 0,
         };
 
         (pool.token_a_decimals, pool.token_b_decimals) =
