@@ -399,7 +399,7 @@ impl UniswapV3Pool {
     //TODO: add decode swap log data, make it an associated function as well as a method?
 
     //TODO: Update pool from swap log method
-
+    //Assumes that the pool is synced and populated, ie it has sqrtprice and initial tick
     pub async fn simulate_swap<P: 'static + JsonRpcClient>(
         &self,
         token_in: H160,
@@ -423,7 +423,60 @@ impl UniswapV3Pool {
             liquidity: self.liquidity,
         };
 
-        while current_state.amount_specified_remaining > 0 {}
+        
+
+        //TODO: not equals in the solidity math lib, do we want != or greater than?
+        while current_state.amount_specified_remaining > I256::zero() {
+            let mut step = StepComputations::default();
+            step.sqrt_price_start_x_96 = current_state.sqrt_price_x_96;
+
+
+
+
+
+            if step.tick_next < MIN_TICK {
+                step.tick_next = MIN_TICK;
+            } else if step.tick_next > MAX_TICK {
+                step.tick_next = MAX_TICK;
+            }
+
+            let sqrt_ratio_target_x_96 = if zero_for_one {
+                if step.sqrt_price_next_x96 < sqrt_price_limit_x_96 {
+                    sqrt_price_limit_x_96
+                } else {
+                    step.sqrt_price_next_x96
+                }
+            } else {
+                if step.sqrt_price_next_x96 > sqrt_price_limit_x_96 {
+                    sqrt_price_limit_x_96
+                } else {
+                    step.sqrt_price_next_x96
+                }
+            };
+
+            (
+                current_state.sqrt_price_x_96,
+                step.amount_in,
+                step.amount_out,
+                step.fee_amount,
+            ) = compute_swap_step(
+                current_state.sqrt_price_x_96,
+                sqrt_ratio_target_x_96,
+                current_state.liquidity,
+                current_state.amount_specified_remaining,
+                self.fee,
+            );
+
+            current_state.amount_calculated -= I256::from_raw(step.amount_out);
+            
+            if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96  { 
+                if step.initialized{
+                    let liquidity_net = 
+                }
+            }
+            
+       
+        }
 
         //TODO: update this
         Ok(0)
@@ -444,7 +497,34 @@ pub struct CurrentState {
     liquidity: u128,
 }
 
-pub struct StepComputations {}
+#[derive(Default)]
+pub struct StepComputations {
+    sqrt_price_start_x_96: U256,
+    tick_next: i32,
+    initialized: bool,
+    sqrt_price_next_x96: U256,
+    amount_in: U256,
+    amount_out: U256,
+    fee_amount: U256,
+}
 
 const MAX_SQRT_RATIO: U256 = U256::from(4295128739);
 const MIN_SQRT_RATIO: U256 = U256::from("0xFFFD8963EFD1FC6A506488495D951D5263988D26");
+const MIN_TICK: i32 = -887272;
+const MAX_TICK: i32 = 887272;
+
+
+
+
+
+pub struct Tick {
+    pub liquidity_gross: u128,
+    pub liquidity_net: i128,
+    pub fee_growth_outside_0_x_128: U256,
+    pub fee_growth_outside_1_x_128: U256,
+    pub tick_cumulative_outside: U256,
+    pub seconds_per_liquidity_outside_x_128: U256,
+    pub seconds_outside: u32,
+    pub initialized: bool,
+}
+

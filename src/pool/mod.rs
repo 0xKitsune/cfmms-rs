@@ -72,10 +72,15 @@ impl Pool {
         }
     }
 
-    pub fn simulate_swap(&self, token_in: H160, amount_in: u128) -> u128 {
+    pub async fn simulate_swap<P: 'static + JsonRpcClient>(
+        &self,
+        token_in: H160,
+        amount_in: u128,
+        provider: Arc<Provider<P>>,
+    ) -> Result<u128, PairSyncError<P>> {
         match self {
-            Pool::UniswapV2(pool) => pool.simulate_swap(token_in, amount_in),
-            Pool::UniswapV3(pool) => pool.simulate_swap(token_in, amount_in),
+            Pool::UniswapV2(pool) => Ok(pool.simulate_swap(token_in, amount_in)),
+            Pool::UniswapV3(pool) => pool.simulate_swap(token_in, amount_in, provider).await,
         }
     }
 
