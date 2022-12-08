@@ -5,6 +5,7 @@ use std::{
     sync::Arc,
 };
 
+
 use ethers::{
     abi::{decode, ParamType},
     prelude::k256::elliptic_curve::consts::{U160, U2},
@@ -12,6 +13,7 @@ use ethers::{
     types::{H160, I256, U256},
 };
 use num_bigfloat::BigFloat;
+use uniswap_v3_math::{sqrt_price_math::get_next_sqrt_price_from_input, swap_math::compute_swap_step, error::UniswapV3Error};
 
 use crate::{abi, error::PairSyncError};
 
@@ -394,6 +396,78 @@ impl UniswapV3Pool {
 
     pub fn address(&self) -> H160 {
         self.address
+    }
+
+    pub fn nearest_usable_tick(tick: i32, tick_spacing: i32) -> i32 {
+        let tick_X64 = tick.shl(64) as i128;
+        let tick_spacing_X64 = tick_spacing.shl(64) as i128;
+
+        let quot = tick_X64.shl(64).div(tick_spacing_X64).shr(64);
+        let relative_tick_position = quot* tick_spacing_X64.shr(64) as i32;
+
+        
+
+        let ZERO_POINT_5_X64 =i32::from(0x8000000000000000);
+        let nearest_usable_tick = relative_tick_position;
+
+        //If the quotient is greater than 0.5, increment the tick by 1
+        if relative_tick_position < MIN_TICK {
+            nearest_usable_tick = relative_tick_position+ tick_spacing;
+        }else if relative_tick_position > MAX_TICK {
+            nearest_usable_tick = relative_tick_position-tick_spacing;
+        }
+
+        nearest_usable_tick
+    }
+
+
+    pub async fn simulate_swap<P: 'static + JsonRpcClient>(
+        &self,
+        token_in: H160,
+        amount_in: u128,
+        provider: Arc<Provider<P>>,
+    ) -> Result<u128, PairSyncError<P>> {
+
+        let zero_for_one = token_in == self.token_a;
+
+        let sqrt_price_limit_x_96 = if zero_for_one {
+            MIN_SQRT_RATIO + 1
+        } else {
+            MAX_SQRT_RATIO - 1
+        };
+
+        
+        let current_state = CurrentState {
+            sqrt_price_x_96: self.sqrt_price,
+            amount_calculated: I256::zero(),
+            amount_specified_remaining: I256::from(amount_in),
+            tick: self.tick,
+            liquidity: self.liquidity,
+        };
+
+        
+
+        while current_state.amount_specified_remaining > 0 {
+            let mut step = StepComputations::default();
+            step.sqrt_price_start_x_96 = current_state.sqrt_price_x_96;
+            let amount_used: U256;
+            let amount_received: U256;
+
+        (step.sqrt_price_next_x96, 
+            amount_used, amount_received, 
+            step.fee_amount ) = 
+            
+        compute_swap_step(current_state.sqrt_price_x_96, 
+            sqrt_price_limit_x_96, 
+            self.liquidity, current_state.amount_specified_remaining, 
+            self.fee)?;
+
+
+
+
+        }
+
+
     }
 
     //TODO: add decode swap log data, make it an associated function as well as a method?
