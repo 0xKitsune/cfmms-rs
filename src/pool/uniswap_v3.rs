@@ -408,11 +408,22 @@ impl UniswapV3Pool {
     ) -> Result<u128, PairSyncError<P>> {
         let zero_for_one = token_in == self.token_a;
 
-        let initial_tick = abi::IUniswapV3Pool::new(self.address, provider)
-            .slot_0()
-            .call()
-            .await?
-            .1;
+        let sqrt_price_limit_x_96 = if zero_for_one {
+            MIN_SQRT_RATIO + 1
+        } else {
+            MAX_SQRT_RATIO - 1
+        };
+
+        //TODO: check if u256 implements copy clone
+        let current_state = CurrentState {
+            sqrt_price_x_96: self.sqrt_price,
+            amount_calculated: I256::zero(),
+            amount_specified_remaining: I256::from(amount_in),
+            tick: self.tick,
+            liquidity: self.liquidity,
+        };
+
+        while current_state.amount_specified_remaining > 0 {}
 
         //TODO: update this
         Ok(0)
@@ -423,3 +434,17 @@ impl UniswapV3Pool {
         0
     }
 }
+
+//TODO: we can bench using a struct vs not and decide if we are keeping the struct
+pub struct CurrentState {
+    amount_specified_remaining: I256,
+    amount_calculated: I256,
+    sqrt_price_x_96: U256,
+    tick: i32,
+    liquidity: u128,
+}
+
+pub struct StepComputations {}
+
+const MAX_SQRT_RATIO: U256 = U256::from(4295128739);
+const MIN_SQRT_RATIO: U256 = U256::from("0xFFFD8963EFD1FC6A506488495D951D5263988D26");
