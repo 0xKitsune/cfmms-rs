@@ -13,7 +13,7 @@ use ethers::{
 };
 use num_bigfloat::BigFloat;
 use uniswap_v3_math::{
-    error::UniswapV3Error, sqrt_price_math::get_next_sqrt_price_from_input,
+    error::UniswapV3MathError, sqrt_price_math::get_next_sqrt_price_from_input,
     swap_math::compute_swap_step,
 };
 
