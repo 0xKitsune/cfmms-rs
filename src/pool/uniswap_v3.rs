@@ -21,7 +21,6 @@ pub struct UniswapV3Pool {
     pub fee: u32,
     pub tick: i32,
     pub tick_spacing: i32,
-    pub liquidity_net: i128,
     pub tick_word: U256,
 }
 
@@ -51,7 +50,6 @@ impl UniswapV3Pool {
             sqrt_price,
             tick,
             tick_spacing,
-            liquidity_net,
             fee,
             tick_word,
         }
@@ -72,7 +70,6 @@ impl UniswapV3Pool {
             sqrt_price: U256::zero(),
             tick: 0,
             tick_spacing: 0,
-            liquidity_net: 0,
             tick_word: U256::zero(),
             fee: 0,
         };
@@ -91,7 +88,6 @@ impl UniswapV3Pool {
         //256 bit word surrounding the current tick
 
         let tick_info = pool.get_tick_info(pool.tick, provider.clone()).await?;
-        pool.liquidity_net = tick_info.1;
         pool.get_pool_data(provider.clone()).await?;
 
         Ok(pool)
@@ -278,8 +274,6 @@ impl UniswapV3Pool {
         self.tick = slot_0.1;
 
         let tick_info = self.get_tick_info(self.tick, provider.clone()).await?;
-        self.liquidity_net = tick_info.1;
-
         self.tick_word = self.get_tick_word(self.tick, provider.clone()).await?;
         self.liquidity = self.get_liquidity(provider.clone()).await?;
 
@@ -294,7 +288,6 @@ impl UniswapV3Pool {
         (_, _, self.sqrt_price, self.liquidity, self.tick) = self.decode_swap_log(swap_log);
 
         let tick_info = self.get_tick_info(self.tick, provider.clone()).await?;
-        self.liquidity_net = tick_info.1;
         self.tick_word = self.get_tick_word(self.tick, provider.clone()).await?;
 
         Ok(())
@@ -460,8 +453,8 @@ impl UniswapV3Pool {
             liquidity: self.liquidity, //Current available liquidity in the tick range
         };
 
-        //Grab liquidity_net from the pool. This is the net liquidity change in the pool uppon crossing self.tick
-        let _liquidity_net = self.liquidity_net;
+        //Grab liquidity_net from the pool. This is the net liquidity change in the pool upon crossing self.tick
+        // let liquidity_net = self.liquidity_net;
 
         //While there is still an amount remaining to be swapped
         //Loop through swap steps until the amount_specified_remaining is 0.
@@ -471,7 +464,6 @@ impl UniswapV3Pool {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
             let mut step = StepComputations::default();
             //Get the next initialized tick within one word of the current tick
-            //@0xKitsune If step.initialized is 0, then there are no more initialized ticks left in the `current_word`.
             (step.tick_next, step.initialized) =
                 uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
                     tick_word,
@@ -481,7 +473,6 @@ impl UniswapV3Pool {
                 );
 
             if !step.initialized {
-                //:: TODO: For swap mut, this needs to change the tick word
                 let (word_position, _) = uniswap_v3_math::tick_bit_map::position(self.tick);
                 tick_word = self.get_next_word(word_position, provider.clone()).await?;
 
@@ -516,7 +507,7 @@ impl UniswapV3Pool {
             //Amount used during the swap for the input and output tokens
             let amount_used: U256;
             let amount_received: U256;
-            let _sqrt_price_at_tick_next =
+            let sqrt_price_at_tick_next =
                 uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
             //Compute swap step and update the current state
             (
@@ -527,7 +518,7 @@ impl UniswapV3Pool {
             ) = uniswap_v3_math::swap_math::compute_swap_step(
                 current_state.sqrt_price_x_96,
                 sqrt_price_limit_x_96,
-                self.liquidity,
+                current_state.liquidity,
                 current_state.amount_specified_remaining,
                 self.fee,
             )?;
@@ -578,9 +569,148 @@ impl UniswapV3Pool {
         Ok((-current_state.amount_calculated.as_i128()) as u128)
     }
 
-    pub fn simulate_swap_mut(&mut self, _token_in: H160, _amount_in: u128) -> u128 {
-        //TODO: update this
-        0
+    pub async fn simulate_swap_mut<P: 'static + JsonRpcClient>(
+        &self,
+        token_in: H160,
+        amount_in: u128,
+        provider: Arc<Provider<P>>,
+    ) -> Result<u128, CFFMError<P>> {
+        //Initialize zero_for_one to true if token_in is token_a
+        let zero_for_one = token_in == self.token_a;
+
+        //Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending on zero_for_one
+        let sqrt_price_limit_x_96 = if zero_for_one {
+            U256::from("4295128739") + 1
+        } else {
+            U256::from("0xFFFD8963EFD1FC6A506488495D951D5263988D26") - 1
+        };
+
+        //Initialize a mutable state state struct to hold the dynamic simulated state of the pool
+        let mut current_state = CurrentState {
+            sqrt_price_x_96: self.sqrt_price, //Active price on the pool
+            amount_calculated: I256::zero(),  //Amount of token_out that has been calculated
+            amount_specified_remaining: I256::from(amount_in), //Amount of token_in that has not been swapped
+            tick: self.tick,                                   //Current i24 tick of the pool
+            liquidity: self.liquidity, //Current available liquidity in the tick range
+        };
+
+        //While there is still an amount remaining to be swapped
+        //Loop through swap steps until the amount_specified_remaining is 0.
+
+        let mut tick_word = self.tick_word;
+        while current_state.amount_specified_remaining > I256::zero() {
+            //Initialize a new step struct to hold the dynamic state of the pool at each step
+            let mut step = StepComputations::default();
+            //Get the next initialized tick within one word of the current tick
+            (step.tick_next, step.initialized) =
+                uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
+                    tick_word,
+                    current_state.tick,
+                    self.tick_spacing,
+                    zero_for_one,
+                );
+
+            if !step.initialized {
+                let (word_position, _) = uniswap_v3_math::tick_bit_map::position(self.tick);
+                tick_word = self.get_next_word(word_position, provider.clone()).await?;
+
+                (step.tick_next, step.initialized) =
+                    uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
+                        tick_word,
+                        current_state.tick,
+                        self.tick_spacing,
+                        zero_for_one,
+                    );
+            }
+
+            let amount_in_remaining: U256 =
+                U256::from(current_state.amount_specified_remaining.as_u128());
+
+            //Get the next sqrt price from the input amount
+            step.sqrt_price_next_x96 =
+                uniswap_v3_math::sqrt_price_math::get_next_sqrt_price_from_input(
+                    current_state.sqrt_price_x_96,
+                    current_state.liquidity,
+                    amount_in_remaining,
+                    zero_for_one,
+                )?;
+
+            // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
+            if step.tick_next < MIN_TICK {
+                step.tick_next = MIN_TICK;
+            } else if step.tick_next > MAX_TICK {
+                step.tick_next = MAX_TICK;
+            }
+
+            //Amount used during the swap for the input and output tokens
+            let amount_used: U256;
+            let amount_received: U256;
+            let sqrt_price_at_tick_next =
+                uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
+            //Compute swap step and update the current state
+            (
+                current_state.sqrt_price_x_96,
+                amount_used,
+                amount_received,
+                step.fee_amount,
+            ) = uniswap_v3_math::swap_math::compute_swap_step(
+                current_state.sqrt_price_x_96,
+                sqrt_price_limit_x_96,
+                current_state.liquidity,
+                current_state.amount_specified_remaining,
+                self.fee,
+            )?;
+
+            //Decrement the amount remaining to be swapped and amount received from the step
+            current_state.amount_specified_remaining -=
+                I256::from_raw(amount_used.add(step.fee_amount));
+            current_state.amount_calculated -= I256::from_raw(amount_received);
+
+            //If the price moved all the way to the next price, recompute the liquidity change for the next iteration
+            if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
+                if step.initialized {
+                    // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
+                    if zero_for_one {
+                        let liquidity_temp = uniswap_v3_math::full_math::mul_div(
+                            current_state.sqrt_price_x_96,
+                            step.sqrt_price_next_x96,
+                            U256::from("0x1000000000000000000000000"),
+                        )?;
+                        current_state.liquidity = uniswap_v3_math::full_math::mul_div(
+                            amount_used,
+                            liquidity_temp,
+                            current_state.sqrt_price_x_96 - step.sqrt_price_next_x96,
+                        )?
+                        .as_u128();
+                    } else {
+                        current_state.liquidity = uniswap_v3_math::full_math::mul_div(
+                            amount_used,
+                            U256::from("0x1000000000000000000000000"),
+                            step.sqrt_price_next_x96 - current_state.sqrt_price_x_96,
+                        )?
+                        .as_u128();
+                    }
+                }
+                //Increment the current tick
+                current_state.tick = if zero_for_one {
+                    current_state.tick - 1
+                } else {
+                    current_state.tick + 1
+                }
+            } else if current_state.sqrt_price_x_96 != self.sqrt_price {
+                current_state.tick = uniswap_v3_math::sqrt_price_math::get_tick_at_sqrt_ratio(
+                    current_state.sqrt_price_x_96,
+                )?;
+            }
+        }
+
+        // self.liquidity =
+        // self.sqrt_price =
+        // self.tick =
+        // self.liquidity_net =
+        // self.tick_word =
+
+        Ok((-current_state.amount_calculated.as_i128()) as u128)
     }
 }
 
