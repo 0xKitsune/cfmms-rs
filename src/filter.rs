@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use ethers::providers::{JsonRpcClient, Provider};
 use ethers::types::H160;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use num_bigfloat::BigFloat;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::{collections::HashSet, sync::Arc};
@@ -325,25 +326,21 @@ async fn get_token_to_weth_pool<P: 'static + JsonRpcClient>(
                     match pool.unwrap() {
                         Pool::UniswapV2(univ2_pool) => {
                             if univ2_pool.token_a == weth_address {
-                                if univ2_pool.a_to_b {
-                                    if univ2_pool.reserve_0 > best_weth_reserves {
-                                        best_weth_reserves = univ2_pool.reserve_0;
-
-                                        best_pool = pool;
-                                    }
+                                if univ2_pool.reserve_0 > best_weth_reserves {
+                                    best_weth_reserves = univ2_pool.reserve_0;
+                                    best_pool = pool;
                                 } else if univ2_pool.reserve_1 > best_weth_reserves {
                                     best_weth_reserves = univ2_pool.reserve_1;
                                     best_pool = pool;
                                 }
-                            } else if univ2_pool.a_to_b {
+                            } else {
                                 if univ2_pool.reserve_1 > best_weth_reserves {
                                     best_weth_reserves = univ2_pool.reserve_1;
-
+                                    best_pool = pool;
+                                } else if univ2_pool.reserve_0 > best_weth_reserves {
+                                    best_weth_reserves = univ2_pool.reserve_0;
                                     best_pool = pool;
                                 }
-                            } else if univ2_pool.reserve_0 > best_weth_reserves {
-                                best_weth_reserves = univ2_pool.reserve_0;
-                                best_pool = pool;
                             }
                         }
 
@@ -351,25 +348,21 @@ async fn get_token_to_weth_pool<P: 'static + JsonRpcClient>(
                             let (reserve_0, reserve_1) = univ3_pool.calculate_virtual_reserves();
 
                             if univ3_pool.token_a == weth_address {
-                                if univ3_pool.a_to_b {
-                                    if reserve_0 > best_weth_reserves {
-                                        best_weth_reserves = reserve_0;
-
-                                        best_pool = pool;
-                                    }
+                                if reserve_0 > best_weth_reserves {
+                                    best_weth_reserves = reserve_0;
+                                    best_pool = pool;
                                 } else if reserve_1 > best_weth_reserves {
                                     best_weth_reserves = reserve_1;
                                     best_pool = pool;
                                 }
-                            } else if univ3_pool.a_to_b {
+                            } else {
                                 if reserve_1 > best_weth_reserves {
                                     best_weth_reserves = reserve_1;
-
+                                    best_pool = pool;
+                                } else if reserve_0 > best_weth_reserves {
+                                    best_weth_reserves = reserve_0;
                                     best_pool = pool;
                                 }
-                            } else if reserve_0 > best_weth_reserves {
-                                best_weth_reserves = reserve_0;
-                                best_pool = pool;
                             }
                         }
                     }
@@ -472,12 +465,6 @@ impl FilteredPool for UniswapV2Pool {
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
     ) -> Result<f64, PairSyncError<P>> {
-        let (token_a_reserves, token_b_reserves) = if self.a_to_b {
-            (self.reserve_0, self.reserve_1)
-        } else {
-            (self.reserve_1, self.reserve_0)
-        };
-
         let token_a_price_per_weth = token_weth_prices
             .lock()
             .unwrap()
@@ -507,7 +494,7 @@ impl FilteredPool for UniswapV2Pool {
         };
 
         //Get weth value of token a in pool
-        let token_a_weth_value_in_pool = token_a_reserves as f64
+        let token_a_weth_value_in_pool = BigFloat::from(self.reserve_0).to_f64()
             / 10f64.powf(self.token_a_decimals.into())
             / token_a_price_per_weth;
 
@@ -540,9 +527,9 @@ impl FilteredPool for UniswapV2Pool {
         };
 
         //Get weth value of token a in pool
-        let token_b_weth_value_in_pool =
-            ((token_b_reserves / 10u128.pow(self.token_b_decimals.into())) as f64)
-                / token_b_price_per_weth;
+        let token_b_weth_value_in_pool = BigFloat::from(self.reserve_1).to_f64()
+            / 10f64.powf(self.token_b_decimals.into())
+            / token_b_price_per_weth;
 
         //Return weth value in pool
         Ok(token_a_weth_value_in_pool + token_b_weth_value_in_pool)
@@ -568,13 +555,7 @@ impl FilteredPool for UniswapV3Pool {
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
     ) -> Result<f64, PairSyncError<P>> {
-        let (token_a_reserves, token_b_reserves) = if self.a_to_b {
-            let (reserve_0, reserve_1) = self.calculate_virtual_reserves();
-            (reserve_0, reserve_1)
-        } else {
-            let (reserve_0, reserve_1) = self.calculate_virtual_reserves();
-            (reserve_1, reserve_0)
-        };
+        let (reserve_0, reserve_1) = self.calculate_virtual_reserves();
 
         let token_a_price_per_weth = token_weth_prices
             .lock()
@@ -605,9 +586,9 @@ impl FilteredPool for UniswapV3Pool {
         };
 
         //Get weth value of token a in pool
-        let token_a_weth_value_in_pool =
-            ((token_a_reserves / 10u128.pow(self.token_a_decimals.into())) as f64)
-                / token_a_price_per_weth;
+        let token_a_weth_value_in_pool = BigFloat::from(reserve_0).to_f64()
+            / 10f64.powf(self.token_a_decimals.into())
+            / token_a_price_per_weth;
 
         let token_b_price_per_weth = token_weth_prices
             .lock()
@@ -638,9 +619,9 @@ impl FilteredPool for UniswapV3Pool {
         };
 
         //Get weth value of token a in pool
-        let token_b_weth_value_in_pool =
-            ((token_b_reserves / 10u128.pow(self.token_b_decimals.into())) as f64)
-                / token_b_price_per_weth;
+        let token_b_weth_value_in_pool = BigFloat::from(reserve_1).to_f64()
+            / 10f64.powf(self.token_b_decimals.into())
+            / token_b_price_per_weth;
 
         //Return weth value in pool
         Ok(token_a_weth_value_in_pool + token_b_weth_value_in_pool)

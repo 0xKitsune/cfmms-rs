@@ -19,7 +19,6 @@ pub struct UniswapV2Pool {
     pub token_a_decimals: u8,
     pub token_b: H160,
     pub token_b_decimals: u8,
-    pub a_to_b: bool,
     pub reserve_0: u128,
     pub reserve_1: u128,
     pub fee: u32,
@@ -44,7 +43,6 @@ impl UniswapV2Pool {
             token_a_decimals,
             token_b,
             token_b_decimals,
-            a_to_b,
             reserve_0,
             reserve_1,
             fee,
@@ -62,7 +60,6 @@ impl UniswapV2Pool {
             token_a_decimals: 0,
             token_b: H160::zero(),
             token_b_decimals: 0,
-            a_to_b: false,
             reserve_0: 0,
             reserve_1: 0,
             fee: 300,
@@ -70,7 +67,6 @@ impl UniswapV2Pool {
 
         pool.token_a = pool.get_token_0(pair_address, provider.clone()).await?;
         pool.token_b = pool.get_token_1(pair_address, provider.clone()).await?;
-        pool.a_to_b = true;
 
         (pool.token_a_decimals, pool.token_b_decimals) =
             pool.get_token_decimals(provider.clone()).await?;
@@ -86,7 +82,6 @@ impl UniswapV2Pool {
     ) -> Result<(), PairSyncError<P>> {
         self.token_a = self.get_token_0(self.address, provider.clone()).await?;
         self.token_b = self.get_token_1(self.address, provider.clone()).await?;
-        self.a_to_b = true;
 
         (self.token_a_decimals, self.token_b_decimals) =
             self.get_token_decimals(provider.clone()).await?;
@@ -168,25 +163,13 @@ impl UniswapV2Pool {
     }
 
     pub fn calculate_price(&self, base_token: H160) -> f64 {
-        if self.a_to_b {
-            let reserve_0 = self.reserve_0 as f64 / 10f64.powf(self.token_a_decimals.into());
-            let reserve_1 = self.reserve_1 as f64 / 10f64.powf(self.token_b_decimals.into());
+        let reserve_0 = self.reserve_0 as f64 / 10f64.powf(self.token_a_decimals.into());
+        let reserve_1 = self.reserve_1 as f64 / 10f64.powf(self.token_b_decimals.into());
 
-            if base_token == self.token_a {
-                reserve_0 / reserve_1
-            } else {
-                reserve_1 / reserve_0
-            }
+        if base_token == self.token_a {
+            reserve_0 / reserve_1
         } else {
-            //else if b to a
-            let reserve_0 = self.reserve_0 as f64 / 10f64.powf(self.token_b_decimals.into());
-            let reserve_1 = self.reserve_1 as f64 / 10f64.powf(self.token_a_decimals.into());
-
-            if base_token == self.token_a {
-                reserve_1 / reserve_0
-            } else {
-                reserve_0 / reserve_1
-            }
+            reserve_1 / reserve_0
         }
     }
 
@@ -215,30 +198,16 @@ impl UniswapV2Pool {
         let k = reserve_0 * reserve_1;
 
         if self.token_a == token_in {
-            if self.a_to_b {
-                convert_to_decimals(
-                    reserve_1 - (k * (self.reserve_0 + amount_in)),
-                    common_decimals,
-                    self.token_b_decimals,
-                )
-            } else {
-                convert_to_decimals(
-                    reserve_0 - (k * (self.reserve_1 + amount_in)),
-                    common_decimals,
-                    self.token_a_decimals,
-                )
-            }
-        } else if self.a_to_b {
-            convert_to_decimals(
-                reserve_0 - (k * (self.reserve_1 + amount_in)),
-                common_decimals,
-                self.token_a_decimals,
-            )
-        } else {
             convert_to_decimals(
                 reserve_1 - (k * (self.reserve_0 + amount_in)),
                 common_decimals,
                 self.token_b_decimals,
+            )
+        } else {
+            convert_to_decimals(
+                reserve_0 - (k * (self.reserve_1 + amount_in)),
+                common_decimals,
+                self.token_a_decimals,
             )
         }
     }
@@ -261,41 +230,6 @@ impl UniswapV2Pool {
         let k = reserve_0 * reserve_1;
 
         if self.token_a == token_in {
-            if self.a_to_b {
-                let amount_out = convert_to_decimals(
-                    reserve_1 - (k * (self.reserve_0 + amount_in)),
-                    common_decimals,
-                    self.token_b_decimals,
-                );
-
-                self.reserve_0 -= amount_in;
-                self.reserve_1 += amount_out;
-
-                amount_out
-            } else {
-                let amount_out = convert_to_decimals(
-                    reserve_0 - (k * (self.reserve_1 + amount_in)),
-                    common_decimals,
-                    self.token_a_decimals,
-                );
-
-                self.reserve_0 += amount_out;
-                self.reserve_1 -= amount_in;
-
-                amount_out
-            }
-        } else if self.a_to_b {
-            let amount_out = convert_to_decimals(
-                reserve_0 - (k * (self.reserve_1 + amount_in)),
-                common_decimals,
-                self.token_a_decimals,
-            );
-
-            self.reserve_0 += amount_out;
-            self.reserve_1 -= amount_in;
-
-            amount_out
-        } else {
             let amount_out = convert_to_decimals(
                 reserve_1 - (k * (self.reserve_0 + amount_in)),
                 common_decimals,
@@ -304,6 +238,17 @@ impl UniswapV2Pool {
 
             self.reserve_0 -= amount_in;
             self.reserve_1 += amount_out;
+
+            amount_out
+        } else {
+            let amount_out = convert_to_decimals(
+                reserve_0 - (k * (self.reserve_1 + amount_in)),
+                common_decimals,
+                self.token_a_decimals,
+            );
+
+            self.reserve_0 += amount_out;
+            self.reserve_1 -= amount_in;
 
             amount_out
         }
