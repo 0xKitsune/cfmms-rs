@@ -704,6 +704,7 @@ impl UniswapV3Pool {
             }
         }
 
+        //TODO: update state
         // self.liquidity =
         // self.sqrt_price =
         // self.tick =
