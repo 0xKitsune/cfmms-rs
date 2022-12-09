@@ -1,13 +1,7 @@
-use std::{
-    collections::HashMap,
-    ops::{Add, BitAnd, Shl, Shr},
-    str::FromStr,
-    sync::Arc,
-};
+use std::{ops::Add, sync::Arc};
 
 use ethers::{
     abi::{decode, ParamType},
-    prelude::k256::elliptic_curve::consts::{U160, U2},
     providers::{JsonRpcClient, Provider},
     types::{Log, H160, I256, U256},
 };
@@ -588,7 +582,6 @@ impl UniswapV3Pool {
     }
 }
 
-//TODO: we can bench using a struct vs not and decide if we are keeping the struct
 pub struct CurrentState {
     amount_specified_remaining: I256,
     amount_calculated: I256,
