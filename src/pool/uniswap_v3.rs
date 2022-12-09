@@ -418,38 +418,59 @@ impl UniswapV3Pool {
         amount_in: u128,
         provider: Arc<Provider<P>>,
     ) -> Result<u128, PairSyncError<P>> {
+        //Initialize zero_for_one to true if token_in is token_a
         let zero_for_one = token_in == self.token_a;
 
+        //Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending on zero_for_one
         let sqrt_price_limit_x_96 = if zero_for_one {
             MIN_SQRT_RATIO + 1
         } else {
             MAX_SQRT_RATIO - 1
         };
 
+        //Initialize a mutable state state struct to hold the dynamic simulated state of the pool
         let mut current_state = CurrentState {
-            sqrt_price_x_96: self.sqrt_price,
-            amount_calculated: I256::zero(),
-            amount_specified_remaining: I256::from(amount_in),
-            tick: self.tick,
-            liquidity: self.liquidity,
+            sqrt_price_x_96: self.sqrt_price, //Active price on the pool
+            amount_calculated: I256::zero(),  //Amount of token_out that has been calculated
+            amount_specified_remaining: I256::from(amount_in), //Amount of token_in that has not been swapped
+            tick: self.tick,                                   //Current i24 tick of the pool
+            liquidity: self.liquidity, //Current available liquidity in the tick range
         };
 
-        //Grab liquidity_net from the pool
+        //Grab liquidity_net from the pool. This is the net liquidity change in the pool uppon crossing self.tick
         let liquidity_net = self.liquidity_net;
 
         //While there is still an amount remaining to be swapped
+        //Loop through swap steps until the amount_specified_remaining is 0.
         while current_state.amount_specified_remaining > I256::zero() {
+            //Initialize a new step struct to hold the dynamic state of the pool at each step
             let mut step = StepComputations::default();
-
+            //Get the next initialized tick within one word of the current tick
+            //@0xKitsune If step.initialized is 0, then there are no more initialized ticks left in the `current_word`.
             (step.tick_next, step.initialized) = next_initialized_tick_within_one_word(
                 self.tick_bitmap,
                 current_state.tick,
                 self.tick_spacing,
                 zero_for_one,
             );
+
+            //TODO: @0xKitsune If step.initialized is 0, then get the next word from the TickBitmap on the pool.
+            // (word_position, bit_position)=position(self.tick) gives you the current word pos. The next word position
+            // will be word_position + 1. Then you can get the next initialized tick from the next word.
+            // By calling tickBitmap[word_position +1] on the contract.
+            // But first you should add this logic before setting the step.tick_next to the next initialized tick.
+            /*
+               // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
+                   if step.tick_next < MIN_TICK {
+                       step.tick_next = MIN_TICK;
+                   } else if step.tick_next > MAX_TICK {
+                       step.tick_next = MAX_TICK;
+                   }
+            */
             let amount_in_remaining: U256 =
                 U256::from(current_state.amount_specified_remaining.as_u128());
 
+            //Get the next sqrt price from the input amount
             step.sqrt_price_next_x96 =
                 uniswap_v3_math::sqrt_price_math::get_next_sqrt_price_from_input(
                     current_state.sqrt_price_x_96,
@@ -470,7 +491,7 @@ impl UniswapV3Pool {
             let amount_received: U256;
             let sqrt_price_at_tick_next =
                 uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
-
+            //Compute swap step and update the current state
             (
                 current_state.sqrt_price_x_96,
                 amount_used,
@@ -484,6 +505,7 @@ impl UniswapV3Pool {
                 self.fee,
             )?;
 
+            //Decrement the amount remaining to be swapped and amount received from the step
             current_state.amount_specified_remaining -=
                 I256::from_raw(amount_used.add(step.fee_amount));
             current_state.amount_calculated -= I256::from_raw(amount_received);
