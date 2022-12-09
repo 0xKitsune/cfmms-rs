@@ -4,8 +4,9 @@ use std::{
 };
 
 use ethers::{
+    abi::ParamType,
     providers::{JsonRpcClient, Provider},
-    types::{H160, U256},
+    types::{Log, H160, U256},
 };
 
 use crate::{abi, error::PairSyncError};
@@ -32,7 +33,6 @@ impl UniswapV2Pool {
         token_a_decimals: u8,
         token_b: H160,
         token_b_decimals: u8,
-        a_to_b: bool,
         reserve_0: u128,
         reserve_1: u128,
         fee: u32,
@@ -177,8 +177,34 @@ impl UniswapV2Pool {
         self.address
     }
 
-    //TODO: add decode sync log data, make it an associated function as well as a method?
-    //TODO: Update pool from sync log method
+    pub fn update_pool_from_sync_log(&mut self, sync_log: &Log) {
+        (self.reserve_0, self.reserve_1) = self.decode_sync_log(sync_log);
+    }
+
+    //Returns reserve0, reserve1
+    pub fn decode_sync_log(&self, sync_log: &Log) -> (u128, u128) {
+        let data = ethers::abi::decode(
+            &vec![
+                ParamType::Uint(128), //reserve0
+                ParamType::Uint(128), //reserve1
+            ],
+            &sync_log.data,
+        )
+        .expect("Could not get log data");
+
+        (
+            data[0]
+                .to_owned()
+                .into_uint()
+                .expect("Could not convert reserve0 in to uint")
+                .as_u128(),
+            data[1]
+                .to_owned()
+                .into_uint()
+                .expect("Could not convert reserve1 in to uint")
+                .as_u128(),
+        )
+    }
 
     pub fn simulate_swap(&self, token_in: H160, amount_in: u128) -> u128 {
         let (reserve_0, reserve_1, common_decimals) = convert_to_common_decimals(

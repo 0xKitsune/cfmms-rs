@@ -9,7 +9,7 @@ use ethers::{
     abi::{decode, ParamType},
     prelude::k256::elliptic_curve::consts::{U160, U2},
     providers::{JsonRpcClient, Provider},
-    types::{H160, I256, U256},
+    types::{Log, H160, I256, U256},
 };
 use num_bigfloat::BigFloat;
 
@@ -284,7 +284,43 @@ impl UniswapV3Pool {
         self.liquidity = self.get_liquidity(provider.clone()).await?;
         self.sqrt_price = self.get_sqrt_price(provider.clone()).await?;
 
+        //TODO:
+        // need to sync everything else
+
         Ok(())
+    }
+
+    pub fn update_pool_from_swap_log<P: JsonRpcClient>(
+        &mut self,
+        swap_log: &Log,
+        provider: Arc<Provider<P>>,
+    ) {
+        (_, _, self.sqrt_price, self.liquidity, self.tick) = self.decode_swap_log(swap_log)
+    }
+
+    //Returns reserve0, reserve1
+    pub fn decode_swap_log(&self, swap_log: &Log) -> (I256, I256, U256, u128, i32) {
+        let log_data = decode(
+            &vec![
+                // ParamType::Address,   //sender is indexed so its not in log data
+                // ParamType::Address,   //recipient is indexed so its not in log data
+                ParamType::Int(256),  //amount0
+                ParamType::Int(256),  //amount1
+                ParamType::Uint(160), //sqrtPriceX96
+                ParamType::Uint(128), //liquidity
+                ParamType::Int(24),   //tick
+            ],
+            &swap_log.data,
+        )
+        .expect("Could not get log data");
+
+        let amount_0 = I256::from_raw(log_data[1].to_owned().into_int().unwrap());
+        let amount_1 = I256::from_raw(log_data[1].to_owned().into_int().unwrap());
+        let sqrt_price = log_data[2].to_owned().into_uint().unwrap();
+        let liquidity = log_data[3].to_owned().into_uint().unwrap().as_u128();
+        let tick = log_data[4].to_owned().into_uint().unwrap().as_u32() as i32;
+
+        (amount_0, amount_1, sqrt_price, liquidity, tick)
     }
 
     pub async fn get_token_decimals<P: 'static + JsonRpcClient>(
@@ -410,9 +446,9 @@ impl UniswapV3Pool {
 
         //Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending on zero_for_one
         let sqrt_price_limit_x_96 = if zero_for_one {
-            MIN_SQRT_RATIO + 1
+            U256::from("4295128739") + 1
         } else {
-            MAX_SQRT_RATIO - 1
+            U256::from("0xFFFD8963EFD1FC6A506488495D951D5263988D26") - 1
         };
 
         //Initialize a mutable state state struct to hold the dynamic simulated state of the pool
@@ -506,7 +542,7 @@ impl UniswapV3Pool {
                         let liquidity_temp = uniswap_v3_math::full_math::mul_div(
                             current_state.sqrt_price_x_96,
                             step.sqrt_price_next_x96,
-                            U256::from(0x1000000000000000000000000),
+                            U256::from("0x1000000000000000000000000"),
                         )?;
                         current_state.liquidity = uniswap_v3_math::full_math::mul_div(
                             amount_used,
@@ -517,7 +553,7 @@ impl UniswapV3Pool {
                     } else {
                         current_state.liquidity = uniswap_v3_math::full_math::mul_div(
                             amount_used,
-                            U256::from(0x1000000000000000000000000),
+                            U256::from("0x1000000000000000000000000"),
                             step.sqrt_price_next_x96 - current_state.sqrt_price_x_96,
                         )?
                         .as_u128();
@@ -566,8 +602,6 @@ pub struct StepComputations {
     fee_amount: U256,
 }
 
-const MAX_SQRT_RATIO: U256 = U256::from(4295128739);
-const MIN_SQRT_RATIO: U256 = U256::from("0xFFFD8963EFD1FC6A506488495D951D5263988D26");
 const MIN_TICK: i32 = -887272;
 const MAX_TICK: i32 = 887272;
 

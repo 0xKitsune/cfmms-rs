@@ -403,7 +403,6 @@ pub fn deconstruct_pools_from_checkpoint(pools_array: &Vec<Value>) -> Vec<Pool> 
                             token_a_decimals,
                             token_b,
                             token_b_decimals,
-                            a_to_b,
                             0,
                             0,
                             fee,
@@ -417,11 +416,14 @@ pub fn deconstruct_pools_from_checkpoint(pools_array: &Vec<Value>) -> Vec<Pool> 
                             token_a_decimals,
                             token_b,
                             token_b_decimals,
-                            a_to_b,
                             0,
                             U256::zero(),
                             0,
+                            0,
+                            0,
+                            false,
                             fee,
+                            U256::zero(),
                         )));
                     }
                 }
@@ -520,8 +522,6 @@ pub fn construct_checkpoint(
                     uniswap_v2_pool.token_b_decimals.into(),
                 );
 
-                pool_map.insert(String::from("a_to_b"), uniswap_v2_pool.a_to_b.into());
-
                 pool_map.insert(String::from("fee"), uniswap_v2_pool.fee.into());
 
                 pools_array.push(pool_map.into());
@@ -557,8 +557,6 @@ pub fn construct_checkpoint(
                     String::from("token_b_decimals"),
                     uniswap_v3_pool.token_b_decimals.into(),
                 );
-
-                pool_map.insert(String::from("a_to_b"), uniswap_v3_pool.a_to_b.into());
 
                 pool_map.insert(String::from("fee"), uniswap_v3_pool.fee.into());
 
