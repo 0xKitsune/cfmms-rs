@@ -6,14 +6,11 @@ use ethers::{
     types::{Log, H160, I256, U256},
 };
 use num_bigfloat::BigFloat;
-use uniswap_v3_math::error::UniswapV3MathError;
 
 use crate::{abi, error::CFFMError};
-use std::ops::{BitAnd, Shl, Shr};
 
-use ethers::types::{I256, U256};
 
-use crate::error::UniswapV3MathError;
+
 #[derive(Clone, Copy)]
 pub struct UniswapV3Pool {
     pub address: H160,
@@ -549,7 +546,8 @@ impl UniswapV3Pool {
                     // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
                     if zero_for_one { liquidity_net = -liquidity_net}
                     //Getting linting error here on liquidity_net  
-                    current_state.liquidity = uniswap_v3_math::liquidity_math::add_delta(current_state.liquidity, liquidity_net);
+                   
+                    //current_state.liquidity = uniswap_v3_math::liquidity_math::add_delta(current_state.liquidity, liquidity_net);
                 }
                 //Increment the current tick
                 current_state.tick = if zero_for_one {
