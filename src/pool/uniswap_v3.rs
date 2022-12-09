@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    ops::{BitAnd, Shl, Shr},
+    ops::{Add, BitAnd, Shl, Shr},
     str::FromStr,
     sync::Arc,
 };
@@ -13,8 +13,15 @@ use ethers::{
 };
 use num_bigfloat::BigFloat;
 use uniswap_v3_math::{
-    error::UniswapV3MathError, sqrt_price_math::get_next_sqrt_price_from_input,
+    error::UniswapV3Error,
+    full_math::mul_div,
+    sqrt_price_math::{
+        get_amount_0_delta, get_amount_1_delta, get_next_sqrt_price_from_input,
+        get_tick_at_sqrt_ratio,
+    },
     swap_math::compute_swap_step,
+    tick::cross,
+    tick_bit_map::{next_initialized_tick_within_one_word, position},
 };
 
 use crate::{abi, error::PairSyncError};
@@ -34,6 +41,7 @@ pub struct UniswapV3Pool {
     pub liquidity_net: i128,
     pub initialized: bool,
     pub fee: u32,
+    pub tick_bitmap: U256,
 }
 
 impl UniswapV3Pool {
@@ -52,6 +60,7 @@ impl UniswapV3Pool {
         liquidity_net: i128,
         initialized: bool,
         fee: u32,
+        tick_bitmap: U256,
     ) -> UniswapV3Pool {
         UniswapV3Pool {
             address,
@@ -67,6 +76,7 @@ impl UniswapV3Pool {
             liquidity_net,
             initialized,
             fee,
+            tick_bitmap,
         }
     }
 
@@ -88,6 +98,7 @@ impl UniswapV3Pool {
             tick_spacing: 0,
             liquidity_net: 0,
             initialized: false,
+            tick_bitmap: U256::zero(),
             fee: 0,
         };
 
@@ -103,10 +114,12 @@ impl UniswapV3Pool {
         let slot_0 = pool.get_slot_0(provider.clone()).await?;
         pool.tick = slot_0.1;
         pool.sqrt_price = slot_0.0;
+        //256 bit word surrounding the current tick
 
         let tick_info = pool.get_tick_info(pool.tick, provider.clone()).await?;
         pool.liquidity_net = tick_info.1;
         pool.initialized = tick_info.7;
+        pool.get_pool_data(provider.clone()).await?;
 
         Ok(pool)
     }
@@ -124,8 +137,17 @@ impl UniswapV3Pool {
 
         self.fee = self.get_fee(provider.clone()).await?;
         self.tick_spacing = self.get_tick_spacing(provider.clone()).await?;
-
+        self.tick_bitmap = self.get_word_bit_map(provider.clone()).await?;
         Ok(())
+    }
+
+    pub async fn get_word_bit_map<P: JsonRpcClient>(
+        &self,
+        provider: Arc<Provider<P>>,
+    ) -> Result<U256, PairSyncError<P>> {
+        let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
+        let (position, word) = position(self.tick);
+        Ok(v3_pool.tick_bitmap(position).call().await?)
     }
 
     pub async fn get_tick_spacing<P: JsonRpcClient>(
@@ -400,26 +422,6 @@ impl UniswapV3Pool {
         self.address
     }
 
-    pub fn nearest_usable_tick(tick: i32, tick_spacing: i32) -> i32 {
-        let tick_X64 = tick.shl(64) as i128;
-        let tick_spacing_X64 = tick_spacing.shl(64) as i128;
-
-        let quot = (tick_X64.shl(64_i128) / (tick_spacing_X64).shr(64)) as i32;
-        let relative_tick_position = quot * tick_spacing_X64.shr(64) as i32;
-
-        let ZERO_POINT_5_X64 = i32::from(0x8000000000000000);
-        let nearest_usable_tick = relative_tick_position;
-
-        //If the quotient is greater than 0.5, increment the tick by 1
-        if relative_tick_position < MIN_TICK {
-            nearest_usable_tick = relative_tick_position + tick_spacing;
-        } else if relative_tick_position > MAX_TICK {
-            nearest_usable_tick = relative_tick_position - tick_spacing;
-        }
-
-        nearest_usable_tick
-    }
-
     pub async fn simulate_swap<P: 'static + JsonRpcClient>(
         &self,
         token_in: H160,
@@ -442,14 +444,43 @@ impl UniswapV3Pool {
             liquidity: self.liquidity,
         };
 
+        //Grab liquidity_net from the pool
+        let liquidity_net = self.liquidity_net;
+
+        //While there is still an amount remaining to be swapped
         while current_state.amount_specified_remaining > I256::zero() {
             let mut step = StepComputations::default();
-            step.sqrt_price_start_x_96 = current_state.sqrt_price_x_96;
+
+            (step.tick_next, step.initialized) = next_initialized_tick_within_one_word(
+                self.tick_bitmap,
+                current_state.tick,
+                self.tick_spacing,
+                zero_for_one,
+            );
+            let amount_in_remaining: U256 =
+                U256::from(current_state.amount_specified_remaining.as_u128());
+
+            step.sqrt_price_next_x96 = get_next_sqrt_price_from_input(
+                current_state.sqrt_price_x_96,
+                current_state.liquidity,
+                amount_in_remaining,
+                zero_for_one,
+            )?;
+
+            // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
+            if step.tick_next < MIN_TICK {
+                step.tick_next = MIN_TICK;
+            } else if step.tick_next > MAX_TICK {
+                step.tick_next = MAX_TICK;
+            }
+
+            //Amount used during the swap for the input and output tokens
             let amount_used: U256;
             let amount_received: U256;
+            let sqrt_price_at_tick_next = get_tick_at_sqrt_ratio(step.tick_next);
 
             (
-                step.sqrt_price_next_x96,
+                current_state.sqrt_price_x_96,
                 amount_used,
                 amount_received,
                 step.fee_amount,
@@ -460,6 +491,45 @@ impl UniswapV3Pool {
                 current_state.amount_specified_remaining,
                 self.fee,
             )?;
+
+            current_state.amount_specified_remaining -=
+                I256::from(amount_used.add(step.fee_amount).try_into() as u128);
+            current_state.amount_calculated -= (amount_received).try_into() as I256;
+
+            //If the price moved all the way to the next price, recompute the liquidity change for the next iteration
+            if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
+                if step.initialized {
+                    // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
+                    if zero_for_one {
+                        let liquidity_temp = mul_div(
+                            current_state.sqrt_price_x_96,
+                            step.sqrt_price_next_x96,
+                            U256::from(0x1000000000000000000000000),
+                        )?;
+                        current_state.liquidity = mul_div(
+                            amount_used,
+                            liquidity_temp,
+                            current_state.sqrt_price_x_96 - step.sqrt_price_next_x96,
+                        )
+                        .try_into() as u128;
+                    } else {
+                        current_state.liquidity = mul_div(
+                            amount_used,
+                            U256::from(0x1000000000000000000000000),
+                            step.sqrt_price_next_x96 - current_state.sqrt_price_x_96,
+                        )
+                        .try_into() as u128;
+                    }
+                }
+                //Increment the current tick
+                current_state.tick = if zero_for_one {
+                    current_state.tick - 1
+                } else {
+                    current_state.tick + 1
+                }
+            } else if current_state.sqrt_price_x_96 != self.sqrt_price {
+                current_state.tick = get_tick_at_sqrt_ratio(current_state.sqrt_price_x_96);
+            }
         }
 
         //TODO: update this

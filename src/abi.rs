@@ -30,6 +30,7 @@ abigen!(
         function fee() external view returns (uint24)
         function tickSpacing() external view returns (int24)
         function ticks(int24 tick) external view returns (bytes memory)
+        function tickBitmap(int16 wordPosition) external view returns (uint256)
 
     ]"#;
 
