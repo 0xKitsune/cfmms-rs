@@ -1,12 +1,12 @@
 use std::{str::FromStr, sync::Arc, time::Duration};
 
+use cfmms::{
+    dex::{Dex, DexVariant},
+    sync,
+};
 use ethers::{
     providers::{Ipc, Provider},
     types::H160,
-};
-use pair_sync::{
-    dex::{Dex, DexVariant},
-    sync,
 };
 use std::error::Error;
 

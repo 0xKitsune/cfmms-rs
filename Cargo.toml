@@ -1,13 +1,13 @@
 [package]
-name = "pair_sync"
-version = "0.4.3"
+name = "cfmms"
+version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "A simple library to get all pairs from any supported Dex and sync reserves."
+description = "Sync pairs and simulate swaps with CFFMs on Ethereum."
 readme = "README.md"
 homepage = "https://github.com/0xKitsune/pair_sync"
 repository = "https://github.com/0xKitsune/pair_sync"
-keywords = ["ethereum", "mev", "dex"]
+keywords = ["ethereum", "mev", "dex", "cffms"]
 
 
 [dependencies]

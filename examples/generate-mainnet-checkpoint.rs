@@ -5,7 +5,7 @@ use ethers::{
     types::H160,
 };
 
-use pair_sync::{
+use cfmms::{
     checkpoint::generate_checkpoint,
     dex::{Dex, DexVariant},
 };
