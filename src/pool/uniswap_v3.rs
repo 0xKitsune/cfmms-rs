@@ -114,23 +114,21 @@ impl UniswapV3Pool {
     ) -> Result<(), PairSyncError<P>> {
         self.token_a = self.get_token_0(provider.clone()).await?;
         self.token_b = self.get_token_1(provider.clone()).await?;
-
         (self.token_a_decimals, self.token_b_decimals) =
             self.get_token_decimals(provider.clone()).await?;
-
         self.fee = self.get_fee(provider.clone()).await?;
         self.tick_spacing = self.get_tick_spacing(provider.clone()).await?;
-        self.tick_word = self.get_tick_word(provider.clone()).await?;
         Ok(())
     }
 
     pub async fn get_tick_word<P: JsonRpcClient>(
         &self,
+        tick: i32,
         provider: Arc<Provider<P>>,
     ) -> Result<U256, PairSyncError<P>> {
         let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
-        let (position, word) = uniswap_v3_math::tick_bit_map::position(self.tick);
-        Ok(v3_pool.tick_bitmap(position).call().await?)
+        let (word_position, _) = uniswap_v3_math::tick_bit_map::position(tick);
+        Ok(v3_pool.tick_bitmap(word_position).call().await?)
     }
 
     pub async fn get_tick_spacing<P: JsonRpcClient>(
@@ -145,7 +143,6 @@ impl UniswapV3Pool {
         &self,
         provider: Arc<Provider<P>>,
     ) -> Result<i32, PairSyncError<P>> {
-        let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
         Ok(self.get_slot_0(provider).await?.1)
     }
 
@@ -238,7 +235,6 @@ impl UniswapV3Pool {
         tick: i32,
         provider: Arc<Provider<P>>,
     ) -> Result<i128, PairSyncError<P>> {
-        let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
         let tick_info = self.get_tick_info(tick, provider.clone()).await?;
         Ok(tick_info.1)
     }
@@ -248,7 +244,6 @@ impl UniswapV3Pool {
         tick: i32,
         provider: Arc<Provider<P>>,
     ) -> Result<bool, PairSyncError<P>> {
-        let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
         let tick_info = self.get_tick_info(tick, provider.clone()).await?;
         Ok(tick_info.7)
     }
@@ -276,26 +271,37 @@ impl UniswapV3Pool {
         Ok(self.get_slot_0(provider).await?.0)
     }
 
-    //TODO: check this if we need anything else with the updates
     pub async fn sync_pool<P: 'static + JsonRpcClient>(
         &mut self,
         provider: Arc<Provider<P>>,
     ) -> Result<(), PairSyncError<P>> {
-        self.liquidity = self.get_liquidity(provider.clone()).await?;
-        self.sqrt_price = self.get_sqrt_price(provider.clone()).await?;
+        let slot_0 = self.get_slot_0(provider.clone()).await?;
+        self.sqrt_price = slot_0.0;
+        self.tick = slot_0.1;
 
-        //TODO:
-        // need to sync everything else
+        let tick_info = self.get_tick_info(self.tick, provider.clone()).await?;
+        self.initialized = tick_info.7;
+        self.liquidity_net = tick_info.1;
+
+        self.tick_word = self.get_tick_word(self.tick, provider.clone()).await?;
+        self.liquidity = self.get_liquidity(provider.clone()).await?;
 
         Ok(())
     }
 
-    pub fn update_pool_from_swap_log<P: JsonRpcClient>(
+    pub async fn update_pool_from_swap_log<P: JsonRpcClient>(
         &mut self,
         swap_log: &Log,
         provider: Arc<Provider<P>>,
-    ) {
-        (_, _, self.sqrt_price, self.liquidity, self.tick) = self.decode_swap_log(swap_log)
+    ) -> Result<(), PairSyncError<P>> {
+        (_, _, self.sqrt_price, self.liquidity, self.tick) = self.decode_swap_log(swap_log);
+
+        let tick_info = self.get_tick_info(self.tick, provider.clone()).await?;
+        self.initialized = tick_info.7;
+        self.liquidity_net = tick_info.1;
+        self.tick_word = self.get_tick_word(self.tick, provider.clone()).await?;
+
+        Ok(())
     }
 
     //Returns reserve0, reserve1
