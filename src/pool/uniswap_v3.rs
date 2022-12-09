@@ -13,7 +13,7 @@ use ethers::{
 };
 use num_bigfloat::BigFloat;
 
-use crate::{abi, error::PairSyncError};
+use crate::{abi, error::CFFMError};
 
 #[derive(Clone, Copy)]
 pub struct UniswapV3Pool {
@@ -70,7 +70,7 @@ impl UniswapV3Pool {
     pub async fn new_from_address<P: 'static + JsonRpcClient>(
         pair_address: H160,
         provider: Arc<Provider<P>>,
-    ) -> Result<Self, PairSyncError<P>> {
+    ) -> Result<Self, CFFMError<P>> {
         let mut pool = UniswapV3Pool {
             address: pair_address,
             token_a: H160::zero(),
@@ -111,7 +111,7 @@ impl UniswapV3Pool {
     pub async fn get_pool_data<P: 'static + JsonRpcClient>(
         &mut self,
         provider: Arc<Provider<P>>,
-    ) -> Result<(), PairSyncError<P>> {
+    ) -> Result<(), CFFMError<P>> {
         self.token_a = self.get_token_0(provider.clone()).await?;
         self.token_b = self.get_token_1(provider.clone()).await?;
         (self.token_a_decimals, self.token_b_decimals) =
@@ -125,7 +125,7 @@ impl UniswapV3Pool {
         &self,
         tick: i32,
         provider: Arc<Provider<P>>,
-    ) -> Result<U256, PairSyncError<P>> {
+    ) -> Result<U256, CFFMError<P>> {
         let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
         let (word_position, _) = uniswap_v3_math::tick_bit_map::position(tick);
         Ok(v3_pool.tick_bitmap(word_position).call().await?)
@@ -134,7 +134,7 @@ impl UniswapV3Pool {
     pub async fn get_tick_spacing<P: JsonRpcClient>(
         &self,
         provider: Arc<Provider<P>>,
-    ) -> Result<i32, PairSyncError<P>> {
+    ) -> Result<i32, CFFMError<P>> {
         let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
         Ok(v3_pool.tick_spacing().call().await?)
     }
@@ -142,7 +142,7 @@ impl UniswapV3Pool {
     pub async fn get_tick<P: JsonRpcClient>(
         &self,
         provider: Arc<Provider<P>>,
-    ) -> Result<i32, PairSyncError<P>> {
+    ) -> Result<i32, CFFMError<P>> {
         Ok(self.get_slot_0(provider).await?.1)
     }
 
@@ -150,7 +150,7 @@ impl UniswapV3Pool {
         &self,
         tick: i32,
         provider: Arc<Provider<P>>,
-    ) -> Result<(u128, i128, U256, U256, i64, U256, u32, bool), PairSyncError<P>> {
+    ) -> Result<(u128, i128, U256, U256, i64, U256, u32, bool), CFFMError<P>> {
         let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
 
         let tick_info_bytes = v3_pool.ticks(tick).call().await?;
@@ -234,7 +234,7 @@ impl UniswapV3Pool {
         &self,
         tick: i32,
         provider: Arc<Provider<P>>,
-    ) -> Result<i128, PairSyncError<P>> {
+    ) -> Result<i128, CFFMError<P>> {
         let tick_info = self.get_tick_info(tick, provider.clone()).await?;
         Ok(tick_info.1)
     }
@@ -243,7 +243,7 @@ impl UniswapV3Pool {
         &self,
         tick: i32,
         provider: Arc<Provider<P>>,
-    ) -> Result<bool, PairSyncError<P>> {
+    ) -> Result<bool, CFFMError<P>> {
         let tick_info = self.get_tick_info(tick, provider.clone()).await?;
         Ok(tick_info.7)
     }
@@ -251,7 +251,7 @@ impl UniswapV3Pool {
     pub async fn get_slot_0<P: JsonRpcClient>(
         &self,
         provider: Arc<Provider<P>>,
-    ) -> Result<(U256, i32, u16, u16, u16, u8, bool), PairSyncError<P>> {
+    ) -> Result<(U256, i32, u16, u16, u16, u8, bool), CFFMError<P>> {
         let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
         Ok(v3_pool.slot_0().call().await?)
     }
@@ -259,7 +259,7 @@ impl UniswapV3Pool {
     pub async fn get_liquidity<P: JsonRpcClient>(
         &self,
         provider: Arc<Provider<P>>,
-    ) -> Result<u128, PairSyncError<P>> {
+    ) -> Result<u128, CFFMError<P>> {
         let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
         Ok(v3_pool.liquidity().call().await?)
     }
@@ -267,14 +267,14 @@ impl UniswapV3Pool {
     pub async fn get_sqrt_price<P: JsonRpcClient>(
         &self,
         provider: Arc<Provider<P>>,
-    ) -> Result<U256, PairSyncError<P>> {
+    ) -> Result<U256, CFFMError<P>> {
         Ok(self.get_slot_0(provider).await?.0)
     }
 
     pub async fn sync_pool<P: 'static + JsonRpcClient>(
         &mut self,
         provider: Arc<Provider<P>>,
-    ) -> Result<(), PairSyncError<P>> {
+    ) -> Result<(), CFFMError<P>> {
         let slot_0 = self.get_slot_0(provider.clone()).await?;
         self.sqrt_price = slot_0.0;
         self.tick = slot_0.1;
@@ -293,7 +293,7 @@ impl UniswapV3Pool {
         &mut self,
         swap_log: &Log,
         provider: Arc<Provider<P>>,
-    ) -> Result<(), PairSyncError<P>> {
+    ) -> Result<(), CFFMError<P>> {
         (_, _, self.sqrt_price, self.liquidity, self.tick) = self.decode_swap_log(swap_log);
 
         let tick_info = self.get_tick_info(self.tick, provider.clone()).await?;
@@ -332,7 +332,7 @@ impl UniswapV3Pool {
     pub async fn get_token_decimals<P: 'static + JsonRpcClient>(
         &mut self,
         provider: Arc<Provider<P>>,
-    ) -> Result<(u8, u8), PairSyncError<P>> {
+    ) -> Result<(u8, u8), CFFMError<P>> {
         let token_a_decimals = abi::IErc20::new(self.token_a, provider.clone())
             .decimals()
             .call()
@@ -349,7 +349,7 @@ impl UniswapV3Pool {
     pub async fn get_fee<P: 'static + JsonRpcClient>(
         &mut self,
         provider: Arc<Provider<P>>,
-    ) -> Result<u32, PairSyncError<P>> {
+    ) -> Result<u32, CFFMError<P>> {
         let fee = abi::IUniswapV3Pool::new(self.address, provider.clone())
             .fee()
             .call()
@@ -361,12 +361,12 @@ impl UniswapV3Pool {
     pub async fn get_token_0<P: JsonRpcClient>(
         &self,
         provider: Arc<Provider<P>>,
-    ) -> Result<H160, PairSyncError<P>> {
+    ) -> Result<H160, CFFMError<P>> {
         let v2_pair = abi::IUniswapV2Pair::new(self.address, provider);
 
         let token0 = match v2_pair.token_0().call().await {
             Ok(result) => result,
-            Err(contract_error) => return Err(PairSyncError::ContractError(contract_error)),
+            Err(contract_error) => return Err(CFFMError::ContractError(contract_error)),
         };
 
         Ok(token0)
@@ -375,12 +375,12 @@ impl UniswapV3Pool {
     pub async fn get_token_1<P: JsonRpcClient>(
         &self,
         provider: Arc<Provider<P>>,
-    ) -> Result<H160, PairSyncError<P>> {
+    ) -> Result<H160, CFFMError<P>> {
         let v2_pair = abi::IUniswapV2Pair::new(self.address, provider);
 
         let token1 = match v2_pair.token_1().call().await {
             Ok(result) => result,
-            Err(contract_error) => return Err(PairSyncError::ContractError(contract_error)),
+            Err(contract_error) => return Err(CFFMError::ContractError(contract_error)),
         };
 
         Ok(token1)
@@ -446,7 +446,7 @@ impl UniswapV3Pool {
         token_in: H160,
         amount_in: u128,
         provider: Arc<Provider<P>>,
-    ) -> Result<u128, PairSyncError<P>> {
+    ) -> Result<u128, CFFMError<P>> {
         //Initialize zero_for_one to true if token_in is token_a
         let zero_for_one = token_in == self.token_a;
 

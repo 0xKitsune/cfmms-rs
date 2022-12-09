@@ -1,5 +1,5 @@
 use crate::dex::Dex;
-use crate::error::PairSyncError;
+use crate::error::CFFMError;
 use crate::pool::{Pool, UniswapV2Pool, UniswapV3Pool};
 use crate::throttle::RequestThrottle;
 use async_trait::async_trait;
@@ -25,7 +25,7 @@ trait FilteredPool {
         provider: Arc<Provider<P>>,
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
-    ) -> Result<f64, PairSyncError<P>>;
+    ) -> Result<f64, CFFMError<P>>;
 }
 
 //Filters out pools where the blacklisted address is the token_a address or token_b address
@@ -102,7 +102,7 @@ pub async fn filter_pools_below_usd_threshold<P: 'static + JsonRpcClient>(
     usd_threshold: f64,
     token_weth_pool_min_weth_threshold: u128,
     provider: Arc<Provider<P>>,
-) -> Result<Vec<Pool>, PairSyncError<P>> {
+) -> Result<Vec<Pool>, CFFMError<P>> {
     filter_pools_below_usd_threshold_with_throttle(
         pools,
         dexes,
@@ -129,7 +129,7 @@ pub async fn filter_pools_below_usd_threshold_with_throttle<P: 'static + JsonRpc
     token_weth_pool_min_weth_threshold: u128,
     provider: Arc<Provider<P>>,
     requests_per_second_limit: usize,
-) -> Result<Vec<Pool>, PairSyncError<P>> {
+) -> Result<Vec<Pool>, CFFMError<P>> {
     let multi_progress_bar = MultiProgress::new();
     let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
     progress_bar.set_style(
@@ -168,11 +168,11 @@ pub async fn filter_pools_below_usd_threshold_with_throttle<P: 'static + JsonRpc
         {
             Ok(weth_value_in_pool) => weth_value_in_pool * usd_price_per_weth,
             Err(pair_sync_error) => match pair_sync_error {
-                PairSyncError::PairDoesNotExistInDexes(token_a, token_b) => {
+                CFFMError::PairDoesNotExistInDexes(token_a, token_b) => {
                     println!("Pair does not exist in dexes: {:?} {:?}", token_a, token_b);
                     0.0
                 }
-                PairSyncError::ContractError(contract_error) => {
+                CFFMError::ContractError(contract_error) => {
                     println!("Contract Error: {:?}", contract_error);
 
                     0.0
@@ -198,7 +198,7 @@ pub async fn filter_pools_below_weth_threshold<P: 'static + JsonRpcClient>(
     weth_threshold: f64,
     token_weth_pool_min_weth_threshold: u128,
     provider: Arc<Provider<P>>,
-) -> Result<Vec<Pool>, PairSyncError<P>> {
+) -> Result<Vec<Pool>, CFFMError<P>> {
     filter_pools_below_weth_threshold_with_throttle(
         pools,
         dexes,
@@ -219,7 +219,7 @@ pub async fn filter_pools_below_weth_threshold_with_throttle<P: 'static + JsonRp
     token_weth_pool_min_weth_threshold: u128,
     provider: Arc<Provider<P>>,
     requests_per_second_limit: usize,
-) -> Result<Vec<Pool>, PairSyncError<P>> {
+) -> Result<Vec<Pool>, CFFMError<P>> {
     let multi_progress_bar = MultiProgress::new();
     let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
     progress_bar.set_style(
@@ -261,9 +261,7 @@ pub async fn filter_pools_below_weth_threshold_with_throttle<P: 'static + JsonRp
         {
             Ok(weth_value_in_pool) => weth_value_in_pool,
             Err(pair_sync_error) => match pair_sync_error {
-                PairSyncError::PairDoesNotExistInDexes(_, _) | PairSyncError::ContractError(_) => {
-                    0.0
-                }
+                CFFMError::PairDoesNotExistInDexes(_, _) | CFFMError::ContractError(_) => 0.0,
                 _ => return Err(pair_sync_error),
             },
         };
@@ -282,7 +280,7 @@ async fn get_price_of_token_per_weth<P: 'static + JsonRpcClient>(
     dexes: &[Dex],
     token_weth_pool_min_weth_threshold: u128,
     provider: Arc<Provider<P>>,
-) -> Result<f64, PairSyncError<P>> {
+) -> Result<f64, CFFMError<P>> {
     if token_address == weth_address {
         return Ok(1.0);
     }
@@ -309,7 +307,7 @@ async fn get_token_to_weth_pool<P: 'static + JsonRpcClient>(
     dexes: &[Dex],
     token_weth_pool_min_weth_threshold: u128,
     provider: Arc<Provider<P>>,
-) -> Result<Pool, PairSyncError<P>> {
+) -> Result<Pool, CFFMError<P>> {
     let _pair_address = H160::zero();
     let mut _pool: Pool;
 
@@ -370,7 +368,7 @@ async fn get_token_to_weth_pool<P: 'static + JsonRpcClient>(
             }
 
             Err(pair_sync_error) => match pair_sync_error {
-                PairSyncError::ContractError(_) => continue,
+                CFFMError::ContractError(_) => continue,
                 other => return Err(other),
             },
         };
@@ -380,10 +378,7 @@ async fn get_token_to_weth_pool<P: 'static + JsonRpcClient>(
     if best_weth_reserves >= token_weth_pool_min_weth_threshold {
         Ok(best_pool.unwrap())
     } else {
-        Err(PairSyncError::PairDoesNotExistInDexes(
-            token_a,
-            weth_address,
-        ))
+        Err(CFFMError::PairDoesNotExistInDexes(token_a, weth_address))
     }
 }
 
@@ -418,7 +413,7 @@ impl FilteredPool for Pool {
         provider: Arc<Provider<P>>,
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
-    ) -> Result<f64, PairSyncError<P>> {
+    ) -> Result<f64, CFFMError<P>> {
         match self {
             Pool::UniswapV2(pool) => {
                 pool.get_weth_value_in_pool(
@@ -464,7 +459,7 @@ impl FilteredPool for UniswapV2Pool {
         provider: Arc<Provider<P>>,
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
-    ) -> Result<f64, PairSyncError<P>> {
+    ) -> Result<f64, CFFMError<P>> {
         let token_a_price_per_weth = token_weth_prices
             .lock()
             .unwrap()
@@ -554,7 +549,7 @@ impl FilteredPool for UniswapV3Pool {
         provider: Arc<Provider<P>>,
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
-    ) -> Result<f64, PairSyncError<P>> {
+    ) -> Result<f64, CFFMError<P>> {
         let (reserve_0, reserve_1) = self.calculate_virtual_reserves();
 
         let token_a_price_per_weth = token_weth_prices

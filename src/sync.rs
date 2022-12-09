@@ -1,4 +1,4 @@
-use crate::{checkpoint, error::PairSyncError};
+use crate::{checkpoint, error::CFFMError};
 
 use super::dex::Dex;
 use super::pool::Pool;
@@ -18,7 +18,7 @@ pub async fn sync_pairs<P: 'static + JsonRpcClient>(
     dexes: Vec<Dex>,
     provider: Arc<Provider<P>>,
     save_checkpoint: bool,
-) -> Result<Vec<Pool>, PairSyncError<P>> {
+) -> Result<Vec<Pool>, CFFMError<P>> {
     //Sync pairs with throttle but set the requests per second limit to 0, disabling the throttle.
     sync_pairs_with_throttle(dexes, provider, 0, save_checkpoint).await
 }
@@ -29,7 +29,7 @@ pub async fn sync_pairs_with_throttle<P: 'static + JsonRpcClient>(
     provider: Arc<Provider<P>>,
     requests_per_second_limit: usize,
     save_checkpoint: bool,
-) -> Result<Vec<Pool>, PairSyncError<P>> {
+) -> Result<Vec<Pool>, CFFMError<P>> {
     //Initalize a new request throttle
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
     let current_block = provider.get_block_number().await?;
@@ -103,7 +103,7 @@ pub async fn sync_pairs_with_throttle<P: 'static + JsonRpcClient>(
                 pool.sync_pool(async_provider.clone()).await?;
             }
 
-            Ok::<_, PairSyncError<P>>(pools)
+            Ok::<_, CFFMError<P>>(pools)
         }));
     }
 
@@ -140,7 +140,7 @@ pub async fn get_all_pools<P: 'static + JsonRpcClient>(
     dexes: Vec<Dex>,
     provider: Arc<Provider<P>>,
     requests_per_second_limit: usize,
-) -> Result<Vec<Pool>, PairSyncError<P>> {
+) -> Result<Vec<Pool>, CFFMError<P>> {
     //Initalize a new request throttle
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
     let current_block = provider.get_block_number().await?;
@@ -171,7 +171,7 @@ pub async fn get_all_pools<P: 'static + JsonRpcClient>(
             )
             .await?;
 
-            Ok::<_, PairSyncError<P>>(pools)
+            Ok::<_, CFFMError<P>>(pools)
         }));
     }
 
@@ -203,7 +203,7 @@ pub async fn get_all_pools_from_dex<P: 'static + JsonRpcClient>(
     current_block: BlockNumber,
     request_throttle: Arc<Mutex<RequestThrottle>>,
     progress_bar: ProgressBar,
-) -> Result<Vec<Pool>, PairSyncError<P>> {
+) -> Result<Vec<Pool>, CFFMError<P>> {
     //Define the step for searching a range of blocks for pair created events
     let step = 100000;
     //Unwrap can be used here because the creation block was verified within `Dex::new()`
@@ -266,7 +266,7 @@ pub async fn get_all_pools_from_dex<P: 'static + JsonRpcClient>(
             //Increment the progress bar by the step
             progress_bar.inc(step as u64);
 
-            Ok::<Vec<Pool>, PairSyncError<P>>(pools)
+            Ok::<Vec<Pool>, CFFMError<P>>(pools)
         }));
     }
 
@@ -296,7 +296,7 @@ pub async fn get_all_pool_data<P: 'static + JsonRpcClient>(
     provider: Arc<Provider<P>>,
     request_throttle: Arc<Mutex<RequestThrottle>>,
     progress_bar: ProgressBar,
-) -> Result<Vec<Pool>, PairSyncError<P>> {
+) -> Result<Vec<Pool>, CFFMError<P>> {
     //Initialize a vec to track each async task.
     // let mut handles: Vec<tokio::task::JoinHandle<Result<Pool, _>>> = vec![];
     //Create a new vec to aggregate the pools and populate the vec.
@@ -324,8 +324,8 @@ pub async fn get_all_pool_data<P: 'static + JsonRpcClient>(
             Ok(_) => updated_pools.push(pool),
 
             Err(pair_sync_error) => {
-                if let PairSyncError::ProviderError(provider_error) = pair_sync_error {
-                    return Err(PairSyncError::ProviderError(provider_error));
+                if let CFFMError::ProviderError(provider_error) = pair_sync_error {
+                    return Err(CFFMError::ProviderError(provider_error));
                 }
             }
         }

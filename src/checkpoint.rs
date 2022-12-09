@@ -16,7 +16,7 @@ use serde_json::{Map, Value};
 
 use crate::{
     dex::{Dex, DexVariant},
-    error::PairSyncError,
+    error::CFFMError,
     pool::{Pool, UniswapV2Pool, UniswapV3Pool},
     sync::{self, get_all_pools},
     throttle::RequestThrottle,
@@ -28,7 +28,7 @@ pub async fn sync_pairs_from_checkpoint<P: 'static + JsonRpcClient>(
     provider: Arc<Provider<P>>,
     update_checkpoint: bool,
     checkpoint_file_name: String,
-) -> Result<(Vec<Dex>, Vec<Pool>), PairSyncError<P>> {
+) -> Result<(Vec<Dex>, Vec<Pool>), CFFMError<P>> {
     sync_pairs_from_checkpoint_with_throttle(
         path_to_checkpoint,
         provider,
@@ -46,7 +46,7 @@ pub async fn sync_pairs_from_checkpoint_with_throttle<P: 'static + JsonRpcClient
     requests_per_second_limit: usize,
     update_checkpoint: bool,
     checkpoint_file_name: String,
-) -> Result<(Vec<Dex>, Vec<Pool>), PairSyncError<P>> {
+) -> Result<(Vec<Dex>, Vec<Pool>), CFFMError<P>> {
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
 
     //Read in checkpoint
@@ -88,7 +88,7 @@ pub async fn generate_checkpoint<P: 'static + JsonRpcClient>(
     dexes: Vec<Dex>,
     provider: Arc<Provider<P>>,
     checkpoint_file_name: String,
-) -> Result<(), PairSyncError<P>> {
+) -> Result<(), CFFMError<P>> {
     //Sync pairs with throttle but set the requests per second limit to 0, disabling the throttle.
     generate_checkpoint_with_throttle(dexes, provider, 0, checkpoint_file_name).await
 }
@@ -99,7 +99,7 @@ pub async fn generate_checkpoint_with_throttle<P: 'static + JsonRpcClient>(
     provider: Arc<Provider<P>>,
     requests_per_second_limit: usize,
     checkpoint_file_name: String,
-) -> Result<(), PairSyncError<P>> {
+) -> Result<(), CFFMError<P>> {
     //Initalize a new request throttle
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
     let current_block = provider.get_block_number().await?;
@@ -157,7 +157,7 @@ pub async fn generate_checkpoint_with_throttle<P: 'static + JsonRpcClient>(
 
             progress_bar.finish();
 
-            Ok::<_, PairSyncError<P>>(pools)
+            Ok::<_, CFFMError<P>>(pools)
         }));
     }
 
@@ -193,7 +193,7 @@ pub async fn generate_checkpoint_with_throttle<P: 'static + JsonRpcClient>(
 pub async fn sync_pools_from_checkpoint<P: 'static + JsonRpcClient>(
     path_to_checkpoint: String,
     provider: Arc<Provider<P>>,
-) -> Result<(Vec<Dex>, Vec<Pool>), PairSyncError<P>> {
+) -> Result<(Vec<Dex>, Vec<Pool>), CFFMError<P>> {
     sync_pools_from_checkpoint_with_throttle(path_to_checkpoint, provider, 0).await
 }
 
@@ -202,7 +202,7 @@ pub async fn sync_pools_from_checkpoint_with_throttle<P: 'static + JsonRpcClient
     path_to_checkpoint: String,
     provider: Arc<Provider<P>>,
     requests_per_second_limit: usize,
-) -> Result<(Vec<Dex>, Vec<Pool>), PairSyncError<P>> {
+) -> Result<(Vec<Dex>, Vec<Pool>), CFFMError<P>> {
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
 
     let multi_progress_bar = MultiProgress::new();
@@ -228,8 +228,8 @@ pub async fn sync_pools_from_checkpoint_with_throttle<P: 'static + JsonRpcClient
         match pool.sync_pool(provider.clone()).await {
             Ok(_) => {}
             Err(pair_sync_error) => match pair_sync_error {
-                PairSyncError::ProviderError(provider_error) => {
-                    return Err(PairSyncError::ProviderError(provider_error))
+                CFFMError::ProviderError(provider_error) => {
+                    return Err(CFFMError::ProviderError(provider_error))
                 }
                 _ => continue,
             },
