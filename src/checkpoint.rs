@@ -421,7 +421,6 @@ pub fn deconstruct_pools_from_checkpoint(pools_array: &Vec<Value>) -> Vec<Pool> 
                             0,
                             0,
                             0,
-                            false,
                             fee,
                             U256::zero(),
                         )));

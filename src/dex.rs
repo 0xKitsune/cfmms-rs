@@ -178,7 +178,6 @@ impl Dex {
                     tick: 0,
                     tick_word: U256::zero(),
                     liquidity_net: 0,
-                    initialized: false,
                     fee,
                 }))
             }

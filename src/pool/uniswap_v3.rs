@@ -22,7 +22,6 @@ pub struct UniswapV3Pool {
     pub tick: i32,
     pub tick_spacing: i32,
     pub liquidity_net: i128,
-    pub initialized: bool,
     pub tick_word: U256,
 }
 
@@ -39,7 +38,6 @@ impl UniswapV3Pool {
         tick: i32,
         tick_spacing: i32,
         liquidity_net: i128,
-        initialized: bool,
         fee: u32,
         tick_word: U256,
     ) -> UniswapV3Pool {
@@ -54,7 +52,6 @@ impl UniswapV3Pool {
             tick,
             tick_spacing,
             liquidity_net,
-            initialized,
             fee,
             tick_word,
         }
@@ -76,7 +73,6 @@ impl UniswapV3Pool {
             tick: 0,
             tick_spacing: 0,
             liquidity_net: 0,
-            initialized: false,
             tick_word: U256::zero(),
             fee: 0,
         };
@@ -96,7 +92,6 @@ impl UniswapV3Pool {
 
         let tick_info = pool.get_tick_info(pool.tick, provider.clone()).await?;
         pool.liquidity_net = tick_info.1;
-        pool.initialized = tick_info.7;
         pool.get_pool_data(provider.clone()).await?;
 
         Ok(pool)
@@ -274,7 +269,6 @@ impl UniswapV3Pool {
         self.tick = slot_0.1;
 
         let tick_info = self.get_tick_info(self.tick, provider.clone()).await?;
-        self.initialized = tick_info.7;
         self.liquidity_net = tick_info.1;
 
         self.tick_word = self.get_tick_word(self.tick, provider.clone()).await?;
@@ -291,7 +285,6 @@ impl UniswapV3Pool {
         (_, _, self.sqrt_price, self.liquidity, self.tick) = self.decode_swap_log(swap_log);
 
         let tick_info = self.get_tick_info(self.tick, provider.clone()).await?;
-        self.initialized = tick_info.7;
         self.liquidity_net = tick_info.1;
         self.tick_word = self.get_tick_word(self.tick, provider.clone()).await?;
 
