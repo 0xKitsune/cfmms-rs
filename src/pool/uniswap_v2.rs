@@ -6,7 +6,7 @@ use std::{
 use ethers::{
     abi::ParamType,
     providers::{JsonRpcClient, Provider},
-    types::{Log, H160, U256},
+    types::{Log, H160},
 };
 
 use crate::{abi, error::CFFMError};
@@ -184,10 +184,8 @@ impl UniswapV2Pool {
     //Returns reserve0, reserve1
     pub fn decode_sync_log(&self, sync_log: &Log) -> (u128, u128) {
         let data = ethers::abi::decode(
-            &vec![
-                ParamType::Uint(128), //reserve0
-                ParamType::Uint(128), //reserve1
-            ],
+            &[ParamType::Uint(128), //reserve0
+                ParamType::Uint(128)],
             &sync_log.data,
         )
         .expect("Could not get log data");

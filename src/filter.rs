@@ -331,14 +331,12 @@ async fn get_token_to_weth_pool<P: 'static + JsonRpcClient>(
                                     best_weth_reserves = univ2_pool.reserve_1;
                                     best_pool = pool;
                                 }
-                            } else {
-                                if univ2_pool.reserve_1 > best_weth_reserves {
-                                    best_weth_reserves = univ2_pool.reserve_1;
-                                    best_pool = pool;
-                                } else if univ2_pool.reserve_0 > best_weth_reserves {
-                                    best_weth_reserves = univ2_pool.reserve_0;
-                                    best_pool = pool;
-                                }
+                            } else if univ2_pool.reserve_1 > best_weth_reserves {
+                                best_weth_reserves = univ2_pool.reserve_1;
+                                best_pool = pool;
+                            } else if univ2_pool.reserve_0 > best_weth_reserves {
+                                best_weth_reserves = univ2_pool.reserve_0;
+                                best_pool = pool;
                             }
                         }
 
@@ -353,14 +351,12 @@ async fn get_token_to_weth_pool<P: 'static + JsonRpcClient>(
                                     best_weth_reserves = reserve_1;
                                     best_pool = pool;
                                 }
-                            } else {
-                                if reserve_1 > best_weth_reserves {
-                                    best_weth_reserves = reserve_1;
-                                    best_pool = pool;
-                                } else if reserve_0 > best_weth_reserves {
-                                    best_weth_reserves = reserve_0;
-                                    best_pool = pool;
-                                }
+                            } else if reserve_1 > best_weth_reserves {
+                                best_weth_reserves = reserve_1;
+                                best_pool = pool;
+                            } else if reserve_0 > best_weth_reserves {
+                                best_weth_reserves = reserve_0;
+                                best_pool = pool;
                             }
                         }
                     }

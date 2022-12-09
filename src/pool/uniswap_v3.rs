@@ -301,15 +301,11 @@ impl UniswapV3Pool {
     //Returns reserve0, reserve1
     pub fn decode_swap_log(&self, swap_log: &Log) -> (I256, I256, U256, u128, i32) {
         let log_data = decode(
-            &vec![
-                // ParamType::Address,   //sender is indexed so its not in log data
-                // ParamType::Address,   //recipient is indexed so its not in log data
-                ParamType::Int(256),  //amount0
+            &[ParamType::Int(256),  //amount0
                 ParamType::Int(256),  //amount1
                 ParamType::Uint(160), //sqrtPriceX96
                 ParamType::Uint(128), //liquidity
-                ParamType::Int(24),   //tick
-            ],
+                ParamType::Int(24)],
             &swap_log.data,
         )
         .expect("Could not get log data");
@@ -439,7 +435,7 @@ impl UniswapV3Pool {
         &self,
         token_in: H160,
         amount_in: u128,
-        provider: Arc<Provider<P>>,
+        _provider: Arc<Provider<P>>,
     ) -> Result<u128, CFFMError<P>> {
         //Initialize zero_for_one to true if token_in is token_a
         let zero_for_one = token_in == self.token_a;
@@ -461,7 +457,7 @@ impl UniswapV3Pool {
         };
 
         //Grab liquidity_net from the pool. This is the net liquidity change in the pool uppon crossing self.tick
-        let liquidity_net = self.liquidity_net;
+        let _liquidity_net = self.liquidity_net;
 
         //While there is still an amount remaining to be swapped
         //Loop through swap steps until the amount_specified_remaining is 0.
@@ -513,7 +509,7 @@ impl UniswapV3Pool {
             //Amount used during the swap for the input and output tokens
             let amount_used: U256;
             let amount_received: U256;
-            let sqrt_price_at_tick_next =
+            let _sqrt_price_at_tick_next =
                 uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
             //Compute swap step and update the current state
             (
@@ -576,7 +572,7 @@ impl UniswapV3Pool {
         Ok(0)
     }
 
-    pub fn simulate_swap_mut(&mut self, token_in: H160, amount_in: u128) -> u128 {
+    pub fn simulate_swap_mut(&mut self, _token_in: H160, _amount_in: u128) -> u128 {
         //TODO: update this
         0
     }

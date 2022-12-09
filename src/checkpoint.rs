@@ -383,7 +383,7 @@ pub fn deconstruct_pools_from_checkpoint(pools_array: &Vec<Value>) -> Vec<Pool> 
                     .expect("Could not convert token_b_decimals to u64")
                     as u8;
 
-                let a_to_b = pool_map
+                let _a_to_b = pool_map
                     .get("a_to_b")
                     .unwrap_or_else(|| panic!("Could not get a_to_b {:?}", pool_map))
                     .as_bool()
