@@ -120,6 +120,15 @@ impl UniswapV3Pool {
         Ok(v3_pool.tick_bitmap(word_position).call().await?)
     }
 
+    pub async fn get_next_word<P: JsonRpcClient>(
+        &self,
+        word_position: i16,
+        provider: Arc<Provider<P>>,
+    ) -> Result<U256, CFFMError<P>> {
+        let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
+        Ok(v3_pool.tick_bitmap(word_position).call().await?)
+    }
+
     pub async fn get_tick_spacing<P: JsonRpcClient>(
         &self,
         provider: Arc<Provider<P>>,
@@ -430,7 +439,7 @@ impl UniswapV3Pool {
         &self,
         token_in: H160,
         amount_in: u128,
-        _provider: Arc<Provider<P>>,
+        provider: Arc<Provider<P>>,
     ) -> Result<u128, CFFMError<P>> {
         //Initialize zero_for_one to true if token_in is token_a
         let zero_for_one = token_in == self.token_a;
@@ -456,6 +465,8 @@ impl UniswapV3Pool {
 
         //While there is still an amount remaining to be swapped
         //Loop through swap steps until the amount_specified_remaining is 0.
+
+        let mut tick_word = self.tick_word;
         while current_state.amount_specified_remaining > I256::zero() {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
             let mut step = StepComputations::default();
@@ -463,25 +474,26 @@ impl UniswapV3Pool {
             //@0xKitsune If step.initialized is 0, then there are no more initialized ticks left in the `current_word`.
             (step.tick_next, step.initialized) =
                 uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
-                    self.tick_word,
+                    tick_word,
                     current_state.tick,
                     self.tick_spacing,
                     zero_for_one,
                 );
 
-            //TODO: @0xKitsune If step.initialized is 0, then get the next word from the TickBitmap on the pool.
-            // (word_position, bit_position)=position(self.tick) gives you the current word pos. The next word position
-            // will be word_position + 1. Then you can get the next initialized tick from the next word.
-            // By calling tickBitmap[word_position +1] on the contract.
-            // But first you should add this logic before setting the step.tick_next to the next initialized tick.
-            /*
-               // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
-                   if step.tick_next < MIN_TICK {
-                       step.tick_next = MIN_TICK;
-                   } else if step.tick_next > MAX_TICK {
-                       step.tick_next = MAX_TICK;
-                   }
-            */
+            if !step.initialized {
+                //:: TODO: For swap mut, this needs to change the tick word
+                let (word_position, _) = uniswap_v3_math::tick_bit_map::position(self.tick);
+                tick_word = self.get_next_word(word_position, provider.clone()).await?;
+
+                (step.tick_next, step.initialized) =
+                    uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
+                        tick_word,
+                        current_state.tick,
+                        self.tick_spacing,
+                        zero_for_one,
+                    );
+            }
+
             let amount_in_remaining: U256 =
                 U256::from(current_state.amount_specified_remaining.as_u128());
 
@@ -563,8 +575,7 @@ impl UniswapV3Pool {
             }
         }
 
-        //TODO: update this
-        Ok(0)
+        Ok((-current_state.amount_calculated.as_i128()) as u128)
     }
 
     pub fn simulate_swap_mut(&mut self, _token_in: H160, _amount_in: u128) -> u128 {
