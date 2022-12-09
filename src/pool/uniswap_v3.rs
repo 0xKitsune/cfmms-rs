@@ -426,7 +426,7 @@ impl UniswapV3Pool {
             MAX_SQRT_RATIO - 1
         };
 
-        let current_state = CurrentState {
+        let mut current_state = CurrentState {
             sqrt_price_x_96: self.sqrt_price,
             amount_calculated: I256::zero(),
             amount_specified_remaining: I256::from(amount_in),
@@ -485,8 +485,8 @@ impl UniswapV3Pool {
             )?;
 
             current_state.amount_specified_remaining -=
-                I256::from(amount_used.add(step.fee_amount).try_into() as u128);
-            current_state.amount_calculated -= (amount_received).try_into() as I256;
+                I256::from_raw(amount_used.add(step.fee_amount));
+            current_state.amount_calculated -= I256::from_raw(amount_received);
 
             //If the price moved all the way to the next price, recompute the liquidity change for the next iteration
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
@@ -502,15 +502,15 @@ impl UniswapV3Pool {
                             amount_used,
                             liquidity_temp,
                             current_state.sqrt_price_x_96 - step.sqrt_price_next_x96,
-                        )
-                        .try_into() as u128;
+                        )?
+                        .as_u128();
                     } else {
                         current_state.liquidity = uniswap_v3_math::full_math::mul_div(
                             amount_used,
                             U256::from(0x1000000000000000000000000),
                             step.sqrt_price_next_x96 - current_state.sqrt_price_x_96,
-                        )
-                        .try_into() as u128;
+                        )?
+                        .as_u128();
                     }
                 }
                 //Increment the current tick
@@ -570,4 +570,53 @@ pub struct Tick {
     pub seconds_per_liquidity_outside_x_128: U256,
     pub seconds_outside: u32,
     pub initialized: bool,
+}
+
+//Returns next and initialized
+pub fn next_initialized_tick_within_one_word(
+    tick_word: U256,
+    tick: i32,
+    tick_spacing: i32,
+    lte: bool,
+) -> (i32, bool) {
+    let compressed = if tick < 0 && tick % tick_spacing != 0 {
+        (tick / tick_spacing) - 1
+    } else {
+        tick / tick_spacing
+    };
+
+    if lte {
+        let (word_pos, bit_pos) = uniswap_v3_math::tick_bit_map::position(compressed);
+        let mask = U256::from((1 << bit_pos) - 1 + (1 << bit_pos));
+        let masked = tick_mapping.get(&word_pos).unwrap().bitand(mask);
+        let initialized = !masked.is_zero();
+
+        let next = if initialized {
+            let le_bytes = &mut [0u8; 32];
+            masked.to_little_endian(le_bytes);
+            let most_significant_bit = le_bytes[0];
+            compressed - ((bit_pos - most_significant_bit) as i32 & tick_spacing)
+        } else {
+            compressed - (bit_pos as i32 * tick_spacing)
+        };
+
+        (next, initialized)
+    } else {
+        let (word_pos, bit_pos) = uniswap_v3_math::tick_bit_map::position(compressed + 1);
+        let mask = !U256::from((1 << bit_pos) - 1);
+
+        let masked = tick_mapping.get(&word_pos).unwrap().bitand(mask);
+        let initialized = !masked.is_zero();
+
+        let next = if initialized {
+            let le_bytes = &mut [0u8; 32];
+            masked.to_big_endian(le_bytes);
+            let least_significant_bit = le_bytes[0];
+            (compressed + 1 + (least_significant_bit - bit_pos) as i32) * tick_spacing
+        } else {
+            (compressed + 1 + 0xFF - bit_pos as i32) * tick_spacing
+        };
+
+        (next, initialized)
+    }
 }
