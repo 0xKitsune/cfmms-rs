@@ -456,8 +456,9 @@ impl UniswapV3Pool {
             liquidity: self.liquidity, //Current available liquidity in the tick range
         };
 
-     
+        //@0xKitsune Call node to get the word from the current tickBitmap in the pool using (word_offset, )=position(tick)
         let mut tick_word = self.tick_word;
+
         while current_state.amount_specified_remaining > I256::zero() {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
             let mut step = StepComputations::default();
@@ -546,7 +547,7 @@ impl UniswapV3Pool {
                     // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
                     if zero_for_one { liquidity_net = -liquidity_net}
                     //Getting linting error here on liquidity_net  
-                   
+                    //@0xKitsune uncomment this line
                     //current_state.liquidity = uniswap_v3_math::liquidity_math::add_delta(current_state.liquidity, liquidity_net);
                 }
                 //Increment the current tick
@@ -555,6 +556,8 @@ impl UniswapV3Pool {
                 } else {
                     step.tick_next
                 }
+                //If the current_state sqrt price is not equal to the step sqrt price, then we are not on the same tick.
+                //Update the current_state.tick to the tick at the current_state.sqrt_price_x_96
             } else if current_state.sqrt_price_x_96 != step.sqrt_price_start_x_96 {
                 current_state.tick = uniswap_v3_math::sqrt_price_math::get_tick_at_sqrt_ratio(
                     current_state.sqrt_price_x_96,
