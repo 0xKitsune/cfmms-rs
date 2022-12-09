@@ -301,11 +301,13 @@ impl UniswapV3Pool {
     //Returns reserve0, reserve1
     pub fn decode_swap_log(&self, swap_log: &Log) -> (I256, I256, U256, u128, i32) {
         let log_data = decode(
-            &[ParamType::Int(256),  //amount0
+            &[
+                ParamType::Int(256),  //amount0
                 ParamType::Int(256),  //amount1
                 ParamType::Uint(160), //sqrtPriceX96
                 ParamType::Uint(128), //liquidity
-                ParamType::Int(24)],
+                ParamType::Int(24),
+            ],
             &swap_log.data,
         )
         .expect("Could not get log data");

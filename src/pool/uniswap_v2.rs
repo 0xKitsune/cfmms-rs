@@ -184,8 +184,10 @@ impl UniswapV2Pool {
     //Returns reserve0, reserve1
     pub fn decode_sync_log(&self, sync_log: &Log) -> (u128, u128) {
         let data = ethers::abi::decode(
-            &[ParamType::Uint(128), //reserve0
-                ParamType::Uint(128)],
+            &[
+                ParamType::Uint(128), //reserve0
+                ParamType::Uint(128),
+            ],
             &sync_log.data,
         )
         .expect("Could not get log data");
