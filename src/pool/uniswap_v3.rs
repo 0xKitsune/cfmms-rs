@@ -36,7 +36,6 @@ impl UniswapV3Pool {
         sqrt_price: U256,
         tick: i32,
         tick_spacing: i32,
-        liquidity_net: i128,
         fee: u32,
         tick_word: U256,
     ) -> UniswapV3Pool {
