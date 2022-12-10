@@ -1,4 +1,4 @@
-use std::{ops::Add, sync::Arc};
+use std::{ops::Add, sync::Arc, thread::current};
 
 use ethers::{
     abi::{decode, ParamType},
@@ -452,8 +452,13 @@ impl UniswapV3Pool {
             liquidity: self.liquidity, //Current available liquidity in the tick range
         };
 
-        //@0xKitsune Call node to get the word from the current tickBitmap in the pool using (word_offset, )=position(tick)
-        let mut tick_word = self.tick_word;
+        let pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
+
+        //TODO: @0xOsiris
+        let mut tick_word = pool
+            .tick_bitmap(uniswap_v3_math::tick_bit_map::position(current_state.tick).0)
+            .call()
+            .await?;
 
         while current_state.amount_specified_remaining > I256::zero() {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
@@ -483,6 +488,7 @@ impl UniswapV3Pool {
                     );
             }
 
+            //TODO: @0xOsiris, linter says amount_in_remaining is unused?
             let amount_in_remaining: U256 =
                 U256::from(current_state.amount_specified_remaining.as_u128());
 
@@ -538,16 +544,16 @@ impl UniswapV3Pool {
             //If the price moved all the way to the next price, recompute the liquidity change for the next iteration
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
                 if step.initialized {
-                    //@0xKitsune Since step is initialized, we need to get the liquidity_net from the tickInfo mapping on the pool.
-
-                    let liquidity_net = self.get_liquidity_net(tick, provider.clone()).await?;
+                    let mut liquidity_net = self
+                        .get_liquidity_net(current_state.tick, provider.clone())
+                        .await?;
 
                     // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
                     if zero_for_one {
                         liquidity_net = -liquidity_net;
                     }
-                    //Getting linting error here on liquidity_net
-                    //@0xKitsune uncomment this line
+
+                    //TODO: @0xOsiris
                     current_state.liquidity = uniswap_v3_math::liquidity_math::add_delta(
                         current_state.liquidity,
                         liquidity_net,
