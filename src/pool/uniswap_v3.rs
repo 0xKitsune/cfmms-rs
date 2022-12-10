@@ -2,6 +2,7 @@ use std::{ops::Add, sync::Arc, thread::current};
 
 use ethers::{
     abi::{decode, ParamType},
+    prelude::k256::elliptic_curve::consts::U2,
     providers::{JsonRpcClient, Provider},
     types::{Log, H160, I256, U256},
 };
@@ -452,6 +453,8 @@ impl UniswapV3Pool {
             .call()
             .await?;
 
+        let mut liquidity_net = self.liquidity_net;
+
         while current_state.amount_specified_remaining > I256::zero() {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
             let mut step = StepComputations::default();
@@ -528,7 +531,7 @@ impl UniswapV3Pool {
             //If the price moved all the way to the next price, recompute the liquidity change for the next iteration
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
                 if step.initialized {
-                    let mut liquidity_net = self
+                    liquidity_net = self
                         .get_liquidity_net(current_state.tick, provider.clone())
                         .await?;
 
@@ -537,7 +540,6 @@ impl UniswapV3Pool {
                         liquidity_net = -liquidity_net;
                     }
 
-                    //TODO: @0xOsiris
                     current_state.liquidity = uniswap_v3_math::liquidity_math::add_delta(
                         current_state.liquidity,
                         liquidity_net,
@@ -579,37 +581,38 @@ impl UniswapV3Pool {
 
         //Initialize a mutable state state struct to hold the dynamic simulated state of the pool
         let mut current_state = CurrentState {
+            sqrt_price_x_96: self.sqrt_price, //Active price on the pool
             amount_calculated: I256::zero(),  //Amount of token_out that has been calculated
             amount_specified_remaining: I256::from(amount_in), //Amount of token_in that has not been swapped
+            tick: self.tick,                                   //Current i24 tick of the pool
+            liquidity: self.liquidity, //Current available liquidity in the tick range
         };
 
         let pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
 
-        //Get the current word_offset of the current tick and retrive the u256 word from tickBitmap[word_offset].
-        //This word contains the initialized ticks within the same word as the current tick
+        //Get the first initialized tick within one word of the current tick
         let mut tick_word = pool
             .tick_bitmap(uniswap_v3_math::tick_bit_map::position(current_state.tick).0)
             .call()
             .await?;
 
-        let mut liquidity_net;
+        let mut liquidity_net = self.liquidity_net;
 
-        //Loop until the amount remaining to be swapped is zero
         while current_state.amount_specified_remaining > I256::zero() {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
             let mut step = StepComputations::default();
             //Set the sqrt_price_start_x_96 to the current sqrt_price_x_96
-            step.sqrt_price_start_x_96 = self.sqrt_price;
+            step.sqrt_price_start_x_96 = current_state.sqrt_price_x_96;
 
             //Get the next initialized tick within one word of the current tick
             (step.tick_next, step.initialized) =
                 uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
                     tick_word,
-                    self.tick,
+                    current_state.tick,
                     self.tick_spacing,
                     zero_for_one,
                 );
-
+            //If there are no initialized ticks within the current word, then we need to get the next word, at word_position + 1
             if !step.initialized {
                 let (word_position, _) = uniswap_v3_math::tick_bit_map::position(self.tick);
                 tick_word = self.get_next_word(word_position, provider.clone()).await?;
@@ -617,7 +620,7 @@ impl UniswapV3Pool {
                 (step.tick_next, step.initialized) =
                     uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
                         tick_word,
-                        self.tick,
+                        current_state.tick,
                         self.tick_spacing,
                         zero_for_one,
                     );
@@ -651,14 +654,14 @@ impl UniswapV3Pool {
 
             //Compute swap step and update the current state
             (
-                self.sqrt_price,
+                current_state.sqrt_price_x_96,
                 step.amount_in,
                 step.amount_out,
                 step.fee_amount,
             ) = uniswap_v3_math::swap_math::compute_swap_step(
-                self.sqrt_price,
+                current_state.sqrt_price_x_96,
                 swap_target_sqrt_ratio,
-                self.liquidity,
+                current_state.liquidity,
                 current_state.amount_specified_remaining,
                 self.fee,
             )?;
@@ -669,10 +672,10 @@ impl UniswapV3Pool {
             current_state.amount_calculated -= I256::from_raw(step.amount_out);
 
             //If the price moved all the way to the next price, recompute the liquidity change for the next iteration
-            if self.sqrt_price == step.sqrt_price_next_x96 {
+            if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
                 if step.initialized {
                     liquidity_net = self
-                        .get_liquidity_net(self.tick, provider.clone())
+                        .get_liquidity_net(current_state.tick, provider.clone())
                         .await?;
 
                     // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
@@ -680,30 +683,31 @@ impl UniswapV3Pool {
                         liquidity_net = -liquidity_net;
                     }
 
-                  
-                    self.liquidity = uniswap_v3_math::liquidity_math::add_delta(
-                        self.liquidity,
+                    current_state.liquidity = uniswap_v3_math::liquidity_math::add_delta(
+                        current_state.liquidity,
                         liquidity_net,
                     )?;
                 }
                 //Increment the current tick
-                self.tick = if zero_for_one {
+                current_state.tick = if zero_for_one {
                     step.tick_next - 1
                 } else {
                     step.tick_next
                 }
                 //If the current_state sqrt price is not equal to the step sqrt price, then we are not on the same tick.
                 //Update the current_state.tick to the tick at the current_state.sqrt_price_x_96
-            } else if self.sqrt_price != step.sqrt_price_start_x_96 {
-                self.tick = uniswap_v3_math::sqrt_price_math::get_tick_at_sqrt_ratio(
-                    self.sqrt_price,
+            } else if current_state.sqrt_price_x_96 != step.sqrt_price_start_x_96 {
+                current_state.tick = uniswap_v3_math::sqrt_price_math::get_tick_at_sqrt_ratio(
+                    current_state.sqrt_price_x_96,
                 )?;
             }
         }
 
-        //Update the pool state to the locally initialized values. 
-        //Tick, liquidity, and sqrt_price are update with a mutable reference to the pool. 
-        self.liquidity_net= liquidity_net;
+        //Update the pool state
+        self.liquidity = current_state.liquidity;
+        self.sqrt_price = current_state.sqrt_price_x_96;
+        self.tick = current_state.tick;
+        self.liquidity_net = liquidity_net;
         self.tick_word = tick_word;
 
         Ok((-current_state.amount_calculated.as_i128()) as u128)
