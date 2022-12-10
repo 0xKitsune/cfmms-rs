@@ -9,8 +9,6 @@ use num_bigfloat::BigFloat;
 
 use crate::{abi, error::CFFMError};
 
-
-
 #[derive(Clone, Copy)]
 pub struct UniswapV3Pool {
     pub address: H160,
@@ -409,8 +407,6 @@ impl UniswapV3Pool {
         )
     }
 
-    
-
     pub fn calculate_price(&self, base_token: H160) -> f64 {
         let price = BigFloat::from_u128(
             ((self.sqrt_price.overflowing_mul(self.sqrt_price).0) >> 128).as_u128(),
@@ -491,7 +487,8 @@ impl UniswapV3Pool {
                 U256::from(current_state.amount_specified_remaining.as_u128());
 
             //Get the next sqrt price from the input amount
-            step.sqrt_price_next_x96 =uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
+            step.sqrt_price_next_x96 =
+                uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
 
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
             if step.tick_next < MIN_TICK {
@@ -503,9 +500,9 @@ impl UniswapV3Pool {
             //Amount used during the swap for the input and output tokens
             let amount_used: U256;
             let amount_received: U256;
-            
-            //Target spot price 
-            let swap_target_sqrt_ratio = if zero_for_one  {
+
+            //Target spot price
+            let swap_target_sqrt_ratio = if zero_for_one {
                 if step.sqrt_price_next_x96 < sqrt_price_limit_x_96 {
                     sqrt_price_limit_x_96
                 } else {
@@ -542,13 +539,19 @@ impl UniswapV3Pool {
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
                 if step.initialized {
                     //@0xKitsune Since step is initialized, we need to get the liquidity_net from the tickInfo mapping on the pool.
-                    let liquidity_net:i128;
+
+                    let liquidity_net = self.get_liquidity_net(tick, provider.clone()).await?;
 
                     // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
-                    if zero_for_one { liquidity_net = -liquidity_net}
-                    //Getting linting error here on liquidity_net  
+                    if zero_for_one {
+                        liquidity_net = -liquidity_net;
+                    }
+                    //Getting linting error here on liquidity_net
                     //@0xKitsune uncomment this line
-                    //current_state.liquidity = uniswap_v3_math::liquidity_math::add_delta(current_state.liquidity, liquidity_net);
+                    current_state.liquidity = uniswap_v3_math::liquidity_math::add_delta(
+                        current_state.liquidity,
+                        liquidity_net,
+                    )?;
                 }
                 //Increment the current tick
                 current_state.tick = if zero_for_one {
@@ -564,12 +567,9 @@ impl UniswapV3Pool {
                 )?;
             }
         }
-        
-        
 
         Ok((-current_state.amount_calculated.as_i128()) as u128)
     }
-
 
     pub async fn simulate_swap_mut<P: 'static + JsonRpcClient>(
         &self,
