@@ -454,7 +454,7 @@ impl UniswapV3Pool {
 
         let pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
 
-        //TODO: @0xOsiris
+        //Get the first initialized tick within one word of the current tick
         let mut tick_word = pool
             .tick_bitmap(uniswap_v3_math::tick_bit_map::position(current_state.tick).0)
             .call()
@@ -474,7 +474,7 @@ impl UniswapV3Pool {
                     self.tick_spacing,
                     zero_for_one,
                 );
-
+            //If there are no initialized ticks within the current word, then we need to get the next word, at word_position + 1
             if !step.initialized {
                 let (word_position, _) = uniswap_v3_math::tick_bit_map::position(self.tick);
                 tick_word = self.get_next_word(word_position, provider.clone()).await?;
@@ -498,10 +498,6 @@ impl UniswapV3Pool {
             } else if step.tick_next > MAX_TICK {
                 step.tick_next = MAX_TICK;
             }
-
-            //Amount used during the swap for the input and output tokens
-            let amount_used: U256;
-            let amount_received: U256;
 
             //Target spot price
             let swap_target_sqrt_ratio = if zero_for_one {
@@ -606,7 +602,7 @@ impl UniswapV3Pool {
             .tick_bitmap(uniswap_v3_math::tick_bit_map::position(current_state.tick).0)
             .call()
             .await?;
-            
+
         //Loop until the amount remaining to be swapped is zero
         while current_state.amount_specified_remaining > I256::zero() {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
@@ -713,8 +709,6 @@ impl UniswapV3Pool {
                 )?;
             }
         }
-
-       
 
         //TODO: update state
         // self.liquidity =
