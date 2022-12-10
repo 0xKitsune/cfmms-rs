@@ -22,6 +22,7 @@ pub struct UniswapV3Pool {
     pub tick: i32,
     pub tick_spacing: i32,
     pub tick_word: U256,
+    pub liquidity_net: i128,
 }
 
 impl UniswapV3Pool {
@@ -32,12 +33,13 @@ impl UniswapV3Pool {
         token_a_decimals: u8,
         token_b: H160,
         token_b_decimals: u8,
+        fee: u32,
         liquidity: u128,
         sqrt_price: U256,
         tick: i32,
         tick_spacing: i32,
-        fee: u32,
         tick_word: U256,
+        liquidity_net: i128,
     ) -> UniswapV3Pool {
         UniswapV3Pool {
             address,
@@ -45,12 +47,13 @@ impl UniswapV3Pool {
             token_a_decimals,
             token_b,
             token_b_decimals,
+            fee,
             liquidity,
             sqrt_price,
             tick,
             tick_spacing,
-            fee,
             tick_word,
+            liquidity_net,
         }
     }
 
@@ -71,23 +74,16 @@ impl UniswapV3Pool {
             tick_spacing: 0,
             tick_word: U256::zero(),
             fee: 0,
+            liquidity_net: 0,
         };
+        pool.get_pool_data(provider.clone()).await?;
 
-        (pool.token_a_decimals, pool.token_b_decimals) =
-            pool.get_token_decimals(provider.clone()).await?;
-        pool.token_a = pool.get_token_0(provider.clone()).await?;
-        pool.token_b = pool.get_token_1(provider.clone()).await?;
-        pool.fee = pool.get_fee(provider.clone()).await?;
-        pool.tick_spacing = pool.get_tick_spacing(provider.clone()).await?;
         pool.liquidity = pool.get_liquidity(provider.clone()).await?;
 
         let slot_0 = pool.get_slot_0(provider.clone()).await?;
         pool.tick = slot_0.1;
         pool.sqrt_price = slot_0.0;
-        //256 bit word surrounding the current tick
-
-        let tick_info = pool.get_tick_info(pool.tick, provider.clone()).await?;
-        pool.get_pool_data(provider.clone()).await?;
+        pool.liquidity_net = pool.get_liquidity_net(pool.tick, provider.clone()).await?;
 
         Ok(pool)
     }
@@ -268,13 +264,15 @@ impl UniswapV3Pool {
         &mut self,
         provider: Arc<Provider<P>>,
     ) -> Result<(), CFFMError<P>> {
+        self.liquidity = self.get_liquidity(provider.clone()).await?;
+
         let slot_0 = self.get_slot_0(provider.clone()).await?;
         self.sqrt_price = slot_0.0;
         self.tick = slot_0.1;
 
         let tick_info = self.get_tick_info(self.tick, provider.clone()).await?;
         self.tick_word = self.get_tick_word(self.tick, provider.clone()).await?;
-        self.liquidity = self.get_liquidity(provider.clone()).await?;
+        self.liquidity_net = tick_info.1;
 
         Ok(())
     }
@@ -286,8 +284,8 @@ impl UniswapV3Pool {
     ) -> Result<(), CFFMError<P>> {
         (_, _, self.sqrt_price, self.liquidity, self.tick) = self.decode_swap_log(swap_log);
 
-        let tick_info = self.get_tick_info(self.tick, provider.clone()).await?;
         self.tick_word = self.get_tick_word(self.tick, provider.clone()).await?;
+        self.liquidity_net = self.get_liquidity_net(self.tick, provider.clone()).await?;
 
         Ok(())
     }

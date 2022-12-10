@@ -65,11 +65,7 @@ impl UniswapV2Pool {
             fee: 300,
         };
 
-        pool.token_a = pool.get_token_0(pair_address, provider.clone()).await?;
-        pool.token_b = pool.get_token_1(pair_address, provider.clone()).await?;
-
-        (pool.token_a_decimals, pool.token_b_decimals) =
-            pool.get_token_decimals(provider.clone()).await?;
+        pool.get_pool_data(provider.clone());
 
         (pool.reserve_0, pool.reserve_1) = pool.get_reserves(provider).await?;
 
