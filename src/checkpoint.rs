@@ -416,12 +416,13 @@ pub fn deconstruct_pools_from_checkpoint(pools_array: &Vec<Value>) -> Vec<Pool> 
                             token_a_decimals,
                             token_b,
                             token_b_decimals,
-                            0,
-                            U256::zero(),
-                            0,
-                            0,
                             fee,
+                            0,
                             U256::zero(),
+                            0,
+                            0,
+                            U256::zero(),
+                            0,
                         )));
                     }
                 }

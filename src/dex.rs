@@ -172,12 +172,13 @@ impl Dex {
                     //They will be populated when getting pair reserves
                     token_a_decimals: 0,
                     token_b_decimals: 0,
+                    fee,
                     liquidity: 0,
                     sqrt_price: U256::zero(),
                     tick_spacing: 0,
                     tick: 0,
                     tick_word: U256::zero(),
-                    fee,
+                    liquidity_net: 0,
                 }))
             }
         }

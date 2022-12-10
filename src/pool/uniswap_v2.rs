@@ -66,8 +66,7 @@ impl UniswapV2Pool {
         };
 
         pool.get_pool_data(provider.clone());
-
-        (pool.reserve_0, pool.reserve_1) = pool.get_reserves(provider).await?;
+        pool.sync_pool(provider).await?;
 
         Ok(pool)
     }

@@ -76,14 +76,9 @@ impl UniswapV3Pool {
             fee: 0,
             liquidity_net: 0,
         };
+
         pool.get_pool_data(provider.clone()).await?;
-
-        pool.liquidity = pool.get_liquidity(provider.clone()).await?;
-
-        let slot_0 = pool.get_slot_0(provider.clone()).await?;
-        pool.tick = slot_0.1;
-        pool.sqrt_price = slot_0.0;
-        pool.liquidity_net = pool.get_liquidity_net(pool.tick, provider.clone()).await?;
+        pool.sync_pool(provider.clone());
 
         Ok(pool)
     }
@@ -270,9 +265,8 @@ impl UniswapV3Pool {
         self.sqrt_price = slot_0.0;
         self.tick = slot_0.1;
 
-        let tick_info = self.get_tick_info(self.tick, provider.clone()).await?;
         self.tick_word = self.get_tick_word(self.tick, provider.clone()).await?;
-        self.liquidity_net = tick_info.1;
+        self.liquidity_net = self.get_liquidity_net(self.tick, provider.clone()).await?;
 
         Ok(())
     }
