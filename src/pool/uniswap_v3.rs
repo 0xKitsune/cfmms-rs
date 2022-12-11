@@ -532,7 +532,7 @@ impl UniswapV3Pool {
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
                 if step.initialized {
                     liquidity_net = self
-                        .get_liquidity_net(current_state.tick, provider.clone())
+                        .get_liquidity_net(step.tick_next, provider.clone())
                         .await?;
 
                     // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
@@ -675,7 +675,7 @@ impl UniswapV3Pool {
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
                 if step.initialized {
                     liquidity_net = self
-                        .get_liquidity_net(current_state.tick, provider.clone())
+                        .get_liquidity_net(step.tick_next, provider.clone())
                         .await?;
 
                     // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
