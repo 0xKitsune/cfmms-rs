@@ -5,7 +5,7 @@ use ethers::{
     types::H160,
 };
 
-use crate::{dex::DexVariant, error::PairSyncError};
+use crate::{dex::DexVariant, error::CFFMError};
 
 pub mod uniswap_v2;
 pub mod uniswap_v3;
@@ -24,7 +24,7 @@ impl Pool {
         pair_address: H160,
         dex_variant: DexVariant,
         provider: Arc<Provider<P>>,
-    ) -> Result<Self, PairSyncError<P>> {
+    ) -> Result<Self, CFFMError<P>> {
         match dex_variant {
             DexVariant::UniswapV2 => Ok(Pool::UniswapV2(
                 UniswapV2Pool::new_from_address(pair_address, provider).await?,
@@ -39,7 +39,7 @@ impl Pool {
     pub async fn sync_pool<P: 'static + JsonRpcClient>(
         &mut self,
         provider: Arc<Provider<P>>,
-    ) -> Result<(), PairSyncError<P>> {
+    ) -> Result<(), CFFMError<P>> {
         match self {
             Pool::UniswapV2(pool) => pool.sync_pool(provider).await,
             Pool::UniswapV3(pool) => pool.sync_pool(provider).await,
@@ -57,7 +57,7 @@ impl Pool {
     pub async fn get_pool_data<P: 'static + JsonRpcClient>(
         &mut self,
         provider: Arc<Provider<P>>,
-    ) -> Result<(), PairSyncError<P>> {
+    ) -> Result<(), CFFMError<P>> {
         match self {
             Pool::UniswapV2(pool) => pool.get_pool_data(provider).await?,
             Pool::UniswapV3(pool) => pool.get_pool_data(provider).await?,
@@ -69,6 +69,30 @@ impl Pool {
         match self {
             Pool::UniswapV2(pool) => pool.address(),
             Pool::UniswapV3(pool) => pool.address(),
+        }
+    }
+
+    pub async fn simulate_swap<P: 'static + JsonRpcClient>(
+        &self,
+        token_in: H160,
+        amount_in: u128,
+        provider: Arc<Provider<P>>,
+    ) -> Result<u128, CFFMError<P>> {
+        match self {
+            Pool::UniswapV2(pool) => Ok(pool.simulate_swap(token_in, amount_in)),
+            Pool::UniswapV3(pool) => pool.simulate_swap(token_in, amount_in, provider).await,
+        }
+    }
+
+    pub async fn simulate_swap_mut<P: 'static + JsonRpcClient>(
+        &mut self,
+        token_in: H160,
+        amount_in: u128,
+        provider: Arc<Provider<P>>,
+    ) -> Result<u128, CFFMError<P>> {
+        match self {
+            Pool::UniswapV2(pool) => Ok(pool.simulate_swap_mut(token_in, amount_in)),
+            Pool::UniswapV3(pool) => pool.simulate_swap_mut(token_in, amount_in, provider).await,
         }
     }
 }

@@ -5,7 +5,7 @@ use ethers::{
     types::H160,
 };
 
-use pair_sync::{dex::DexVariant, pool::Pool};
+use cfmms::{dex::DexVariant, pool::Pool};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {

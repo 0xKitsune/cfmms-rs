@@ -1,6 +1,6 @@
-# pair_sync
+# cffms-rs
 
-A simple library to get all pairs from any supported Dex and sync reserves.
+Sync pairs and simulate swaps with constant function market makers on Ethereum.
 
 - [Crates.io](https://crates.io/crates/pair_sync)
 - [Documentation in progress](https://docs.rs/pair_sync/0.1.0/pair_sync/)

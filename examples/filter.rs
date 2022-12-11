@@ -5,7 +5,7 @@ use ethers::{
     types::H160,
 };
 
-use pair_sync::{
+use cfmms::{
     dex::{Dex, DexVariant},
     filter,
     pool::{Pool, UniswapV2Pool},
@@ -18,14 +18,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let rpc_endpoint = "";
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
-    let mut dexes = vec![];
-
-    //Add UniswapV3
-    dexes.push(Dex::new(
-        H160::from_str("0x1F98431c8aD98523631AE4a59f267346ea31F984").unwrap(),
-        DexVariant::UniswapV3,
-        12369621,
-    ));
+    let mut dexes = vec![
+        //Add UniswapV3
+        Dex::new(
+            H160::from_str("0x1F98431c8aD98523631AE4a59f267346ea31F984").unwrap(),
+            DexVariant::UniswapV3,
+            12369621,
+        ),
+    ];
 
     //Sync pools
     let pools = sync::sync_pairs_with_throttle(dexes.clone(), provider.clone(), 10, false).await?;
@@ -63,7 +63,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         weth_address,
         100000.00, //Setting usd_threshold to 100000.00 filters out any pool that contains less than $100k USD
         // When getting token to weth price to determine weth value in pool, dont use price with weth reserves with less than 2 eth
-        2000000000000000000 as u128,
+        2000000000000000000_u128,
         provider.clone(),
         10,
     )
