@@ -65,7 +65,7 @@ impl UniswapV2Pool {
             fee: 300,
         };
 
-        pool.get_pool_data(provider.clone());
+        pool.get_pool_data(provider.clone()).await?;
         pool.sync_pool(provider).await?;
 
         Ok(pool)

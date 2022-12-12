@@ -1,8 +1,7 @@
-use std::{ops::Add, sync::Arc, thread::current};
+use std::{ops::Add, sync::Arc};
 
 use ethers::{
     abi::{decode, ParamType},
-    prelude::k256::elliptic_curve::consts::U2,
     providers::{JsonRpcClient, Provider},
     types::{Log, H160, I256, U256},
 };
@@ -79,7 +78,7 @@ impl UniswapV3Pool {
         };
 
         pool.get_pool_data(provider.clone()).await?;
-        pool.sync_pool(provider.clone());
+        pool.sync_pool(provider.clone()).await?;
 
         Ok(pool)
     }
@@ -458,8 +457,6 @@ impl UniswapV3Pool {
         while current_state.amount_specified_remaining > I256::zero() {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
             let mut step = StepComputations::default();
-            //Set the sqrt_price_start_x_96 to the current sqrt_price_x_96
-            step.sqrt_price_start_x_96 = current_state.sqrt_price_x_96;
 
             //Get the next initialized tick within one word of the current tick
             (step.tick_next, step.initialized) =
@@ -469,6 +466,10 @@ impl UniswapV3Pool {
                     self.tick_spacing,
                     zero_for_one,
                 );
+
+            //Set the sqrt_price_start_x_96 to the current sqrt_price_x_96
+            step.sqrt_price_start_x_96 = current_state.sqrt_price_x_96;
+
             //If there are no initialized ticks within the current word, then we need to get the next word, at word_position + 1
             if !step.initialized {
                 let (word_position, _) = uniswap_v3_math::tick_bit_map::position(self.tick);
@@ -501,12 +502,10 @@ impl UniswapV3Pool {
                 } else {
                     step.sqrt_price_next_x96
                 }
+            } else if step.sqrt_price_next_x96 > sqrt_price_limit_x_96 {
+                step.sqrt_price_next_x96
             } else {
-                if step.sqrt_price_next_x96 > sqrt_price_limit_x_96 {
-                    step.sqrt_price_next_x96
-                } else {
-                    sqrt_price_limit_x_96
-                }
+                sqrt_price_limit_x_96
             };
 
             //Compute swap step and update the current state
@@ -600,9 +599,10 @@ impl UniswapV3Pool {
 
         while current_state.amount_specified_remaining > I256::zero() {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
-            let mut step = StepComputations::default();
-            //Set the sqrt_price_start_x_96 to the current sqrt_price_x_96
-            step.sqrt_price_start_x_96 = current_state.sqrt_price_x_96;
+            let mut step = StepComputations {
+                sqrt_price_start_x_96: current_state.sqrt_price_x_96,
+                ..Default::default()
+            };
 
             //Get the next initialized tick within one word of the current tick
             (step.tick_next, step.initialized) =
@@ -644,12 +644,10 @@ impl UniswapV3Pool {
                 } else {
                     step.sqrt_price_next_x96
                 }
+            } else if step.sqrt_price_next_x96 > sqrt_price_limit_x_96 {
+                step.sqrt_price_next_x96
             } else {
-                if step.sqrt_price_next_x96 > sqrt_price_limit_x_96 {
-                    step.sqrt_price_next_x96
-                } else {
-                    sqrt_price_limit_x_96
-                }
+                sqrt_price_limit_x_96
             };
 
             //Compute swap step and update the current state
@@ -724,13 +722,13 @@ pub struct CurrentState {
 
 #[derive(Default)]
 pub struct StepComputations {
-    sqrt_price_start_x_96: U256,
-    tick_next: i32,
-    initialized: bool,
-    sqrt_price_next_x96: U256,
-    amount_in: U256,
-    amount_out: U256,
-    fee_amount: U256,
+    pub sqrt_price_start_x_96: U256,
+    pub tick_next: i32,
+    pub initialized: bool,
+    pub sqrt_price_next_x96: U256,
+    pub amount_in: U256,
+    pub amount_out: U256,
+    pub fee_amount: U256,
 }
 
 const MIN_TICK: i32 = -887272;
