@@ -14,8 +14,10 @@ where
     ProviderError(#[from] ProviderError),
     #[error("Contract error")]
     ContractError(#[from] ContractError<Provider<P>>),
-    #[error("ABI error")]
-    ABIError(#[from] AbiError),
+    #[error("ABI Codec error")]
+    ABICodecError(#[from] AbiError),
+    #[error("Eth ABI error")]
+    EthABIError(#[from] ethers::abi::Error),
     #[error("Join error")]
     JoinError(#[from] JoinError),
     #[error("Uniswap V3 math error")]
