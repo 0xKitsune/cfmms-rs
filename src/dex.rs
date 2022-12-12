@@ -8,7 +8,7 @@ use ethers::{
 
 use crate::{
     abi,
-    error::PairSyncError,
+    error::CFFMError,
     pool::{Pool, UniswapV2Pool, UniswapV3Pool},
 };
 
@@ -73,7 +73,7 @@ impl Dex {
         token_a: H160,
         token_b: H160,
         provider: Arc<Provider<P>>,
-    ) -> Result<Option<Pool>, PairSyncError<P>> {
+    ) -> Result<Option<Pool>, CFFMError<P>> {
         match self.dex_variant {
             DexVariant::UniswapV2 => {
                 let uniswap_v2_factory =
@@ -127,7 +127,7 @@ impl Dex {
         &self,
         log: Log,
         provider: Arc<Provider<P>>,
-    ) -> Result<Pool, PairSyncError<P>> {
+    ) -> Result<Pool, CFFMError<P>> {
         match self.dex_variant {
             DexVariant::UniswapV2 => {
                 let uniswap_v2_factory =
@@ -148,7 +148,6 @@ impl Dex {
                     //They will be populated when getting pair reserves
                     token_a_decimals: 0,
                     token_b_decimals: 0,
-                    a_to_b: false,
                     reserve_0: 0,
                     reserve_1: 0,
                     fee: 300,
@@ -173,10 +172,13 @@ impl Dex {
                     //They will be populated when getting pair reserves
                     token_a_decimals: 0,
                     token_b_decimals: 0,
-                    a_to_b: false,
+                    fee,
                     liquidity: 0,
                     sqrt_price: U256::zero(),
-                    fee,
+                    tick_spacing: 0,
+                    tick: 0,
+                    tick_word: U256::zero(),
+                    liquidity_net: 0,
                 }))
             }
         }
@@ -186,7 +188,7 @@ impl Dex {
         &self,
         log: Log,
         provider: Arc<Provider<P>>,
-    ) -> Result<Pool, PairSyncError<P>> {
+    ) -> Result<Pool, CFFMError<P>> {
         match self.dex_variant {
             DexVariant::UniswapV2 => {
                 let uniswap_v2_factory =

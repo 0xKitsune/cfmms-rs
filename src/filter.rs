@@ -1,11 +1,12 @@
 use crate::dex::Dex;
-use crate::error::PairSyncError;
+use crate::error::CFFMError;
 use crate::pool::{Pool, UniswapV2Pool, UniswapV3Pool};
 use crate::throttle::RequestThrottle;
 use async_trait::async_trait;
 use ethers::providers::{JsonRpcClient, Provider};
 use ethers::types::H160;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use num_bigfloat::BigFloat;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::{collections::HashSet, sync::Arc};
@@ -24,7 +25,7 @@ trait FilteredPool {
         provider: Arc<Provider<P>>,
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
-    ) -> Result<f64, PairSyncError<P>>;
+    ) -> Result<f64, CFFMError<P>>;
 }
 
 //Filters out pools where the blacklisted address is the token_a address or token_b address
@@ -101,7 +102,7 @@ pub async fn filter_pools_below_usd_threshold<P: 'static + JsonRpcClient>(
     usd_threshold: f64,
     token_weth_pool_min_weth_threshold: u128,
     provider: Arc<Provider<P>>,
-) -> Result<Vec<Pool>, PairSyncError<P>> {
+) -> Result<Vec<Pool>, CFFMError<P>> {
     filter_pools_below_usd_threshold_with_throttle(
         pools,
         dexes,
@@ -128,7 +129,7 @@ pub async fn filter_pools_below_usd_threshold_with_throttle<P: 'static + JsonRpc
     token_weth_pool_min_weth_threshold: u128,
     provider: Arc<Provider<P>>,
     requests_per_second_limit: usize,
-) -> Result<Vec<Pool>, PairSyncError<P>> {
+) -> Result<Vec<Pool>, CFFMError<P>> {
     let multi_progress_bar = MultiProgress::new();
     let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
     progress_bar.set_style(
@@ -167,11 +168,11 @@ pub async fn filter_pools_below_usd_threshold_with_throttle<P: 'static + JsonRpc
         {
             Ok(weth_value_in_pool) => weth_value_in_pool * usd_price_per_weth,
             Err(pair_sync_error) => match pair_sync_error {
-                PairSyncError::PairDoesNotExistInDexes(token_a, token_b) => {
+                CFFMError::PairDoesNotExistInDexes(token_a, token_b) => {
                     println!("Pair does not exist in dexes: {:?} {:?}", token_a, token_b);
                     0.0
                 }
-                PairSyncError::ContractError(contract_error) => {
+                CFFMError::ContractError(contract_error) => {
                     println!("Contract Error: {:?}", contract_error);
 
                     0.0
@@ -197,7 +198,7 @@ pub async fn filter_pools_below_weth_threshold<P: 'static + JsonRpcClient>(
     weth_threshold: f64,
     token_weth_pool_min_weth_threshold: u128,
     provider: Arc<Provider<P>>,
-) -> Result<Vec<Pool>, PairSyncError<P>> {
+) -> Result<Vec<Pool>, CFFMError<P>> {
     filter_pools_below_weth_threshold_with_throttle(
         pools,
         dexes,
@@ -218,7 +219,7 @@ pub async fn filter_pools_below_weth_threshold_with_throttle<P: 'static + JsonRp
     token_weth_pool_min_weth_threshold: u128,
     provider: Arc<Provider<P>>,
     requests_per_second_limit: usize,
-) -> Result<Vec<Pool>, PairSyncError<P>> {
+) -> Result<Vec<Pool>, CFFMError<P>> {
     let multi_progress_bar = MultiProgress::new();
     let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
     progress_bar.set_style(
@@ -260,9 +261,7 @@ pub async fn filter_pools_below_weth_threshold_with_throttle<P: 'static + JsonRp
         {
             Ok(weth_value_in_pool) => weth_value_in_pool,
             Err(pair_sync_error) => match pair_sync_error {
-                PairSyncError::PairDoesNotExistInDexes(_, _) | PairSyncError::ContractError(_) => {
-                    0.0
-                }
+                CFFMError::PairDoesNotExistInDexes(_, _) | CFFMError::ContractError(_) => 0.0,
                 _ => return Err(pair_sync_error),
             },
         };
@@ -281,7 +280,7 @@ async fn get_price_of_token_per_weth<P: 'static + JsonRpcClient>(
     dexes: &[Dex],
     token_weth_pool_min_weth_threshold: u128,
     provider: Arc<Provider<P>>,
-) -> Result<f64, PairSyncError<P>> {
+) -> Result<f64, CFFMError<P>> {
     if token_address == weth_address {
         return Ok(1.0);
     }
@@ -308,7 +307,7 @@ async fn get_token_to_weth_pool<P: 'static + JsonRpcClient>(
     dexes: &[Dex],
     token_weth_pool_min_weth_threshold: u128,
     provider: Arc<Provider<P>>,
-) -> Result<Pool, PairSyncError<P>> {
+) -> Result<Pool, CFFMError<P>> {
     let _pair_address = H160::zero();
     let mut _pool: Pool;
 
@@ -325,22 +324,16 @@ async fn get_token_to_weth_pool<P: 'static + JsonRpcClient>(
                     match pool.unwrap() {
                         Pool::UniswapV2(univ2_pool) => {
                             if univ2_pool.token_a == weth_address {
-                                if univ2_pool.a_to_b {
-                                    if univ2_pool.reserve_0 > best_weth_reserves {
-                                        best_weth_reserves = univ2_pool.reserve_0;
-
-                                        best_pool = pool;
-                                    }
+                                if univ2_pool.reserve_0 > best_weth_reserves {
+                                    best_weth_reserves = univ2_pool.reserve_0;
+                                    best_pool = pool;
                                 } else if univ2_pool.reserve_1 > best_weth_reserves {
                                     best_weth_reserves = univ2_pool.reserve_1;
                                     best_pool = pool;
                                 }
-                            } else if univ2_pool.a_to_b {
-                                if univ2_pool.reserve_1 > best_weth_reserves {
-                                    best_weth_reserves = univ2_pool.reserve_1;
-
-                                    best_pool = pool;
-                                }
+                            } else if univ2_pool.reserve_1 > best_weth_reserves {
+                                best_weth_reserves = univ2_pool.reserve_1;
+                                best_pool = pool;
                             } else if univ2_pool.reserve_0 > best_weth_reserves {
                                 best_weth_reserves = univ2_pool.reserve_0;
                                 best_pool = pool;
@@ -351,22 +344,16 @@ async fn get_token_to_weth_pool<P: 'static + JsonRpcClient>(
                             let (reserve_0, reserve_1) = univ3_pool.calculate_virtual_reserves();
 
                             if univ3_pool.token_a == weth_address {
-                                if univ3_pool.a_to_b {
-                                    if reserve_0 > best_weth_reserves {
-                                        best_weth_reserves = reserve_0;
-
-                                        best_pool = pool;
-                                    }
+                                if reserve_0 > best_weth_reserves {
+                                    best_weth_reserves = reserve_0;
+                                    best_pool = pool;
                                 } else if reserve_1 > best_weth_reserves {
                                     best_weth_reserves = reserve_1;
                                     best_pool = pool;
                                 }
-                            } else if univ3_pool.a_to_b {
-                                if reserve_1 > best_weth_reserves {
-                                    best_weth_reserves = reserve_1;
-
-                                    best_pool = pool;
-                                }
+                            } else if reserve_1 > best_weth_reserves {
+                                best_weth_reserves = reserve_1;
+                                best_pool = pool;
                             } else if reserve_0 > best_weth_reserves {
                                 best_weth_reserves = reserve_0;
                                 best_pool = pool;
@@ -377,7 +364,7 @@ async fn get_token_to_weth_pool<P: 'static + JsonRpcClient>(
             }
 
             Err(pair_sync_error) => match pair_sync_error {
-                PairSyncError::ContractError(_) => continue,
+                CFFMError::ContractError(_) => continue,
                 other => return Err(other),
             },
         };
@@ -387,10 +374,7 @@ async fn get_token_to_weth_pool<P: 'static + JsonRpcClient>(
     if best_weth_reserves >= token_weth_pool_min_weth_threshold {
         Ok(best_pool.unwrap())
     } else {
-        Err(PairSyncError::PairDoesNotExistInDexes(
-            token_a,
-            weth_address,
-        ))
+        Err(CFFMError::PairDoesNotExistInDexes(token_a, weth_address))
     }
 }
 
@@ -425,7 +409,7 @@ impl FilteredPool for Pool {
         provider: Arc<Provider<P>>,
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
-    ) -> Result<f64, PairSyncError<P>> {
+    ) -> Result<f64, CFFMError<P>> {
         match self {
             Pool::UniswapV2(pool) => {
                 pool.get_weth_value_in_pool(
@@ -471,13 +455,7 @@ impl FilteredPool for UniswapV2Pool {
         provider: Arc<Provider<P>>,
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
-    ) -> Result<f64, PairSyncError<P>> {
-        let (token_a_reserves, token_b_reserves) = if self.a_to_b {
-            (self.reserve_0, self.reserve_1)
-        } else {
-            (self.reserve_1, self.reserve_0)
-        };
-
+    ) -> Result<f64, CFFMError<P>> {
         let token_a_price_per_weth = token_weth_prices
             .lock()
             .unwrap()
@@ -507,7 +485,7 @@ impl FilteredPool for UniswapV2Pool {
         };
 
         //Get weth value of token a in pool
-        let token_a_weth_value_in_pool = token_a_reserves as f64
+        let token_a_weth_value_in_pool = BigFloat::from(self.reserve_0).to_f64()
             / 10f64.powf(self.token_a_decimals.into())
             / token_a_price_per_weth;
 
@@ -540,9 +518,9 @@ impl FilteredPool for UniswapV2Pool {
         };
 
         //Get weth value of token a in pool
-        let token_b_weth_value_in_pool =
-            ((token_b_reserves / 10u128.pow(self.token_b_decimals.into())) as f64)
-                / token_b_price_per_weth;
+        let token_b_weth_value_in_pool = BigFloat::from(self.reserve_1).to_f64()
+            / 10f64.powf(self.token_b_decimals.into())
+            / token_b_price_per_weth;
 
         //Return weth value in pool
         Ok(token_a_weth_value_in_pool + token_b_weth_value_in_pool)
@@ -567,14 +545,8 @@ impl FilteredPool for UniswapV3Pool {
         provider: Arc<Provider<P>>,
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
-    ) -> Result<f64, PairSyncError<P>> {
-        let (token_a_reserves, token_b_reserves) = if self.a_to_b {
-            let (reserve_0, reserve_1) = self.calculate_virtual_reserves();
-            (reserve_0, reserve_1)
-        } else {
-            let (reserve_0, reserve_1) = self.calculate_virtual_reserves();
-            (reserve_1, reserve_0)
-        };
+    ) -> Result<f64, CFFMError<P>> {
+        let (reserve_0, reserve_1) = self.calculate_virtual_reserves();
 
         let token_a_price_per_weth = token_weth_prices
             .lock()
@@ -605,9 +577,9 @@ impl FilteredPool for UniswapV3Pool {
         };
 
         //Get weth value of token a in pool
-        let token_a_weth_value_in_pool =
-            ((token_a_reserves / 10u128.pow(self.token_a_decimals.into())) as f64)
-                / token_a_price_per_weth;
+        let token_a_weth_value_in_pool = BigFloat::from(reserve_0).to_f64()
+            / 10f64.powf(self.token_a_decimals.into())
+            / token_a_price_per_weth;
 
         let token_b_price_per_weth = token_weth_prices
             .lock()
@@ -638,9 +610,9 @@ impl FilteredPool for UniswapV3Pool {
         };
 
         //Get weth value of token a in pool
-        let token_b_weth_value_in_pool =
-            ((token_b_reserves / 10u128.pow(self.token_b_decimals.into())) as f64)
-                / token_b_price_per_weth;
+        let token_b_weth_value_in_pool = BigFloat::from(reserve_1).to_f64()
+            / 10f64.powf(self.token_b_decimals.into())
+            / token_b_price_per_weth;
 
         //Return weth value in pool
         Ok(token_a_weth_value_in_pool + token_b_weth_value_in_pool)
