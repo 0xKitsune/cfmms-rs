@@ -72,7 +72,7 @@ pub async fn sync_pairs_with_throttle<P: 'static + JsonRpcClient>(
 
             let mut pools = get_all_pool_data(
                 pools,
-                dex.factory_address,
+                dex.factory_address(),
                 async_provider.clone(),
                 request_throttle.clone(),
                 progress_bar.clone(),
@@ -90,7 +90,7 @@ pub async fn sync_pairs_with_throttle<P: 'static + JsonRpcClient>(
 
             progress_bar.set_message(format!(
                 "Syncing reserves for pools from: {}",
-                dex.factory_address
+                dex.factory_address()
             ));
 
             for pool in pools.iter_mut() {
@@ -208,7 +208,7 @@ pub async fn get_all_pools_from_dex<P: 'static + JsonRpcClient>(
     let step = 100000;
     //Unwrap can be used here because the creation block was verified within `Dex::new()`
     let from_block = dex
-        .creation_block
+        .creation_block()
         .as_number()
         .expect("Error using converting creation block as number")
         .as_u64();
@@ -221,7 +221,7 @@ pub async fn get_all_pools_from_dex<P: 'static + JsonRpcClient>(
 
     //Initialize the progress bar message
     progress_bar.set_length(current_block - from_block);
-    progress_bar.set_message(format!("Getting all pools from: {}", dex.factory_address));
+    progress_bar.set_message(format!("Getting all pools from: {}", dex.factory_address()));
 
     //Init a new vec to keep track of tasks
     let mut handles = vec![];
@@ -248,10 +248,8 @@ pub async fn get_all_pools_from_dex<P: 'static + JsonRpcClient>(
             let logs = provider
                 .get_logs(
                     &Filter::new()
-                        .topic0(ValueOrArray::Value(
-                            dex.dex_variant.pool_created_event_signature(),
-                        ))
-                        .address(dex.factory_address)
+                        .topic0(ValueOrArray::Value(dex.pool_created_event_signature()))
+                        .address(dex.factory_address())
                         .from_block(BlockNumber::Number(U64([from_block])))
                         .to_block(BlockNumber::Number(U64([to_block]))),
                 )
@@ -259,7 +257,7 @@ pub async fn get_all_pools_from_dex<P: 'static + JsonRpcClient>(
 
             //For each pair created log, create a new Pair type and add it to the pairs vec
             for log in logs {
-                let pool = dex.new_empty_pool_from_event(log, provider.clone())?;
+                let pool = dex.new_empty_pool_from_event(log)?;
                 pools.push(pool);
             }
 
