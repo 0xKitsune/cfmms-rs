@@ -142,7 +142,7 @@ pub async fn generate_checkpoint_with_throttle<P: 'static + JsonRpcClient>(
 
             let pools = sync::get_all_pool_data(
                 pools,
-                dex.factory_address,
+                dex.factory_address(),
                 async_provider.clone(),
                 request_throttle.clone(),
                 progress_bar.clone(),
@@ -152,7 +152,7 @@ pub async fn generate_checkpoint_with_throttle<P: 'static + JsonRpcClient>(
             progress_bar.finish_and_clear();
             progress_bar.set_message(format!(
                 "Finished syncing pools for {} ✅",
-                dex.factory_address
+                dex.factory_address()
             ));
 
             progress_bar.finish();
@@ -461,17 +461,18 @@ pub fn construct_checkpoint(
 
         dex_map.insert(
             String::from("factory_address"),
-            format!("{:?}", dex.factory_address).into(),
+            format!("{:?}", dex.factory_address()).into(),
         );
 
-        match dex.dex_variant {
-            DexVariant::UniswapV2 => {
+        match dex {
+            Dex::UniswapV2(_) => {
                 dex_map.insert(
                     String::from("dex_variant"),
                     String::from("UniswapV2").into(),
                 );
             }
-            DexVariant::UniswapV3 => {
+
+            Dex::UniswapV3(_) => {
                 dex_map.insert(
                     String::from("dex_variant"),
                     String::from("UniswapV3").into(),

@@ -9,7 +9,7 @@ use num_bigfloat::BigFloat;
 
 use crate::{abi, error::CFFMError};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct UniswapV3Pool {
     pub address: H160,
     pub token_a: H160,
