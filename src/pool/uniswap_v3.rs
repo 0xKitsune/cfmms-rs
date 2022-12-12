@@ -452,8 +452,6 @@ impl UniswapV3Pool {
             .call()
             .await?;
 
-        let mut liquidity_net = self.liquidity_net;
-
         while current_state.amount_specified_remaining > I256::zero() {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
             let mut step = StepComputations::default();
@@ -530,7 +528,7 @@ impl UniswapV3Pool {
             //If the price moved all the way to the next price, recompute the liquidity change for the next iteration
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
                 if step.initialized {
-                    liquidity_net = self
+                    let mut liquidity_net = self
                         .get_liquidity_net(step.tick_next, provider.clone())
                         .await?;
 
