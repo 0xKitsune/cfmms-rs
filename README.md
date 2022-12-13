@@ -1,4 +1,4 @@
-# cffms-rs
+# cfmms-rs
 
 Sync pairs simulate swaps, and interact with constant function market makers on Ethereum.
 
