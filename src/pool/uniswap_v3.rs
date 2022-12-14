@@ -9,7 +9,7 @@ use num_bigfloat::BigFloat;
 
 use crate::{abi, error::CFFMError};
 
-#[derive(Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct UniswapV3Pool {
     pub address: H160,
     pub token_a: H160,
@@ -78,6 +78,7 @@ impl UniswapV3Pool {
         };
 
         pool.get_pool_data(provider.clone()).await?;
+
         pool.sync_pool(provider.clone()).await?;
 
         Ok(pool)
@@ -137,80 +138,17 @@ impl UniswapV3Pool {
     ) -> Result<(u128, i128, U256, U256, i64, U256, u32, bool), CFFMError<P>> {
         let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
 
-        let tick_info_bytes = v3_pool.ticks(tick).call().await?;
-
-        let tick_info = decode(
-            &vec![
-                ParamType::Uint(128), //liquidityGross
-                ParamType::Int(128),  //liquidityNet
-                ParamType::Uint(256), //feeGrowthOutside0X128
-                ParamType::Uint(256), //feeGrowthOutside1X128
-                ParamType::Int(64),   //tickCumulativeOutside
-                ParamType::Uint(256), //secondsPerLiquidityOutsideX128
-                ParamType::Uint(32),  //secondsOutside
-                ParamType::Bool,      //initialized
-            ],
-            &tick_info_bytes,
-        )
-        .expect("Could not get log data");
-
-        let liquidity_gross = tick_info[0]
-            .to_owned()
-            .into_uint()
-            .expect("Could not convert liquidityGross into Uint")
-            .as_u128();
-
-        let liquidity_net = I256::from_raw(
-            tick_info[1]
-                .to_owned()
-                .into_int()
-                .expect("Could not convert liquidityNet to Int"),
-        )
-        .as_i128();
-
-        let fee_growth_outside_0_x_128 = tick_info[2]
-            .to_owned()
-            .into_uint()
-            .expect("Could not convert feeGrowthOutside0X128 into Uint");
-
-        let fee_growth_outside_1_x_128 = tick_info[3]
-            .to_owned()
-            .into_uint()
-            .expect("Could not convert feeGrowthOutside1X128 to Uint");
-
-        let tick_cumulative_outside = I256::from_raw(
-            tick_info[4]
-                .to_owned()
-                .into_int()
-                .expect("Could not convert tickCumulativeOutside to Int"),
-        )
-        .as_i64();
-
-        let seconds_per_liquidity_outside_x_128 = tick_info[5]
-            .to_owned()
-            .into_uint()
-            .expect("Could not convert secondsPerLiquidityOutsideX128 to Uint");
-
-        let seconds_outside = tick_info[6]
-            .to_owned()
-            .into_uint()
-            .expect("Could not convert secondsOutside to Uint")
-            .as_u32();
-
-        let initialized = tick_info[7]
-            .to_owned()
-            .into_bool()
-            .expect("Coud not convert Initialzied into Bool");
+        let tick_info = v3_pool.ticks(tick).call().await?;
 
         Ok((
-            liquidity_gross,
-            liquidity_net,
-            fee_growth_outside_0_x_128,
-            fee_growth_outside_1_x_128,
-            tick_cumulative_outside,
-            seconds_per_liquidity_outside_x_128,
-            seconds_outside,
-            initialized,
+            tick_info.0,
+            tick_info.1,
+            tick_info.2,
+            tick_info.3,
+            tick_info.4,
+            tick_info.5,
+            tick_info.6,
+            tick_info.7,
         ))
     }
 
