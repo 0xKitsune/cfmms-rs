@@ -129,7 +129,7 @@ impl Dex {
                         .await
                     {
                         Ok(address) => address,
-                        Err(err) => {
+                        Err(_) => {
                             //TODO: return descriptive errors if there is an issue with the contract or if the pair does not exist
                             continue;
                         }
