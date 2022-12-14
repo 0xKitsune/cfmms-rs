@@ -198,6 +198,7 @@ impl Dex {
                         Ok(address) => pools.push(Pool::UniswapV3(
                             UniswapV3Pool::new_from_address(address, provider.clone()).await?,
                         )),
+
                         Err(_) => {
                             //TODO: return descriptive errors if there is an issue with the contract or if the pair does not exist
                             continue;
