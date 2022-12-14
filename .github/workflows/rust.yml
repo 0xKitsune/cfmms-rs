@@ -8,6 +8,9 @@ on:
       - main
       - development
 
+env:
+  ETHEREUM_MAINNET_ENDPOINT: ${{ secrets.ETHEREUM_MAINNET_ENDPOINT }}
+
 name: Continuous integration
 
 jobs:
