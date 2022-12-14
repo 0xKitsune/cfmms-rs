@@ -212,10 +212,10 @@ impl Dex {
                     };
                 }
 
-                if pools.len() > 0 {
-                    Ok(Some(pools))
-                } else {
+                if pools.is_empty() {
                     Ok(None)
+                } else {
+                    Ok(Some(pools))
                 }
             }
         }
