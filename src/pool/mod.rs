@@ -12,7 +12,7 @@ pub mod uniswap_v3;
 pub use uniswap_v2::UniswapV2Pool;
 pub use uniswap_v3::UniswapV3Pool;
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum Pool {
     UniswapV2(UniswapV2Pool),
     UniswapV3(UniswapV3Pool),

@@ -128,7 +128,13 @@ impl Dex {
                         .call()
                         .await
                     {
-                        Ok(address) => address,
+                        Ok(address) => {
+                            if !address.is_zero() {
+                                address
+                            } else {
+                                continue;
+                            }
+                        }
                         Err(_) => {
                             //TODO: return descriptive errors if there is an issue with the contract or if the pair does not exist
                             continue;
@@ -190,9 +196,14 @@ impl Dex {
                         .call()
                         .await
                     {
-                        Ok(address) => pools.push(Pool::UniswapV3(
-                            UniswapV3Pool::new_from_address(address, provider.clone()).await?,
-                        )),
+                        Ok(address) => {
+                            if !address.is_zero() {
+                                pools.push(Pool::UniswapV3(
+                                    UniswapV3Pool::new_from_address(address, provider.clone())
+                                        .await?,
+                                ))
+                            }
+                        }
 
                         Err(_) => {
                             //TODO: return descriptive errors if there is an issue with the contract or if the pair does not exist
@@ -201,7 +212,11 @@ impl Dex {
                     };
                 }
 
-                Ok(Some(pools))
+                if pools.len() > 0 {
+                    Ok(Some(pools))
+                } else {
+                    Ok(None)
+                }
             }
         }
     }
@@ -238,5 +253,49 @@ impl DexVariant {
                     .unwrap()
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{env, str::FromStr, sync::Arc};
+
+    use ethers::{
+        providers::{Http, Provider},
+        types::H160,
+    };
+
+    use crate::pool;
+
+    use super::{Dex, DexVariant};
+
+    #[test]
+    fn test_factory_address() {}
+
+    #[test]
+    fn test_get_pool_with_best_liquidity() {}
+
+    #[tokio::test]
+    async fn test_get_all_pools_for_pair() {
+        //Univ3 on ethereum
+        let univ3_pool = Dex::new(
+            H160::from_str("0x1F98431c8aD98523631AE4a59f267346ea31F984").unwrap(),
+            DexVariant::UniswapV3,
+            12369621,
+        );
+
+        let usdc = H160::from_str("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48").unwrap();
+        let weth = H160::from_str("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2").unwrap();
+
+        let provider = Arc::new(
+            Provider::<Http>::try_from(env::var("ETHEREUM_MAINNET_ENDPOINT").unwrap()).unwrap(),
+        );
+
+        let pools = univ3_pool
+            .get_all_pools_for_pair(usdc, weth, provider)
+            .await
+            .expect("Could not get all pools for pair");
+
+        println!("Pools: {:?}", pools);
     }
 }
