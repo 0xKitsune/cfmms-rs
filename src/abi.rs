@@ -29,7 +29,7 @@ abigen!(
         function slot0() external view returns (uint160, int24, uint16, uint16, uint16, uint8, bool)
         function fee() external view returns (uint24)
         function tickSpacing() external view returns (int24)
-        function ticks(int24 tick) external view returns (bytes memory)
+        function ticks(int24 tick) external view returns (uint128, int128, uint256, uint256, int56, uint160, uint32, bool)
         function tickBitmap(int16 wordPosition) external view returns (uint256)
 
     ]"#;

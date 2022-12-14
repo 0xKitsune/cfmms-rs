@@ -13,7 +13,7 @@ use crate::{abi, error::CFFMError};
 
 use super::{convert_to_common_decimals, convert_to_decimals};
 
-#[derive(Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct UniswapV2Pool {
     pub address: H160,
     pub token_a: H160,
