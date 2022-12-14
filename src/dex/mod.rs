@@ -128,10 +128,17 @@ impl Dex {
                 let mut best_pool_address = H160::zero();
 
                 for fee in [100, 300, 500, 1000] {
-                    let pool_address = uniswap_v3_factory
+                    let pool_address = match uniswap_v3_factory
                         .get_pool(token_a, token_b, fee)
                         .call()
-                        .await?;
+                        .await
+                    {
+                        Ok(address) => address,
+                        Err(err) => {
+                            //TODO: return descriptive errors if there is an issue with the contract or if the pair does not exist
+                            continue;
+                        }
+                    };
 
                     let uniswap_v3_pool = abi::IUniswapV3Pool::new(pool_address, provider.clone());
 
@@ -149,6 +156,56 @@ impl Dex {
                         UniswapV3Pool::new_from_address(best_pool_address, provider).await?,
                     )))
                 }
+            }
+        }
+    }
+
+    //If univ2, there will only be one pool, if univ3 there will be multiple
+    pub async fn get_all_pools_for_pair<P: 'static + JsonRpcClient>(
+        &self,
+        token_a: H160,
+        token_b: H160,
+        provider: Arc<Provider<P>>,
+    ) -> Result<Option<Vec<Pool>>, CFFMError<P>> {
+        match self {
+            Dex::UniswapV2(uniswap_v2_dex) => {
+                let uniswap_v2_factory =
+                    abi::IUniswapV2Factory::new(uniswap_v2_dex.factory_address, provider.clone());
+
+                let pair_address = uniswap_v2_factory.get_pair(token_a, token_b).call().await?;
+
+                if pair_address.is_zero() {
+                    Ok(None)
+                } else {
+                    Ok(Some(vec![Pool::UniswapV2(
+                        UniswapV2Pool::new_from_address(pair_address, provider).await?,
+                    )]))
+                }
+            }
+
+            Dex::UniswapV3(uniswap_v3_dex) => {
+                let uniswap_v3_factory =
+                    abi::IUniswapV3Factory::new(uniswap_v3_dex.factory_address, provider.clone());
+
+                let mut pools = vec![];
+
+                for fee in [100, 300, 500, 1000] {
+                    match uniswap_v3_factory
+                        .get_pool(token_a, token_b, fee)
+                        .call()
+                        .await
+                    {
+                        Ok(address) => pools.push(Pool::UniswapV3(
+                            UniswapV3Pool::new_from_address(address, provider.clone()).await?,
+                        )),
+                        Err(_) => {
+                            //TODO: return descriptive errors if there is an issue with the contract or if the pair does not exist
+                            continue;
+                        }
+                    };
+                }
+
+                Ok(Some(pools))
             }
         }
     }
