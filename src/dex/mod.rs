@@ -288,7 +288,10 @@ mod tests {
         let weth = H160::from_str("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2").unwrap();
 
         let provider = Arc::new(
-            Provider::<Http>::try_from(env::var("ETHEREUM_MAINNET_ENDPOINT").unwrap()).unwrap(),
+            Provider::<Http>::try_from(
+                env::var("ETHEREUM_MAINNET_ENDPOINT").expect("Could not initialize provider"),
+            )
+            .unwrap(),
         );
 
         let pools = univ3_pool
