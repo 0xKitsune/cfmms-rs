@@ -2,7 +2,7 @@ use std::{cmp::Ordering, sync::Arc};
 
 use ethers::{
     providers::{JsonRpcClient, Provider},
-    types::H160,
+    types::{H160, U256},
 };
 
 use crate::{dex::DexVariant, error::CFFMError};
@@ -12,7 +12,7 @@ pub mod uniswap_v3;
 pub use uniswap_v2::UniswapV2Pool;
 pub use uniswap_v3::UniswapV3Pool;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Pool {
     UniswapV2(UniswapV2Pool),
     UniswapV3(UniswapV3Pool),
@@ -75,9 +75,9 @@ impl Pool {
     pub async fn simulate_swap<P: 'static + JsonRpcClient>(
         &self,
         token_in: H160,
-        amount_in: u128,
+        amount_in: U256,
         provider: Arc<Provider<P>>,
-    ) -> Result<u128, CFFMError<P>> {
+    ) -> Result<U256, CFFMError<P>> {
         match self {
             Pool::UniswapV2(pool) => Ok(pool.simulate_swap(token_in, amount_in)),
             Pool::UniswapV3(pool) => pool.simulate_swap(token_in, amount_in, provider).await,
@@ -87,9 +87,9 @@ impl Pool {
     pub async fn simulate_swap_mut<P: 'static + JsonRpcClient>(
         &mut self,
         token_in: H160,
-        amount_in: u128,
+        amount_in: U256,
         provider: Arc<Provider<P>>,
-    ) -> Result<u128, CFFMError<P>> {
+    ) -> Result<U256, CFFMError<P>> {
         match self {
             Pool::UniswapV2(pool) => Ok(pool.simulate_swap_mut(token_in, amount_in)),
             Pool::UniswapV3(pool) => pool.simulate_swap_mut(token_in, amount_in, provider).await,
@@ -106,11 +106,11 @@ fn convert_to_decimals(amount: u128, decimals: u8, target_decimals: u8) -> u128 
 }
 
 fn convert_to_common_decimals(
-    amount_a: u128,
+    amount_a: U256,
     a_decimals: u8,
-    amount_b: u128,
+    amount_b: U256,
     b_decimals: u8,
-) -> (u128, u128, u8) {
+) -> (U256, U256, u8) {
     match a_decimals.cmp(&b_decimals) {
         Ordering::Less => {
             let amount_a = convert_to_decimals(amount_a, a_decimals, b_decimals);
