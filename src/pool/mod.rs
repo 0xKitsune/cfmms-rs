@@ -97,11 +97,15 @@ impl Pool {
     }
 }
 
-fn convert_to_decimals(amount: u128, decimals: u8, target_decimals: u8) -> u128 {
+fn convert_to_decimals(amount: U256, decimals: u8, target_decimals: u8) -> U256 {
     match target_decimals.cmp(&decimals) {
-        Ordering::Less => amount * 10u128.pow((decimals - target_decimals) as u32),
-        Ordering::Greater => amount * 10u128.pow((target_decimals - decimals) as u32),
-        Ordering::Equal => amount,
+        Ordering::Less => {
+            U256::from((amount).as_u128() / 10u128.pow((decimals - target_decimals) as u32))
+        }
+        Ordering::Greater => {
+            U256::from((amount).as_u128() * 10u128.pow((target_decimals - decimals) as u32))
+        }
+        _ => amount,
     }
 }
 
