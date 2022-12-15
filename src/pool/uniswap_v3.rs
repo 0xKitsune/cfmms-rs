@@ -425,11 +425,7 @@ impl UniswapV3Pool {
                 uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
 
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
-            if step.tick_next < MIN_TICK {
-                step.tick_next = MIN_TICK;
-            } else if step.tick_next > MAX_TICK {
-                step.tick_next = MAX_TICK;
-            }
+            step.tick_next = step.tick_next.clamp(MIN_TICK, MAX_TICK);
 
             //Target spot price
             let swap_target_sqrt_ratio = if zero_for_one {
@@ -569,11 +565,8 @@ impl UniswapV3Pool {
                 uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
 
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
-            if step.tick_next < MIN_TICK {
-                step.tick_next = MIN_TICK;
-            } else if step.tick_next > MAX_TICK {
-                step.tick_next = MAX_TICK;
-            }
+
+            step.tick_next = step.tick_next.clamp(MIN_TICK, MAX_TICK);
 
             //Target spot price
             let swap_target_sqrt_ratio = if zero_for_one {
