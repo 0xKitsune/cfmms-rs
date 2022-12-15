@@ -1,9 +1,11 @@
+## ------------------------------------
+## Tests and Docs are still being written 🏗️.
+This repo is still being tested, assume bugs until tested. If you would like to help contribute on the tests or docs, feel free to open up an issue or make a PR.
+## ------------------------------------
+
 # cfmms-rs
 
 Sync pairs simulate swaps, and interact with constant function market makers on Ethereum.
-
-Tests and Docs are still being written 🏗️.
-
 
 - [Crates.io](https://crates.io/crates/cfmms)
 - [Documentation in progress](https://docs.rs/cfmms/0.1.3/cfmms/)
