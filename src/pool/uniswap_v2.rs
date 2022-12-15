@@ -251,17 +251,25 @@ impl UniswapV2Pool {
         let k = reserve_0 * reserve_1;
 
         if self.token_a == token_in {
-            convert_to_decimals(
+            let amount_out = convert_to_decimals(
                 reserve_1 - k / (reserve_0 + amount_in),
                 common_decimals,
                 self.token_b_decimals,
-            )
+            );
+
+            self.reserve_0 -= amount_in.as_u128();
+            self.reserve_1 += amount_out.as_u128();
+            amount_out
         } else {
-            convert_to_decimals(
+            let amount_out = convert_to_decimals(
                 reserve_0 - k / (reserve_1 + amount_in),
                 common_decimals,
                 self.token_a_decimals,
-            )
+            );
+
+            self.reserve_0 += amount_out.as_u128();
+            self.reserve_1 -= amount_in.as_u128();
+            amount_out
         }
     }
 }

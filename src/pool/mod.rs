@@ -99,12 +99,8 @@ impl Pool {
 
 fn convert_to_decimals(amount: U256, decimals: u8, target_decimals: u8) -> U256 {
     match target_decimals.cmp(&decimals) {
-        Ordering::Less => {
-            U256::from((amount).as_u128() / 10u128.pow((decimals - target_decimals) as u32))
-        }
-        Ordering::Greater => {
-            U256::from((amount).as_u128() * 10u128.pow((target_decimals - decimals) as u32))
-        }
+        Ordering::Less => amount / U256::from(10u128.pow((decimals - target_decimals) as u32)),
+        Ordering::Greater => amount * U256::from(10u128.pow((target_decimals - decimals) as u32)),
         _ => amount,
     }
 }

@@ -377,8 +377,8 @@ impl UniswapV3Pool {
         let mut current_state = CurrentState {
             sqrt_price_x_96: self.sqrt_price, //Active price on the pool
             amount_calculated: I256::zero(),  //Amount of token_out that has been calculated
-            amount_specified_remaining: I256::from(amount_in.as_u128()), //Amount of token_in that has not been swapped
-            tick: self.tick,           //Current i24 tick of the pool
+            amount_specified_remaining: I256::from_raw(amount_in), //Amount of token_in that has not been swapped
+            tick: self.tick,                                       //Current i24 tick of the pool
             liquidity: self.liquidity, //Current available liquidity in the tick range
         };
 
@@ -520,8 +520,8 @@ impl UniswapV3Pool {
         let mut current_state = CurrentState {
             sqrt_price_x_96: self.sqrt_price, //Active price on the pool
             amount_calculated: I256::zero(),  //Amount of token_out that has been calculated
-            amount_specified_remaining: I256::from(amount_in.as_u128()), //Amount of token_in that has not been swapped
-            tick: self.tick,           //Current i24 tick of the pool
+            amount_specified_remaining: I256::frow_raw(amount_in), //Amount of token_in that has not been swapped
+            tick: self.tick,                                       //Current i24 tick of the pool
             liquidity: self.liquidity, //Current available liquidity in the tick range
         };
 
