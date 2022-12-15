@@ -2,6 +2,9 @@
 
 Sync pairs simulate swaps, and interact with constant function market makers on Ethereum.
 
+Tests and Docs are still being written 🏗️.
+
+
 - [Crates.io](https://crates.io/crates/cfmms)
 - [Documentation in progress](https://docs.rs/cfmms/0.1.3/cfmms/)
 
