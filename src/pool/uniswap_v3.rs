@@ -9,7 +9,7 @@ use num_bigfloat::BigFloat;
 
 use crate::{abi, error::CFFMError};
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct UniswapV3Pool {
     pub address: H160,
     pub token_a: H160,
@@ -360,9 +360,9 @@ impl UniswapV3Pool {
     pub async fn simulate_swap<P: 'static + JsonRpcClient>(
         &self,
         token_in: H160,
-        amount_in: u128,
+        amount_in: U256,
         provider: Arc<Provider<P>>,
-    ) -> Result<u128, CFFMError<P>> {
+    ) -> Result<U256, CFFMError<P>> {
         //Initialize zero_for_one to true if token_in is token_a
         let zero_for_one = token_in == self.token_a;
 
@@ -377,8 +377,8 @@ impl UniswapV3Pool {
         let mut current_state = CurrentState {
             sqrt_price_x_96: self.sqrt_price, //Active price on the pool
             amount_calculated: I256::zero(),  //Amount of token_out that has been calculated
-            amount_specified_remaining: I256::from(amount_in), //Amount of token_in that has not been swapped
-            tick: self.tick,                                   //Current i24 tick of the pool
+            amount_specified_remaining: I256::from(amount_in.as_u128()), //Amount of token_in that has not been swapped
+            tick: self.tick,           //Current i24 tick of the pool
             liquidity: self.liquidity, //Current available liquidity in the tick range
         };
 
@@ -495,15 +495,17 @@ impl UniswapV3Pool {
             }
         }
 
-        Ok((-current_state.amount_calculated.as_i128()) as u128)
+        Ok(U256::from(
+            (-current_state.amount_calculated.as_i128()) as u128,
+        ))
     }
 
     pub async fn simulate_swap_mut<P: 'static + JsonRpcClient>(
         &mut self,
         token_in: H160,
-        amount_in: u128,
+        amount_in: U256,
         provider: Arc<Provider<P>>,
-    ) -> Result<u128, CFFMError<P>> {
+    ) -> Result<U256, CFFMError<P>> {
         //Initialize zero_for_one to true if token_in is token_a
         let zero_for_one = token_in == self.token_a;
 
@@ -518,8 +520,8 @@ impl UniswapV3Pool {
         let mut current_state = CurrentState {
             sqrt_price_x_96: self.sqrt_price, //Active price on the pool
             amount_calculated: I256::zero(),  //Amount of token_out that has been calculated
-            amount_specified_remaining: I256::from(amount_in), //Amount of token_in that has not been swapped
-            tick: self.tick,                                   //Current i24 tick of the pool
+            amount_specified_remaining: I256::from(amount_in.as_u128()), //Amount of token_in that has not been swapped
+            tick: self.tick,           //Current i24 tick of the pool
             liquidity: self.liquidity, //Current available liquidity in the tick range
         };
 
@@ -644,7 +646,9 @@ impl UniswapV3Pool {
         self.liquidity_net = liquidity_net;
         self.tick_word = tick_word;
 
-        Ok((-current_state.amount_calculated.as_i128()) as u128)
+        Ok(U256::from(
+            (-current_state.amount_calculated.as_i128()) as u128,
+        ))
     }
 }
 
