@@ -6,7 +6,7 @@ use std::{
 use ethers::{
     abi::ParamType,
     providers::{JsonRpcClient, Provider},
-    types::{Log, H160},
+    types::{Log, H160, U256},
 };
 
 use crate::{abi, error::CFFMError};
@@ -201,17 +201,17 @@ impl UniswapV2Pool {
         )
     }
 
-    pub fn simulate_swap(&self, token_in: H160, amount_in: u128) -> u128 {
+    pub fn simulate_swap(&self, token_in: H160, amount_in: U256) -> U256 {
         let (reserve_0, reserve_1, common_decimals) = convert_to_common_decimals(
-            self.reserve_0,
+            U256::from(self.reserve_0),
             self.token_a_decimals,
-            self.reserve_1,
+            U256::from(self.reserve_1),
             self.token_b_decimals,
         );
 
         //Apply fee on amount in
         //Fee will always be .3% for Univ2
-        let amount_in = amount_in.mul(997).div(1000);
+        let amount_in = amount_in * U256::from(997) / U256::from(1000);
 
         // x * y = k
         // (x + ∆x) * (y - ∆y) = k
@@ -220,30 +220,30 @@ impl UniswapV2Pool {
 
         if self.token_a == token_in {
             convert_to_decimals(
-                reserve_1 - (k * (self.reserve_0 + amount_in)),
+                reserve_1 - k / (reserve_0 + amount_in),
                 common_decimals,
                 self.token_b_decimals,
             )
         } else {
             convert_to_decimals(
-                reserve_0 - (k * (self.reserve_1 + amount_in)),
+                reserve_0 - k / (reserve_1 + amount_in),
                 common_decimals,
                 self.token_a_decimals,
             )
         }
     }
 
-    pub fn simulate_swap_mut(&mut self, token_in: H160, amount_in: u128) -> u128 {
+    pub fn simulate_swap_mut(&mut self, token_in: H160, amount_in: U256) -> U256 {
         let (reserve_0, reserve_1, common_decimals) = convert_to_common_decimals(
-            self.reserve_0,
+            U256::from(self.reserve_0),
             self.token_a_decimals,
-            self.reserve_1,
+            U256::from(self.reserve_1),
             self.token_b_decimals,
         );
 
         //Apply fee on amount in
         //Fee will always be .3% for Univ2
-        let amount_in = amount_in.mul(997).div(1000);
+        let amount_in = amount_in * U256::from(997) / U256::from(1000);
 
         // x * y = k
         // (x + ∆x) * (y - ∆y) = k
@@ -251,27 +251,17 @@ impl UniswapV2Pool {
         let k = reserve_0 * reserve_1;
 
         if self.token_a == token_in {
-            let amount_out = convert_to_decimals(
-                reserve_1 - (k * (self.reserve_0 + amount_in)),
+            convert_to_decimals(
+                reserve_1 - k / (reserve_0 + amount_in),
                 common_decimals,
                 self.token_b_decimals,
-            );
-
-            self.reserve_0 -= amount_in;
-            self.reserve_1 += amount_out;
-
-            amount_out
+            )
         } else {
-            let amount_out = convert_to_decimals(
-                reserve_0 - (k * (self.reserve_1 + amount_in)),
+            convert_to_decimals(
+                reserve_0 - k / (reserve_1 + amount_in),
                 common_decimals,
                 self.token_a_decimals,
-            );
-
-            self.reserve_0 += amount_out;
-            self.reserve_1 -= amount_in;
-
-            amount_out
+            )
         }
     }
 }
