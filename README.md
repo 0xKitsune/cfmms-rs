@@ -1,6 +1,6 @@
 ## ------------------------------------
 ## Tests and Docs are still being written 🏗️.
-This repo is still being tested, assume bugs until tested. If you would like to help contribute on the tests or docs, feel free to open up an issue or make a PR.
+Tests are still being written, assume bugs until tested. If you would like to help contribute on the tests or docs, feel free to open up an issue or make a PR.
 ## ------------------------------------
 
 # cfmms-rs
