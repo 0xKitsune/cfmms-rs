@@ -1,7 +1,7 @@
 use std::{str::FromStr, sync::Arc};
 
 use ethers::{
-    providers::{Middleware},
+    providers::Middleware,
     types::{BlockNumber, Log, H160, H256},
 };
 
@@ -262,8 +262,6 @@ mod tests {
         providers::{Http, Provider},
         types::H160,
     };
-
-    
 
     use super::{Dex, DexVariant};
 

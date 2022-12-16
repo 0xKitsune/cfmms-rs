@@ -2,7 +2,7 @@ use std::{str::FromStr, sync::Arc};
 
 use ethers::{
     abi::ParamType,
-    providers::{Middleware},
+    providers::Middleware,
     types::{BlockNumber, Log, H160, H256, U256},
 };
 

@@ -2,7 +2,7 @@ use std::{ops::Add, sync::Arc};
 
 use ethers::{
     abi::{decode, ParamType},
-    providers::{Middleware},
+    providers::Middleware,
     types::{Log, H160, I256, U256},
 };
 use num_bigfloat::BigFloat;

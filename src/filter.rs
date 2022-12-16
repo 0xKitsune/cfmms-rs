@@ -3,7 +3,7 @@ use crate::error::CFMMError;
 use crate::pool::{Pool, UniswapV2Pool, UniswapV3Pool};
 use crate::throttle::RequestThrottle;
 use async_trait::async_trait;
-use ethers::providers::{Middleware};
+use ethers::providers::Middleware;
 use ethers::types::H160;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use num_bigfloat::BigFloat;

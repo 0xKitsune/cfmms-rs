@@ -1,10 +1,5 @@
-
-
-
-
-
 use ethers::prelude::{AbiError, ContractError};
-use ethers::providers::{Middleware};
+use ethers::providers::Middleware;
 use ethers::types::H160;
 use thiserror::Error;
 use tokio::task::JoinError;
