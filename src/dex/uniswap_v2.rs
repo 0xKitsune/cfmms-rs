@@ -42,7 +42,7 @@ impl UniswapV2Dex {
     pub async fn new_pool_from_event<M: Middleware>(
         &self,
         log: Log,
-        middlewear: Arc<M>,
+        middleware: Arc<M>,
     ) -> Result<Pool, CFFMError<M>> {
         let tokens = ethers::abi::decode(
             &[
@@ -55,7 +55,7 @@ impl UniswapV2Dex {
         )?;
 
         let pair_address = tokens[2].to_owned().into_address().unwrap();
-        Pool::new_from_address(pair_address, DexVariant::UniswapV2, middlewear).await
+        Pool::new_from_address(pair_address, DexVariant::UniswapV2, middleware).await
     }
 
     pub fn new_empty_pool_from_event<M: Middleware>(&self, log: Log) -> Result<Pool, CFFMError<M>> {

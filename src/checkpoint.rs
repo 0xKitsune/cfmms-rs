@@ -25,13 +25,13 @@ use crate::{
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
 pub async fn sync_pairs_from_checkpoint<M: Middleware>(
     path_to_checkpoint: String,
-    middlewear: Arc<M>,
+    middleware: Arc<M>,
     update_checkpoint: bool,
     checkpoint_file_name: String,
 ) -> Result<(Vec<Dex>, Vec<Pool>), CFFMError<M>> {
     sync_pairs_from_checkpoint_with_throttle(
         path_to_checkpoint,
-        middlewear,
+        middleware,
         0,
         update_checkpoint,
         checkpoint_file_name,
@@ -42,7 +42,7 @@ pub async fn sync_pairs_from_checkpoint<M: Middleware>(
 //Get all pairs from last synced block and sync reserve values for each Dex in the `dexes` vec.
 pub async fn sync_pairs_from_checkpoint_with_throttle<M: Middleware>(
     path_to_checkpoint: String,
-    middlewear: Arc<M>,
+    middleware: Arc<M>,
     requests_per_second_limit: usize,
     update_checkpoint: bool,
     checkpoint_file_name: String,
@@ -54,11 +54,11 @@ pub async fn sync_pairs_from_checkpoint_with_throttle<M: Middleware>(
 
     //Get all pools since checkpoint last sync and add it to the vec of pool
     let mut new_pools =
-        get_all_pools(dexes.clone(), middlewear.clone(), requests_per_second_limit).await?;
+        get_all_pools(dexes.clone(), middleware.clone(), requests_per_second_limit).await?;
 
     for pool in new_pools.iter_mut() {
         request_throttle.lock().unwrap().increment_or_sleep(5);
-        pool.get_pool_data(middlewear.clone()).await?;
+        pool.get_pool_data(middleware.clone()).await?;
     }
 
     //Add new pools to pools
@@ -67,11 +67,11 @@ pub async fn sync_pairs_from_checkpoint_with_throttle<M: Middleware>(
     //Update reserves for all pools
     for pool in pools.iter_mut() {
         request_throttle.lock().unwrap().increment_or_sleep(2);
-        pool.sync_pool(middlewear.clone()).await?;
+        pool.sync_pool(middleware.clone()).await?;
     }
 
     if update_checkpoint {
-        let latest_block = middlewear.get_block_number().await?;
+        let latest_block = middleware.get_block_number().await?;
         construct_checkpoint(
             dexes.clone(),
             &pools,
@@ -86,23 +86,23 @@ pub async fn sync_pairs_from_checkpoint_with_throttle<M: Middleware>(
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
 pub async fn generate_checkpoint<M: Middleware>(
     dexes: Vec<Dex>,
-    middlewear: Arc<M>,
+    middleware: Arc<M>,
     checkpoint_file_name: String,
 ) -> Result<(), CFFMError<M>> {
     //Sync pairs with throttle but set the requests per second limit to 0, disabling the throttle.
-    generate_checkpoint_with_throttle(dexes, middlewear, 0, checkpoint_file_name).await
+    generate_checkpoint_with_throttle(dexes, middleware, 0, checkpoint_file_name).await
 }
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
 pub async fn generate_checkpoint_with_throttle<M: Middleware>(
     dexes: Vec<Dex>,
-    middlewear: Arc<M>,
+    middleware: Arc<M>,
     requests_per_second_limit: usize,
     checkpoint_file_name: String,
 ) -> Result<(), CFFMError<M>> {
     //Initalize a new request throttle
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
-    let current_block = middlewear.get_block_number().await?;
+    let current_block = middleware.get_block_number().await?;
 
     //Aggregate the populated pools from each thread
     let mut aggregated_pools: Vec<Pool> = vec![];
@@ -113,7 +113,7 @@ pub async fn generate_checkpoint_with_throttle<M: Middleware>(
 
     //For each dex supplied, get all pair created events and get reserve values
     for dex in dexes.clone() {
-        let async_provider = middlewear.clone();
+        let async_provider = middleware.clone();
         let request_throttle = request_throttle.clone();
         let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
 
@@ -175,7 +175,7 @@ pub async fn generate_checkpoint_with_throttle<M: Middleware>(
         }
     }
 
-    let latest_block = middlewear.get_block_number().await?;
+    let latest_block = middleware.get_block_number().await?;
 
     println!("total pools :{}", aggregated_pools.len());
 
@@ -192,15 +192,15 @@ pub async fn generate_checkpoint_with_throttle<M: Middleware>(
 //Syncs all reserve values for pools in checkpoint and returns a vec of Pool
 pub async fn sync_pools_from_checkpoint<M: Middleware>(
     path_to_checkpoint: String,
-    middlewear: Arc<M>,
+    middleware: Arc<M>,
 ) -> Result<(Vec<Dex>, Vec<Pool>), CFFMError<M>> {
-    sync_pools_from_checkpoint_with_throttle(path_to_checkpoint, middlewear, 0).await
+    sync_pools_from_checkpoint_with_throttle(path_to_checkpoint, middleware, 0).await
 }
 
 //Syncs all reserve values with throttle for pools in checkpoint and returns a vec of Pool
 pub async fn sync_pools_from_checkpoint_with_throttle<M: Middleware>(
     path_to_checkpoint: String,
-    middlewear: Arc<M>,
+    middleware: Arc<M>,
     requests_per_second_limit: usize,
 ) -> Result<(Vec<Dex>, Vec<Pool>), CFFMError<M>> {
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
@@ -225,7 +225,7 @@ pub async fn sync_pools_from_checkpoint_with_throttle<M: Middleware>(
         request_throttle.lock().unwrap().increment_or_sleep(2);
         progress_bar.inc(1);
 
-        match pool.sync_pool(middlewear.clone()).await {
+        match pool.sync_pool(middleware.clone()).await {
             Ok(_) => {}
             Err(pair_sync_error) => match pair_sync_error {
                 CFFMError::ProviderError(provider_error) => {

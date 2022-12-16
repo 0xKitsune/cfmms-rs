@@ -16,23 +16,23 @@ use std::{
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
 pub async fn sync_pairs<M: Middleware>(
     dexes: Vec<Dex>,
-    middlewear: Arc<M>,
+    middleware: Arc<M>,
     save_checkpoint: bool,
 ) -> Result<Vec<Pool>, CFFMError<M>> {
     //Sync pairs with throttle but set the requests per second limit to 0, disabling the throttle.
-    sync_pairs_with_throttle(dexes, middlewear, 0, save_checkpoint).await
+    sync_pairs_with_throttle(dexes, middleware, 0, save_checkpoint).await
 }
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
 pub async fn sync_pairs_with_throttle<M: Middleware>(
     dexes: Vec<Dex>,
-    middlewear: Arc<M>,
+    middleware: Arc<M>,
     requests_per_second_limit: usize,
     save_checkpoint: bool,
 ) -> Result<Vec<Pool>, CFFMError<M>> {
     //Initalize a new request throttle
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
-    let current_block = middlewear.get_block_number().await?;
+    let current_block = middleware.get_block_number().await?;
 
     //Aggregate the populated pools from each thread
     let mut aggregated_pools: Vec<Pool> = vec![];
@@ -43,7 +43,7 @@ pub async fn sync_pairs_with_throttle<M: Middleware>(
 
     //For each dex supplied, get all pair created events and get reserve values
     for dex in dexes.clone() {
-        let async_provider = middlewear.clone();
+        let async_provider = middleware.clone();
         let request_throttle = request_throttle.clone();
         let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
 
@@ -122,7 +122,7 @@ pub async fn sync_pairs_with_throttle<M: Middleware>(
     }
 
     if save_checkpoint {
-        let latest_block = middlewear.get_block_number().await?;
+        let latest_block = middleware.get_block_number().await?;
         checkpoint::construct_checkpoint(
             dexes,
             &aggregated_pools,
@@ -138,12 +138,12 @@ pub async fn sync_pairs_with_throttle<M: Middleware>(
 //Get all pairs
 pub async fn get_all_pools<M: Middleware>(
     dexes: Vec<Dex>,
-    middlewear: Arc<M>,
+    middleware: Arc<M>,
     requests_per_second_limit: usize,
 ) -> Result<Vec<Pool>, CFFMError<M>> {
     //Initalize a new request throttle
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
-    let current_block = middlewear.get_block_number().await?;
+    let current_block = middleware.get_block_number().await?;
     let mut handles = vec![];
 
     //Initialize multi progress bar
@@ -151,7 +151,7 @@ pub async fn get_all_pools<M: Middleware>(
 
     //For each dex supplied, get all pair created events and get reserve values
     for dex in dexes {
-        let async_provider = middlewear.clone();
+        let async_provider = middleware.clone();
         let request_throttle = request_throttle.clone();
         let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
 
@@ -199,7 +199,7 @@ pub async fn get_all_pools<M: Middleware>(
 //Function to get all pair created events for a given Dex factory address and sync pool data
 pub async fn get_all_pools_from_dex<M: Middleware>(
     dex: Dex,
-    middlewear: Arc<M>,
+    middleware: Arc<M>,
     current_block: BlockNumber,
     request_throttle: Arc<Mutex<RequestThrottle>>,
     progress_bar: ProgressBar,
@@ -229,7 +229,7 @@ pub async fn get_all_pools_from_dex<M: Middleware>(
     //For each block within the range, get all pairs asynchronously
     for from_block in (from_block..=current_block).step_by(step) {
         let request_throttle = request_throttle.clone();
-        let provider = middlewear.clone();
+        let provider = middleware.clone();
         let progress_bar = progress_bar.clone();
 
         //Spawn a new task to get pair created events from the block range
@@ -291,7 +291,7 @@ pub async fn get_all_pools_from_dex<M: Middleware>(
 pub async fn get_all_pool_data<M: Middleware>(
     pools: Vec<Pool>,
     dex_factory_address: H160,
-    middlewear: Arc<M>,
+    middleware: Arc<M>,
     request_throttle: Arc<Mutex<RequestThrottle>>,
     progress_bar: ProgressBar,
 ) -> Result<Vec<Pool>, CFFMError<M>> {
@@ -310,7 +310,7 @@ pub async fn get_all_pool_data<M: Middleware>(
     //For each pair in the pairs vec, get the reserves asyncrhonously
     for mut pool in pools {
         let request_throttle = request_throttle.clone();
-        let provider = middlewear.clone();
+        let provider = middleware.clone();
         let progress_bar = progress_bar.clone();
 
         request_throttle

@@ -68,14 +68,14 @@ impl Dex {
     pub async fn new_pool_from_event<M: Middleware>(
         &self,
         log: Log,
-        middlewear: Arc<M>,
+        middleware: Arc<M>,
     ) -> Result<Pool, CFFMError<M>> {
         match self {
             Dex::UniswapV2(uniswap_v2_dex) => {
-                Ok(uniswap_v2_dex.new_pool_from_event(log, middlewear).await?)
+                Ok(uniswap_v2_dex.new_pool_from_event(log, middleware).await?)
             }
             Dex::UniswapV3(uniswap_v3_dex) => {
-                Ok(uniswap_v3_dex.new_pool_from_event(log, middlewear).await?)
+                Ok(uniswap_v3_dex.new_pool_from_event(log, middleware).await?)
             }
         }
     }
@@ -94,12 +94,12 @@ impl Dex {
         &self,
         token_a: H160,
         token_b: H160,
-        middlewear: Arc<M>,
+        middleware: Arc<M>,
     ) -> Result<Option<Pool>, CFFMError<M>> {
         match self {
             Dex::UniswapV2(uniswap_v2_dex) => {
                 let uniswap_v2_factory =
-                    abi::IUniswapV2Factory::new(uniswap_v2_dex.factory_address, middlewear.clone());
+                    abi::IUniswapV2Factory::new(uniswap_v2_dex.factory_address, middleware.clone());
 
                 let pair_address = uniswap_v2_factory.get_pair(token_a, token_b).call().await?;
 
@@ -107,14 +107,14 @@ impl Dex {
                     Ok(None)
                 } else {
                     Ok(Some(Pool::UniswapV2(
-                        UniswapV2Pool::new_from_address(pair_address, middlewear).await?,
+                        UniswapV2Pool::new_from_address(pair_address, middleware).await?,
                     )))
                 }
             }
 
             Dex::UniswapV3(uniswap_v3_dex) => {
                 let uniswap_v3_factory =
-                    abi::IUniswapV3Factory::new(uniswap_v3_dex.factory_address, middlewear.clone());
+                    abi::IUniswapV3Factory::new(uniswap_v3_dex.factory_address, middleware.clone());
 
                 let mut best_liquidity = 0;
                 let mut best_pool_address = H160::zero();
@@ -139,7 +139,7 @@ impl Dex {
                     };
 
                     let uniswap_v3_pool =
-                        abi::IUniswapV3Pool::new(pool_address, middlewear.clone());
+                        abi::IUniswapV3Pool::new(pool_address, middleware.clone());
 
                     let liquidity = uniswap_v3_pool.liquidity().call().await?;
                     if best_liquidity < liquidity {
@@ -152,7 +152,7 @@ impl Dex {
                     Ok(None)
                 } else {
                     Ok(Some(Pool::UniswapV3(
-                        UniswapV3Pool::new_from_address(best_pool_address, middlewear).await?,
+                        UniswapV3Pool::new_from_address(best_pool_address, middleware).await?,
                     )))
                 }
             }
@@ -164,12 +164,12 @@ impl Dex {
         &self,
         token_a: H160,
         token_b: H160,
-        middlewear: Arc<M>,
+        middleware: Arc<M>,
     ) -> Result<Option<Vec<Pool>>, CFFMError<M>> {
         match self {
             Dex::UniswapV2(uniswap_v2_dex) => {
                 let uniswap_v2_factory =
-                    abi::IUniswapV2Factory::new(uniswap_v2_dex.factory_address, middlewear.clone());
+                    abi::IUniswapV2Factory::new(uniswap_v2_dex.factory_address, middleware.clone());
 
                 let pair_address = uniswap_v2_factory.get_pair(token_a, token_b).call().await?;
 
@@ -177,14 +177,14 @@ impl Dex {
                     Ok(None)
                 } else {
                     Ok(Some(vec![Pool::UniswapV2(
-                        UniswapV2Pool::new_from_address(pair_address, middlewear).await?,
+                        UniswapV2Pool::new_from_address(pair_address, middleware).await?,
                     )]))
                 }
             }
 
             Dex::UniswapV3(uniswap_v3_dex) => {
                 let uniswap_v3_factory =
-                    abi::IUniswapV3Factory::new(uniswap_v3_dex.factory_address, middlewear.clone());
+                    abi::IUniswapV3Factory::new(uniswap_v3_dex.factory_address, middleware.clone());
 
                 let mut pools = vec![];
 
@@ -197,7 +197,7 @@ impl Dex {
                         Ok(address) => {
                             if !address.is_zero() {
                                 pools.push(Pool::UniswapV3(
-                                    UniswapV3Pool::new_from_address(address, middlewear.clone())
+                                    UniswapV3Pool::new_from_address(address, middleware.clone())
                                         .await?,
                                 ))
                             }

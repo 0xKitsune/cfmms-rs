@@ -22,7 +22,7 @@ trait FilteredPool {
         weth_address: H160,
         dexes: &[Dex],
         token_weth_pool_min_weth_threshold: u128,
-        middlewear: Arc<M>,
+        middleware: Arc<M>,
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
     ) -> Result<f64, CFFMError<M>>;
@@ -101,7 +101,7 @@ pub async fn filter_pools_below_usd_threshold<M: Middleware>(
     weth_address: H160,
     usd_threshold: f64,
     token_weth_pool_min_weth_threshold: u128,
-    middlewear: Arc<M>,
+    middleware: Arc<M>,
 ) -> Result<Vec<Pool>, CFFMError<M>> {
     filter_pools_below_usd_threshold_with_throttle(
         pools,
@@ -111,7 +111,7 @@ pub async fn filter_pools_below_usd_threshold<M: Middleware>(
         weth_address,
         usd_threshold,
         token_weth_pool_min_weth_threshold,
-        middlewear,
+        middleware,
         0,
     )
     .await
@@ -127,7 +127,7 @@ pub async fn filter_pools_below_usd_threshold_with_throttle<M: Middleware>(
     weth_address: H160,
     usd_threshold: f64,
     token_weth_pool_min_weth_threshold: u128,
-    middlewear: Arc<M>,
+    middleware: Arc<M>,
     requests_per_second_limit: usize,
 ) -> Result<Vec<Pool>, CFFMError<M>> {
     let multi_progress_bar = MultiProgress::new();
@@ -160,7 +160,7 @@ pub async fn filter_pools_below_usd_threshold_with_throttle<M: Middleware>(
                 weth_address,
                 &dexes,
                 token_weth_pool_min_weth_threshold,
-                middlewear.clone(),
+                middleware.clone(),
                 token_weth_prices.clone(),
                 request_throttle.clone(),
             )
@@ -197,7 +197,7 @@ pub async fn filter_pools_below_weth_threshold<M: Middleware>(
     weth_address: H160,
     weth_threshold: f64,
     token_weth_pool_min_weth_threshold: u128,
-    middlewear: Arc<M>,
+    middleware: Arc<M>,
 ) -> Result<Vec<Pool>, CFFMError<M>> {
     filter_pools_below_weth_threshold_with_throttle(
         pools,
@@ -205,7 +205,7 @@ pub async fn filter_pools_below_weth_threshold<M: Middleware>(
         weth_address,
         weth_threshold,
         token_weth_pool_min_weth_threshold,
-        middlewear,
+        middleware,
         0,
     )
     .await
@@ -217,7 +217,7 @@ pub async fn filter_pools_below_weth_threshold_with_throttle<M: Middleware>(
     weth_address: H160,
     weth_threshold: f64,
     token_weth_pool_min_weth_threshold: u128,
-    middlewear: Arc<M>,
+    middleware: Arc<M>,
     requests_per_second_limit: usize,
 ) -> Result<Vec<Pool>, CFFMError<M>> {
     let multi_progress_bar = MultiProgress::new();
@@ -242,7 +242,7 @@ pub async fn filter_pools_below_weth_threshold_with_throttle<M: Middleware>(
     for pool in pools {
         let token_weth_prices = token_weth_prices.clone();
         let request_throttle = request_throttle.clone();
-        let middlewear = middlewear.clone();
+        let middleware = middleware.clone();
         let dexes = dexes.clone();
         let progress_bar = progress_bar.clone();
 
@@ -253,7 +253,7 @@ pub async fn filter_pools_below_weth_threshold_with_throttle<M: Middleware>(
                 weth_address,
                 &dexes,
                 token_weth_pool_min_weth_threshold,
-                middlewear.clone(),
+                middleware.clone(),
                 token_weth_prices.clone(),
                 request_throttle.clone(),
             )
@@ -279,7 +279,7 @@ async fn get_price_of_token_per_weth<M: Middleware>(
     weth_address: H160,
     dexes: &[Dex],
     token_weth_pool_min_weth_threshold: u128,
-    middlewear: Arc<M>,
+    middleware: Arc<M>,
 ) -> Result<f64, CFFMError<M>> {
     if token_address == weth_address {
         return Ok(1.0);
@@ -291,7 +291,7 @@ async fn get_price_of_token_per_weth<M: Middleware>(
         weth_address,
         dexes,
         token_weth_pool_min_weth_threshold,
-        middlewear.clone(),
+        middleware.clone(),
     )
     .await?;
 
@@ -306,7 +306,7 @@ async fn get_token_to_weth_pool<M: Middleware>(
     weth_address: H160,
     dexes: &[Dex],
     token_weth_pool_min_weth_threshold: u128,
-    middlewear: Arc<M>,
+    middleware: Arc<M>,
 ) -> Result<Pool, CFFMError<M>> {
     let _pair_address = H160::zero();
     let mut _pool: Pool;
@@ -316,7 +316,7 @@ async fn get_token_to_weth_pool<M: Middleware>(
 
     for dex in dexes {
         match dex
-            .get_pool_with_best_liquidity(token_a, weth_address, middlewear.clone())
+            .get_pool_with_best_liquidity(token_a, weth_address, middleware.clone())
             .await
         {
             Ok(pool) => {
@@ -399,7 +399,7 @@ impl FilteredPool for Pool {
         weth_address: H160,
         dexes: &[Dex],
         token_weth_pool_min_weth_threshold: u128,
-        middlewear: M,
+        middleware: M,
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
     ) -> Result<f64, CFFMError<M>> {
@@ -409,7 +409,7 @@ impl FilteredPool for Pool {
                     weth_address,
                     dexes,
                     token_weth_pool_min_weth_threshold,
-                    middlewear,
+                    middleware,
                     token_weth_prices,
                     request_throttle,
                 )
@@ -420,7 +420,7 @@ impl FilteredPool for Pool {
                     weth_address,
                     dexes,
                     token_weth_pool_min_weth_threshold,
-                    middlewear,
+                    middleware,
                     token_weth_prices,
                     request_throttle,
                 )
@@ -445,7 +445,7 @@ impl FilteredPool for UniswapV2Pool {
         weth_address: H160,
         dexes: &[Dex],
         token_weth_pool_min_weth_threshold: u128,
-        middlewear: Arc<M>,
+        middleware: Arc<M>,
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
     ) -> Result<f64, CFFMError<M>> {
@@ -464,7 +464,7 @@ impl FilteredPool for UniswapV2Pool {
                     weth_address,
                     dexes,
                     token_weth_pool_min_weth_threshold,
-                    middlewear.clone(),
+                    middleware.clone(),
                 )
                 .await?;
 
@@ -497,7 +497,7 @@ impl FilteredPool for UniswapV2Pool {
                     weth_address,
                     dexes,
                     token_weth_pool_min_weth_threshold,
-                    middlewear.clone(),
+                    middleware.clone(),
                 )
                 .await?;
 
@@ -535,7 +535,7 @@ impl FilteredPool for UniswapV3Pool {
         weth_address: H160,
         dexes: &[Dex],
         token_weth_pool_min_weth_threshold: u128,
-        middlewear: Arc<M>,
+        middleware: Arc<M>,
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
     ) -> Result<f64, CFFMError<M>> {
@@ -556,7 +556,7 @@ impl FilteredPool for UniswapV3Pool {
                     weth_address,
                     dexes,
                     token_weth_pool_min_weth_threshold,
-                    middlewear.clone(),
+                    middleware.clone(),
                 )
                 .await?;
 
@@ -589,7 +589,7 @@ impl FilteredPool for UniswapV3Pool {
                     weth_address,
                     dexes,
                     token_weth_pool_min_weth_threshold,
-                    middlewear.clone(),
+                    middleware.clone(),
                 )
                 .await?;
 
