@@ -1,7 +1,7 @@
 use std::{str::FromStr, sync::Arc};
 
 use ethers::{
-    providers::{JsonRpcClient, Middleware, Provider},
+    providers::{Middleware},
     types::{BlockNumber, Log, H160, H256},
 };
 
@@ -263,7 +263,7 @@ mod tests {
         types::H160,
     };
 
-    use crate::pool;
+    
 
     use super::{Dex, DexVariant};
 

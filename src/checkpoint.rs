@@ -8,8 +8,7 @@ use std::{
 };
 
 use ethers::{
-    middleware,
-    providers::{JsonRpcClient, Middleware, Provider},
+    providers::{Middleware},
     types::{BlockNumber, H160, U256},
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
