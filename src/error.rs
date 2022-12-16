@@ -16,8 +16,7 @@ where
     M: Middleware,
 {
     #[error("Middleware error")]
-    MiddlewareError(#[from] <M as Middleware>::Error),
-
+    MiddlewareError(<M as Middleware>::Error),
     #[error("Contract error")]
     ContractError(#[from] ContractError<M>),
     #[error("ABI Codec error")]

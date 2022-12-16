@@ -1,4 +1,7 @@
-use crate::{checkpoint, error::CFMMError};
+use crate::{
+    checkpoint,
+    error::{self, CFMMError},
+};
 
 use super::dex::Dex;
 use super::pool::Pool;
@@ -24,6 +27,23 @@ pub async fn sync_pairs<M: Middleware>(
     sync_pairs_with_throttle(dexes, middleware, 0, save_checkpoint).await
 }
 
+
+
+//Get all pairs and sync reserve values for each Dex in the `dexes` vec.
+pub async fn sync_pairs_with_throttlex<M: Middleware>(
+    dexes: Vec<Dex>,
+    middleware: Arc<M>,
+    requests_per_second_limit: usize,
+    save_checkpoint: bool,
+) -> Result<(), CFMMError<M>> {
+    //Initalize a new request throttle
+    let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
+    let current_block = middleware.get_block_number().await?;
+
+   
+    Ok(())
+}
+
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
 pub async fn sync_pairs_with_throttle<M: Middleware>(
     dexes: Vec<Dex>,
@@ -35,7 +55,13 @@ pub async fn sync_pairs_with_throttle<M: Middleware>(
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
     let current_block = middleware.get_block_number().await?;
 
-    let current_block = middleware.get_block_number().await?;
+    let current_block = match middleware.get_block_number().await {
+        Ok(ok) => ok,
+        Err(err) => {
+
+            err.
+        }
+    };
 
     //Aggregate the populated pools from each thread
     let mut aggregated_pools: Vec<Pool> = vec![];
