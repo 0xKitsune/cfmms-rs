@@ -1,4 +1,9 @@
-use ethers::prelude::{AbiError, ContractError};
+use ethers::prelude::gas_escalator::GasEscalatorError;
+use ethers::prelude::gas_oracle::MiddlewareError;
+use ethers::prelude::nonce_manager::NonceManagerError;
+use ethers::prelude::policy::PolicyMiddlewareError;
+use ethers::prelude::timelag::TimeLagError;
+use ethers::prelude::{gas_escalator, AbiError, ContractError, TimeLag};
 use ethers::providers::{JsonRpcClient, Middleware, Provider, ProviderError};
 use ethers::types::H160;
 use thiserror::Error;
@@ -6,12 +11,13 @@ use tokio::task::JoinError;
 use uniswap_v3_math::error::UniswapV3MathError;
 
 #[derive(Error, Debug)]
-pub enum CFFMError<M>
+pub enum CFMMError<M>
 where
     M: Middleware,
 {
     #[error("Middleware error")]
-    MiddlewareError(#[from] M::Error),
+    MiddlewareError(#[from] <M as Middleware>::Error),
+
     #[error("Contract error")]
     ContractError(#[from] ContractError<M>),
     #[error("ABI Codec error")]

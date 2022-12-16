@@ -8,6 +8,7 @@ use std::{
 };
 
 use ethers::{
+    middleware,
     providers::{JsonRpcClient, Middleware, Provider},
     types::{BlockNumber, H160, U256},
 };
@@ -16,7 +17,7 @@ use serde_json::{Map, Value};
 
 use crate::{
     dex::{Dex, DexVariant},
-    error::CFFMError,
+    error::CFMMError,
     pool::{Pool, UniswapV2Pool, UniswapV3Pool},
     sync::{self, get_all_pools},
     throttle::RequestThrottle,
@@ -28,7 +29,7 @@ pub async fn sync_pairs_from_checkpoint<M: Middleware>(
     middleware: Arc<M>,
     update_checkpoint: bool,
     checkpoint_file_name: String,
-) -> Result<(Vec<Dex>, Vec<Pool>), CFFMError<M>> {
+) -> Result<(Vec<Dex>, Vec<Pool>), CFMMError<M>> {
     sync_pairs_from_checkpoint_with_throttle(
         path_to_checkpoint,
         middleware,
@@ -46,7 +47,7 @@ pub async fn sync_pairs_from_checkpoint_with_throttle<M: Middleware>(
     requests_per_second_limit: usize,
     update_checkpoint: bool,
     checkpoint_file_name: String,
-) -> Result<(Vec<Dex>, Vec<Pool>), CFFMError<M>> {
+) -> Result<(Vec<Dex>, Vec<Pool>), CFMMError<M>> {
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
 
     //Read in checkpoint
@@ -88,7 +89,7 @@ pub async fn generate_checkpoint<M: Middleware>(
     dexes: Vec<Dex>,
     middleware: Arc<M>,
     checkpoint_file_name: String,
-) -> Result<(), CFFMError<M>> {
+) -> Result<(), CFMMError<M>> {
     //Sync pairs with throttle but set the requests per second limit to 0, disabling the throttle.
     generate_checkpoint_with_throttle(dexes, middleware, 0, checkpoint_file_name).await
 }
@@ -99,7 +100,7 @@ pub async fn generate_checkpoint_with_throttle<M: Middleware>(
     middleware: Arc<M>,
     requests_per_second_limit: usize,
     checkpoint_file_name: String,
-) -> Result<(), CFFMError<M>> {
+) -> Result<(), CFMMError<M>> {
     //Initalize a new request throttle
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
     let current_block = middleware.get_block_number().await?;
@@ -157,7 +158,7 @@ pub async fn generate_checkpoint_with_throttle<M: Middleware>(
 
             progress_bar.finish();
 
-            Ok::<_, CFFMError<M>>(pools)
+            Ok::<_, CFMMError<M>>(pools)
         }));
     }
 
@@ -193,7 +194,7 @@ pub async fn generate_checkpoint_with_throttle<M: Middleware>(
 pub async fn sync_pools_from_checkpoint<M: Middleware>(
     path_to_checkpoint: String,
     middleware: Arc<M>,
-) -> Result<(Vec<Dex>, Vec<Pool>), CFFMError<M>> {
+) -> Result<(Vec<Dex>, Vec<Pool>), CFMMError<M>> {
     sync_pools_from_checkpoint_with_throttle(path_to_checkpoint, middleware, 0).await
 }
 
@@ -202,7 +203,7 @@ pub async fn sync_pools_from_checkpoint_with_throttle<M: Middleware>(
     path_to_checkpoint: String,
     middleware: Arc<M>,
     requests_per_second_limit: usize,
-) -> Result<(Vec<Dex>, Vec<Pool>), CFFMError<M>> {
+) -> Result<(Vec<Dex>, Vec<Pool>), CFMMError<M>> {
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
 
     let multi_progress_bar = MultiProgress::new();
@@ -228,8 +229,8 @@ pub async fn sync_pools_from_checkpoint_with_throttle<M: Middleware>(
         match pool.sync_pool(middleware.clone()).await {
             Ok(_) => {}
             Err(pair_sync_error) => match pair_sync_error {
-                CFFMError::ProviderError(provider_error) => {
-                    return Err(CFFMError::ProviderError(provider_error))
+                CFMMError::MiddlewareError(middleware_error) => {
+                    return Err(CFMMError::MiddlewareError(middleware_error))
                 }
                 _ => continue,
             },

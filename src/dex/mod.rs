@@ -7,7 +7,7 @@ use ethers::{
 
 use crate::{
     abi,
-    error::CFFMError,
+    error::CFMMError,
     pool::{Pool, UniswapV2Pool, UniswapV3Pool},
 };
 
@@ -69,7 +69,7 @@ impl Dex {
         &self,
         log: Log,
         middleware: Arc<M>,
-    ) -> Result<Pool, CFFMError<M>> {
+    ) -> Result<Pool, CFMMError<M>> {
         match self {
             Dex::UniswapV2(uniswap_v2_dex) => {
                 Ok(uniswap_v2_dex.new_pool_from_event(log, middleware).await?)
@@ -80,7 +80,7 @@ impl Dex {
         }
     }
 
-    pub fn new_empty_pool_from_event<M: Middleware>(&self, log: Log) -> Result<Pool, CFFMError<M>> {
+    pub fn new_empty_pool_from_event<M: Middleware>(&self, log: Log) -> Result<Pool, CFMMError<M>> {
         match self {
             Dex::UniswapV2(uniswap_v2_dex) => uniswap_v2_dex.new_empty_pool_from_event(log),
             Dex::UniswapV3(uniswap_v3_dex) => uniswap_v3_dex.new_empty_pool_from_event(log),
@@ -95,7 +95,7 @@ impl Dex {
         token_a: H160,
         token_b: H160,
         middleware: Arc<M>,
-    ) -> Result<Option<Pool>, CFFMError<M>> {
+    ) -> Result<Option<Pool>, CFMMError<M>> {
         match self {
             Dex::UniswapV2(uniswap_v2_dex) => {
                 let uniswap_v2_factory =
@@ -165,7 +165,7 @@ impl Dex {
         token_a: H160,
         token_b: H160,
         middleware: Arc<M>,
-    ) -> Result<Option<Vec<Pool>>, CFFMError<M>> {
+    ) -> Result<Option<Vec<Pool>>, CFMMError<M>> {
         match self {
             Dex::UniswapV2(uniswap_v2_dex) => {
                 let uniswap_v2_factory =

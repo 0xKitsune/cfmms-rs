@@ -7,7 +7,7 @@ use ethers::{
 };
 
 use crate::{
-    error::CFFMError,
+    error::CFMMError,
     pool::{Pool, UniswapV2Pool},
 };
 
@@ -43,7 +43,7 @@ impl UniswapV2Dex {
         &self,
         log: Log,
         middleware: Arc<M>,
-    ) -> Result<Pool, CFFMError<M>> {
+    ) -> Result<Pool, CFMMError<M>> {
         let tokens = ethers::abi::decode(
             &[
                 ParamType::Address,
@@ -58,7 +58,7 @@ impl UniswapV2Dex {
         Pool::new_from_address(pair_address, DexVariant::UniswapV2, middleware).await
     }
 
-    pub fn new_empty_pool_from_event<M: Middleware>(&self, log: Log) -> Result<Pool, CFFMError<M>> {
+    pub fn new_empty_pool_from_event<M: Middleware>(&self, log: Log) -> Result<Pool, CFMMError<M>> {
         let tokens = ethers::abi::decode(
             &[
                 ParamType::Address,

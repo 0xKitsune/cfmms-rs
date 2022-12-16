@@ -6,7 +6,7 @@ use ethers::{
     types::{Log, H160, U256},
 };
 
-use crate::{abi, error::CFFMError};
+use crate::{abi, error::CFMMError};
 
 use super::{convert_to_common_decimals, convert_to_decimals};
 
@@ -50,7 +50,7 @@ impl UniswapV2Pool {
     pub async fn new_from_address<M: Middleware>(
         pair_address: H160,
         middleware: Arc<M>,
-    ) -> Result<Self, CFFMError<M>> {
+    ) -> Result<Self, CFMMError<M>> {
         let mut pool = UniswapV2Pool {
             address: pair_address,
             token_a: H160::zero(),
@@ -71,7 +71,7 @@ impl UniswapV2Pool {
     pub async fn get_pool_data<M: Middleware>(
         &mut self,
         middleware: Arc<M>,
-    ) -> Result<(), CFFMError<M>> {
+    ) -> Result<(), CFMMError<M>> {
         self.token_a = self.get_token_0(self.address, middleware.clone()).await?;
         self.token_b = self.get_token_1(self.address, middleware.clone()).await?;
 
@@ -84,7 +84,7 @@ impl UniswapV2Pool {
     pub async fn get_reserves<M: Middleware>(
         &self,
         middleware: Arc<M>,
-    ) -> Result<(u128, u128), CFFMError<M>> {
+    ) -> Result<(u128, u128), CFMMError<M>> {
         //Initialize a new instance of the Pool
         let v2_pair = abi::IUniswapV2Pair::new(self.address, middleware);
 
@@ -92,7 +92,7 @@ impl UniswapV2Pool {
         let (reserve_0, reserve_1, _) = match v2_pair.get_reserves().call().await {
             Ok(result) => result,
 
-            Err(contract_error) => return Err(CFFMError::ContractError(contract_error)),
+            Err(contract_error) => return Err(CFMMError::ContractError(contract_error)),
         };
 
         Ok((reserve_0, reserve_1))
@@ -101,7 +101,7 @@ impl UniswapV2Pool {
     pub async fn sync_pool<M: Middleware>(
         &mut self,
         middleware: Arc<M>,
-    ) -> Result<(), CFFMError<M>> {
+    ) -> Result<(), CFMMError<M>> {
         (self.reserve_0, self.reserve_1) = self.get_reserves(middleware).await?;
 
         Ok(())
@@ -110,7 +110,7 @@ impl UniswapV2Pool {
     pub async fn get_token_decimals<M: Middleware>(
         &mut self,
         middleware: Arc<M>,
-    ) -> Result<(u8, u8), CFFMError<M>> {
+    ) -> Result<(u8, u8), CFMMError<M>> {
         let token_a_decimals = abi::IErc20::new(self.token_a, middleware.clone())
             .decimals()
             .call()
@@ -128,12 +128,12 @@ impl UniswapV2Pool {
         &self,
         pair_address: H160,
         middleware: Arc<M>,
-    ) -> Result<H160, CFFMError<M>> {
+    ) -> Result<H160, CFMMError<M>> {
         let v2_pair = abi::IUniswapV2Pair::new(pair_address, middleware);
 
         let token0 = match v2_pair.token_0().call().await {
             Ok(result) => result,
-            Err(contract_error) => return Err(CFFMError::ContractError(contract_error)),
+            Err(contract_error) => return Err(CFMMError::ContractError(contract_error)),
         };
 
         Ok(token0)
@@ -143,12 +143,12 @@ impl UniswapV2Pool {
         &self,
         pair_address: H160,
         middleware: Arc<M>,
-    ) -> Result<H160, CFFMError<M>> {
+    ) -> Result<H160, CFMMError<M>> {
         let v2_pair = abi::IUniswapV2Pair::new(pair_address, middleware);
 
         let token1 = match v2_pair.token_1().call().await {
             Ok(result) => result,
-            Err(contract_error) => return Err(CFFMError::ContractError(contract_error)),
+            Err(contract_error) => return Err(CFMMError::ContractError(contract_error)),
         };
 
         Ok(token1)

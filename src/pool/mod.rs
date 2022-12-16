@@ -5,7 +5,7 @@ use ethers::{
     types::{H160, U256},
 };
 
-use crate::{dex::DexVariant, error::CFFMError};
+use crate::{dex::DexVariant, error::CFMMError};
 
 pub mod uniswap_v2;
 pub mod uniswap_v3;
@@ -24,7 +24,7 @@ impl Pool {
         pair_address: H160,
         dex_variant: DexVariant,
         middleware: Arc<M>,
-    ) -> Result<Self, CFFMError<M>> {
+    ) -> Result<Self, CFMMError<M>> {
         match dex_variant {
             DexVariant::UniswapV2 => Ok(Pool::UniswapV2(
                 UniswapV2Pool::new_from_address(pair_address, middleware).await?,
@@ -39,7 +39,7 @@ impl Pool {
     pub async fn sync_pool<M: Middleware>(
         &mut self,
         middleware: Arc<M>,
-    ) -> Result<(), CFFMError<M>> {
+    ) -> Result<(), CFMMError<M>> {
         match self {
             Pool::UniswapV2(pool) => pool.sync_pool(middleware).await,
             Pool::UniswapV3(pool) => pool.sync_pool(middleware).await,
@@ -57,7 +57,7 @@ impl Pool {
     pub async fn get_pool_data<M: Middleware>(
         &mut self,
         middleware: Arc<M>,
-    ) -> Result<(), CFFMError<M>> {
+    ) -> Result<(), CFMMError<M>> {
         match self {
             Pool::UniswapV2(pool) => pool.get_pool_data(middleware).await?,
             Pool::UniswapV3(pool) => pool.get_pool_data(middleware).await?,
@@ -77,7 +77,7 @@ impl Pool {
         token_in: H160,
         amount_in: U256,
         middleware: Arc<M>,
-    ) -> Result<U256, CFFMError<M>> {
+    ) -> Result<U256, CFMMError<M>> {
         match self {
             Pool::UniswapV2(pool) => Ok(pool.simulate_swap(token_in, amount_in)),
             Pool::UniswapV3(pool) => pool.simulate_swap(token_in, amount_in, middleware).await,
@@ -89,7 +89,7 @@ impl Pool {
         token_in: H160,
         amount_in: U256,
         middleware: Arc<M>,
-    ) -> Result<U256, CFFMError<M>> {
+    ) -> Result<U256, CFMMError<M>> {
         match self {
             Pool::UniswapV2(pool) => Ok(pool.simulate_swap_mut(token_in, amount_in)),
             Pool::UniswapV3(pool) => {

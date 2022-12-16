@@ -7,7 +7,7 @@ use ethers::{
 };
 use num_bigfloat::BigFloat;
 
-use crate::{abi, error::CFFMError};
+use crate::{abi, error::CFMMError};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct UniswapV3Pool {
@@ -61,7 +61,7 @@ impl UniswapV3Pool {
     pub async fn new_from_address<M: Middleware>(
         pair_address: H160,
         middleware: Arc<M>,
-    ) -> Result<Self, CFFMError<M>> {
+    ) -> Result<Self, CFMMError<M>> {
         let mut pool = UniswapV3Pool {
             address: pair_address,
             token_a: H160::zero(),
@@ -87,7 +87,7 @@ impl UniswapV3Pool {
     pub async fn get_pool_data<M: Middleware>(
         &mut self,
         middleware: Arc<M>,
-    ) -> Result<(), CFFMError<M>> {
+    ) -> Result<(), CFMMError<M>> {
         self.token_a = self.get_token_0(middleware.clone()).await?;
         self.token_b = self.get_token_1(middleware.clone()).await?;
         (self.token_a_decimals, self.token_b_decimals) =
@@ -101,7 +101,7 @@ impl UniswapV3Pool {
         &self,
         tick: i32,
         middleware: Arc<M>,
-    ) -> Result<U256, CFFMError<M>> {
+    ) -> Result<U256, CFMMError<M>> {
         let v3_pool = abi::IUniswapV3Pool::new(self.address, middleware);
         let (word_position, _) = uniswap_v3_math::tick_bit_map::position(tick);
         Ok(v3_pool.tick_bitmap(word_position).call().await?)
@@ -111,7 +111,7 @@ impl UniswapV3Pool {
         &self,
         word_position: i16,
         middleware: Arc<M>,
-    ) -> Result<U256, CFFMError<M>> {
+    ) -> Result<U256, CFMMError<M>> {
         let v3_pool = abi::IUniswapV3Pool::new(self.address, middleware);
         Ok(v3_pool.tick_bitmap(word_position).call().await?)
     }
@@ -119,12 +119,12 @@ impl UniswapV3Pool {
     pub async fn get_tick_spacing<M: Middleware>(
         &self,
         middleware: Arc<M>,
-    ) -> Result<i32, CFFMError<M>> {
+    ) -> Result<i32, CFMMError<M>> {
         let v3_pool = abi::IUniswapV3Pool::new(self.address, middleware);
         Ok(v3_pool.tick_spacing().call().await?)
     }
 
-    pub async fn get_tick<M: Middleware>(&self, middleware: Arc<M>) -> Result<i32, CFFMError<M>> {
+    pub async fn get_tick<M: Middleware>(&self, middleware: Arc<M>) -> Result<i32, CFMMError<M>> {
         Ok(self.get_slot_0(middleware).await?.1)
     }
 
@@ -132,7 +132,7 @@ impl UniswapV3Pool {
         &self,
         tick: i32,
         middleware: Arc<M>,
-    ) -> Result<(u128, i128, U256, U256, i64, U256, u32, bool), CFFMError<M>> {
+    ) -> Result<(u128, i128, U256, U256, i64, U256, u32, bool), CFMMError<M>> {
         let v3_pool = abi::IUniswapV3Pool::new(self.address, middleware.clone());
 
         let tick_info = v3_pool.ticks(tick).call().await?;
@@ -153,7 +153,7 @@ impl UniswapV3Pool {
         &self,
         tick: i32,
         middleware: Arc<M>,
-    ) -> Result<i128, CFFMError<M>> {
+    ) -> Result<i128, CFMMError<M>> {
         let tick_info = self.get_tick_info(tick, middleware).await?;
         Ok(tick_info.1)
     }
@@ -162,7 +162,7 @@ impl UniswapV3Pool {
         &self,
         tick: i32,
         middleware: Arc<M>,
-    ) -> Result<bool, CFFMError<M>> {
+    ) -> Result<bool, CFMMError<M>> {
         let tick_info = self.get_tick_info(tick, middleware).await?;
         Ok(tick_info.7)
     }
@@ -170,7 +170,7 @@ impl UniswapV3Pool {
     pub async fn get_slot_0<M: Middleware>(
         &self,
         middleware: Arc<M>,
-    ) -> Result<(U256, i32, u16, u16, u16, u8, bool), CFFMError<M>> {
+    ) -> Result<(U256, i32, u16, u16, u16, u8, bool), CFMMError<M>> {
         let v3_pool = abi::IUniswapV3Pool::new(self.address, middleware);
         Ok(v3_pool.slot_0().call().await?)
     }
@@ -178,7 +178,7 @@ impl UniswapV3Pool {
     pub async fn get_liquidity<M: Middleware>(
         &self,
         middleware: Arc<M>,
-    ) -> Result<u128, CFFMError<M>> {
+    ) -> Result<u128, CFMMError<M>> {
         let v3_pool = abi::IUniswapV3Pool::new(self.address, middleware);
         Ok(v3_pool.liquidity().call().await?)
     }
@@ -186,14 +186,14 @@ impl UniswapV3Pool {
     pub async fn get_sqrt_price<M: Middleware>(
         &self,
         middleware: Arc<M>,
-    ) -> Result<U256, CFFMError<M>> {
+    ) -> Result<U256, CFMMError<M>> {
         Ok(self.get_slot_0(middleware).await?.0)
     }
 
     pub async fn sync_pool<M: Middleware>(
         &mut self,
         middleware: Arc<M>,
-    ) -> Result<(), CFFMError<M>> {
+    ) -> Result<(), CFMMError<M>> {
         self.liquidity = self.get_liquidity(middleware).await?;
 
         let slot_0 = self.get_slot_0(middleware.clone()).await?;
@@ -210,7 +210,7 @@ impl UniswapV3Pool {
         &mut self,
         swap_log: &Log,
         middleware: Arc<M>,
-    ) -> Result<(), CFFMError<M>> {
+    ) -> Result<(), CFMMError<M>> {
         (_, _, self.sqrt_price, self.liquidity, self.tick) = self.decode_swap_log(swap_log);
 
         self.tick_word = self.get_tick_word(self.tick, middleware.clone()).await?;
@@ -245,7 +245,7 @@ impl UniswapV3Pool {
     pub async fn get_token_decimals<M: Middleware>(
         &mut self,
         middleware: Arc<M>,
-    ) -> Result<(u8, u8), CFFMError<M>> {
+    ) -> Result<(u8, u8), CFMMError<M>> {
         let token_a_decimals = abi::IErc20::new(self.token_a, middleware.clone())
             .decimals()
             .call()
@@ -262,7 +262,7 @@ impl UniswapV3Pool {
     pub async fn get_fee<M: Middleware>(
         &mut self,
         middleware: Arc<M>,
-    ) -> Result<u32, CFFMError<M>> {
+    ) -> Result<u32, CFMMError<M>> {
         let fee = abi::IUniswapV3Pool::new(self.address, middleware)
             .fee()
             .call()
@@ -274,12 +274,12 @@ impl UniswapV3Pool {
     pub async fn get_token_0<M: Middleware>(
         &self,
         middleware: Arc<M>,
-    ) -> Result<H160, CFFMError<M>> {
+    ) -> Result<H160, CFMMError<M>> {
         let v2_pair = abi::IUniswapV2Pair::new(self.address, middleware);
 
         let token0 = match v2_pair.token_0().call().await {
             Ok(result) => result,
-            Err(contract_error) => return Err(CFFMError::ContractError(contract_error)),
+            Err(contract_error) => return Err(CFMMError::ContractError(contract_error)),
         };
 
         Ok(token0)
@@ -288,12 +288,12 @@ impl UniswapV3Pool {
     pub async fn get_token_1<M: Middleware>(
         &self,
         middleware: Arc<M>,
-    ) -> Result<H160, CFFMError<M>> {
+    ) -> Result<H160, CFMMError<M>> {
         let v2_pair = abi::IUniswapV2Pair::new(self.address, middleware);
 
         let token1 = match v2_pair.token_1().call().await {
             Ok(result) => result,
-            Err(contract_error) => return Err(CFFMError::ContractError(contract_error)),
+            Err(contract_error) => return Err(CFMMError::ContractError(contract_error)),
         };
 
         Ok(token1)
@@ -359,7 +359,7 @@ impl UniswapV3Pool {
         token_in: H160,
         amount_in: U256,
         middleware: Arc<M>,
-    ) -> Result<U256, CFFMError<M>> {
+    ) -> Result<U256, CFMMError<M>> {
         //Initialize zero_for_one to true if token_in is token_a
         let zero_for_one = token_in == self.token_a;
 
@@ -500,7 +500,7 @@ impl UniswapV3Pool {
         token_in: H160,
         amount_in: U256,
         middleware: Arc<M>,
-    ) -> Result<U256, CFFMError<M>> {
+    ) -> Result<U256, CFMMError<M>> {
         //Initialize zero_for_one to true if token_in is token_a
         let zero_for_one = token_in == self.token_a;
 

@@ -1,5 +1,5 @@
 use crate::dex::Dex;
-use crate::error::CFFMError;
+use crate::error::CFMMError;
 use crate::pool::{Pool, UniswapV2Pool, UniswapV3Pool};
 use crate::throttle::RequestThrottle;
 use async_trait::async_trait;
@@ -25,7 +25,7 @@ trait FilteredPool {
         middleware: Arc<M>,
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
-    ) -> Result<f64, CFFMError<M>>;
+    ) -> Result<f64, CFMMError<M>>;
 }
 
 //Filters out pools where the blacklisted address is the token_a address or token_b address
@@ -102,7 +102,7 @@ pub async fn filter_pools_below_usd_threshold<M: Middleware>(
     usd_threshold: f64,
     token_weth_pool_min_weth_threshold: u128,
     middleware: Arc<M>,
-) -> Result<Vec<Pool>, CFFMError<M>> {
+) -> Result<Vec<Pool>, CFMMError<M>> {
     filter_pools_below_usd_threshold_with_throttle(
         pools,
         dexes,
@@ -129,7 +129,7 @@ pub async fn filter_pools_below_usd_threshold_with_throttle<M: Middleware>(
     token_weth_pool_min_weth_threshold: u128,
     middleware: Arc<M>,
     requests_per_second_limit: usize,
-) -> Result<Vec<Pool>, CFFMError<M>> {
+) -> Result<Vec<Pool>, CFMMError<M>> {
     let multi_progress_bar = MultiProgress::new();
     let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
     progress_bar.set_style(
@@ -168,11 +168,11 @@ pub async fn filter_pools_below_usd_threshold_with_throttle<M: Middleware>(
         {
             Ok(weth_value_in_pool) => weth_value_in_pool * usd_price_per_weth,
             Err(pair_sync_error) => match pair_sync_error {
-                CFFMError::PairDoesNotExistInDexes(token_a, token_b) => {
+                CFMMError::PairDoesNotExistInDexes(token_a, token_b) => {
                     println!("Pair does not exist in dexes: {:?} {:?}", token_a, token_b);
                     0.0
                 }
-                CFFMError::ContractError(contract_error) => {
+                CFMMError::ContractError(contract_error) => {
                     println!("Contract Error: {:?}", contract_error);
 
                     0.0
@@ -198,7 +198,7 @@ pub async fn filter_pools_below_weth_threshold<M: Middleware>(
     weth_threshold: f64,
     token_weth_pool_min_weth_threshold: u128,
     middleware: Arc<M>,
-) -> Result<Vec<Pool>, CFFMError<M>> {
+) -> Result<Vec<Pool>, CFMMError<M>> {
     filter_pools_below_weth_threshold_with_throttle(
         pools,
         dexes,
@@ -219,7 +219,7 @@ pub async fn filter_pools_below_weth_threshold_with_throttle<M: Middleware>(
     token_weth_pool_min_weth_threshold: u128,
     middleware: Arc<M>,
     requests_per_second_limit: usize,
-) -> Result<Vec<Pool>, CFFMError<M>> {
+) -> Result<Vec<Pool>, CFMMError<M>> {
     let multi_progress_bar = MultiProgress::new();
     let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
     progress_bar.set_style(
@@ -261,7 +261,7 @@ pub async fn filter_pools_below_weth_threshold_with_throttle<M: Middleware>(
         {
             Ok(weth_value_in_pool) => weth_value_in_pool,
             Err(pair_sync_error) => match pair_sync_error {
-                CFFMError::PairDoesNotExistInDexes(_, _) | CFFMError::ContractError(_) => 0.0,
+                CFMMError::PairDoesNotExistInDexes(_, _) | CFMMError::ContractError(_) => 0.0,
                 _ => return Err(pair_sync_error),
             },
         };
@@ -280,7 +280,7 @@ async fn get_price_of_token_per_weth<M: Middleware>(
     dexes: &[Dex],
     token_weth_pool_min_weth_threshold: u128,
     middleware: Arc<M>,
-) -> Result<f64, CFFMError<M>> {
+) -> Result<f64, CFMMError<M>> {
     if token_address == weth_address {
         return Ok(1.0);
     }
@@ -307,7 +307,7 @@ async fn get_token_to_weth_pool<M: Middleware>(
     dexes: &[Dex],
     token_weth_pool_min_weth_threshold: u128,
     middleware: Arc<M>,
-) -> Result<Pool, CFFMError<M>> {
+) -> Result<Pool, CFMMError<M>> {
     let _pair_address = H160::zero();
     let mut _pool: Pool;
 
@@ -364,7 +364,7 @@ async fn get_token_to_weth_pool<M: Middleware>(
             }
 
             Err(pair_sync_error) => match pair_sync_error {
-                CFFMError::ContractError(_) => continue,
+                CFMMError::ContractError(_) => continue,
                 other => return Err(other),
             },
         };
@@ -374,7 +374,7 @@ async fn get_token_to_weth_pool<M: Middleware>(
     if best_weth_reserves >= token_weth_pool_min_weth_threshold {
         Ok(best_pool.unwrap())
     } else {
-        Err(CFFMError::PairDoesNotExistInDexes(token_a, weth_address))
+        Err(CFMMError::PairDoesNotExistInDexes(token_a, weth_address))
     }
 }
 
@@ -399,10 +399,10 @@ impl FilteredPool for Pool {
         weth_address: H160,
         dexes: &[Dex],
         token_weth_pool_min_weth_threshold: u128,
-        middleware: M,
+        middleware: Arc<M>,
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
-    ) -> Result<f64, CFFMError<M>> {
+    ) -> Result<f64, CFMMError<M>> {
         match self {
             Pool::UniswapV2(pool) => {
                 pool.get_weth_value_in_pool(
@@ -448,7 +448,7 @@ impl FilteredPool for UniswapV2Pool {
         middleware: Arc<M>,
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
-    ) -> Result<f64, CFFMError<M>> {
+    ) -> Result<f64, CFMMError<M>> {
         let token_a_price_per_weth = token_weth_prices
             .lock()
             .unwrap()
@@ -538,7 +538,7 @@ impl FilteredPool for UniswapV3Pool {
         middleware: Arc<M>,
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
-    ) -> Result<f64, CFFMError<M>> {
+    ) -> Result<f64, CFMMError<M>> {
         let (reserve_0, reserve_1) = self.calculate_virtual_reserves();
 
         let token_a_price_per_weth = token_weth_prices
