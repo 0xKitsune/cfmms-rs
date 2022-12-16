@@ -14,25 +14,25 @@ use std::{
 };
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
-pub async fn sync_pairs<P: 'static + JsonRpcClient>(
+pub async fn sync_pairs<M: Middleware>(
     dexes: Vec<Dex>,
-    provider: Arc<Provider<P>>,
+    middlewear: Arc<M>,
     save_checkpoint: bool,
-) -> Result<Vec<Pool>, CFFMError<P>> {
+) -> Result<Vec<Pool>, CFFMError<M>> {
     //Sync pairs with throttle but set the requests per second limit to 0, disabling the throttle.
-    sync_pairs_with_throttle(dexes, provider, 0, save_checkpoint).await
+    sync_pairs_with_throttle(dexes, middlewear, 0, save_checkpoint).await
 }
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
-pub async fn sync_pairs_with_throttle<P: 'static + JsonRpcClient>(
+pub async fn sync_pairs_with_throttle<M: Middleware>(
     dexes: Vec<Dex>,
-    provider: Arc<Provider<P>>,
+    middlewear: Arc<M>,
     requests_per_second_limit: usize,
     save_checkpoint: bool,
-) -> Result<Vec<Pool>, CFFMError<P>> {
+) -> Result<Vec<Pool>, CFFMError<M>> {
     //Initalize a new request throttle
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
-    let current_block = provider.get_block_number().await?;
+    let current_block = middlewear.get_block_number().await?;
 
     //Aggregate the populated pools from each thread
     let mut aggregated_pools: Vec<Pool> = vec![];
@@ -43,7 +43,7 @@ pub async fn sync_pairs_with_throttle<P: 'static + JsonRpcClient>(
 
     //For each dex supplied, get all pair created events and get reserve values
     for dex in dexes.clone() {
-        let async_provider = provider.clone();
+        let async_provider = middlewear.clone();
         let request_throttle = request_throttle.clone();
         let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
 
@@ -97,13 +97,13 @@ pub async fn sync_pairs_with_throttle<P: 'static + JsonRpcClient>(
                 let request_throttle = request_throttle.clone();
                 request_throttle
                     .lock()
-                    .expect("Error when aquiring request throttle mutex lock")
+                    .expect("Error when acquiring request throttle mutex lock")
                     .increment_or_sleep(1);
 
                 pool.sync_pool(async_provider.clone()).await?;
             }
 
-            Ok::<_, CFFMError<P>>(pools)
+            Ok::<_, CFFMError<M>>(pools)
         }));
     }
 
@@ -122,7 +122,7 @@ pub async fn sync_pairs_with_throttle<P: 'static + JsonRpcClient>(
     }
 
     if save_checkpoint {
-        let latest_block = provider.get_block_number().await?;
+        let latest_block = middlewear.get_block_number().await?;
         checkpoint::construct_checkpoint(
             dexes,
             &aggregated_pools,
@@ -136,14 +136,14 @@ pub async fn sync_pairs_with_throttle<P: 'static + JsonRpcClient>(
 }
 
 //Get all pairs
-pub async fn get_all_pools<P: 'static + JsonRpcClient>(
+pub async fn get_all_pools<M: Middleware>(
     dexes: Vec<Dex>,
-    provider: Arc<Provider<P>>,
+    middlewear: Arc<M>,
     requests_per_second_limit: usize,
-) -> Result<Vec<Pool>, CFFMError<P>> {
+) -> Result<Vec<Pool>, CFFMError<M>> {
     //Initalize a new request throttle
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
-    let current_block = provider.get_block_number().await?;
+    let current_block = middlewear.get_block_number().await?;
     let mut handles = vec![];
 
     //Initialize multi progress bar
@@ -151,7 +151,7 @@ pub async fn get_all_pools<P: 'static + JsonRpcClient>(
 
     //For each dex supplied, get all pair created events and get reserve values
     for dex in dexes {
-        let async_provider = provider.clone();
+        let async_provider = middlewear.clone();
         let request_throttle = request_throttle.clone();
         let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
 
@@ -171,7 +171,7 @@ pub async fn get_all_pools<P: 'static + JsonRpcClient>(
             )
             .await?;
 
-            Ok::<_, CFFMError<P>>(pools)
+            Ok::<_, CFFMError<M>>(pools)
         }));
     }
 
@@ -197,13 +197,13 @@ pub async fn get_all_pools<P: 'static + JsonRpcClient>(
 }
 
 //Function to get all pair created events for a given Dex factory address and sync pool data
-pub async fn get_all_pools_from_dex<P: 'static + JsonRpcClient>(
+pub async fn get_all_pools_from_dex<M: Middleware>(
     dex: Dex,
-    provider: Arc<Provider<P>>,
+    middlewear: Arc<M>,
     current_block: BlockNumber,
     request_throttle: Arc<Mutex<RequestThrottle>>,
     progress_bar: ProgressBar,
-) -> Result<Vec<Pool>, CFFMError<P>> {
+) -> Result<Vec<Pool>, CFFMError<M>> {
     //Define the step for searching a range of blocks for pair created events
     let step = 100000;
     //Unwrap can be used here because the creation block was verified within `Dex::new()`
@@ -229,7 +229,7 @@ pub async fn get_all_pools_from_dex<P: 'static + JsonRpcClient>(
     //For each block within the range, get all pairs asynchronously
     for from_block in (from_block..=current_block).step_by(step) {
         let request_throttle = request_throttle.clone();
-        let provider = provider.clone();
+        let provider = middlewear.clone();
         let progress_bar = progress_bar.clone();
 
         //Spawn a new task to get pair created events from the block range
@@ -242,7 +242,7 @@ pub async fn get_all_pools_from_dex<P: 'static + JsonRpcClient>(
             //Update the throttle
             request_throttle
                 .lock()
-                .expect("Error when aquiring request throttle mutex lock")
+                .expect("Error when acquiring request throttle mutex lock")
                 .increment_or_sleep(1);
 
             let logs = provider
@@ -264,7 +264,7 @@ pub async fn get_all_pools_from_dex<P: 'static + JsonRpcClient>(
             //Increment the progress bar by the step
             progress_bar.inc(step as u64);
 
-            Ok::<Vec<Pool>, CFFMError<P>>(pools)
+            Ok::<Vec<Pool>, CFFMError<M>>(pools)
         }));
     }
 
@@ -288,13 +288,13 @@ pub async fn get_all_pools_from_dex<P: 'static + JsonRpcClient>(
 }
 
 //Function to get reserves for each pair in the `pairs` vec.
-pub async fn get_all_pool_data<P: 'static + JsonRpcClient>(
+pub async fn get_all_pool_data<M: Middleware>(
     pools: Vec<Pool>,
     dex_factory_address: H160,
-    provider: Arc<Provider<P>>,
+    middlewear: Arc<M>,
     request_throttle: Arc<Mutex<RequestThrottle>>,
     progress_bar: ProgressBar,
-) -> Result<Vec<Pool>, CFFMError<P>> {
+) -> Result<Vec<Pool>, CFFMError<M>> {
     //Initialize a vec to track each async task.
     // let mut handles: Vec<tokio::task::JoinHandle<Result<Pool, _>>> = vec![];
     //Create a new vec to aggregate the pools and populate the vec.
@@ -310,12 +310,12 @@ pub async fn get_all_pool_data<P: 'static + JsonRpcClient>(
     //For each pair in the pairs vec, get the reserves asyncrhonously
     for mut pool in pools {
         let request_throttle = request_throttle.clone();
-        let provider = provider.clone();
+        let provider = middlewear.clone();
         let progress_bar = progress_bar.clone();
 
         request_throttle
             .lock()
-            .expect("Error when aquiring request throttle mutex lock")
+            .expect("Error when acquiring request throttle mutex lock")
             .increment_or_sleep(4);
 
         match pool.get_pool_data(provider.clone()).await {

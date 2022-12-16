@@ -23,15 +23,15 @@ use crate::{
 };
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
-pub async fn sync_pairs_from_checkpoint<P: 'static + JsonRpcClient>(
+pub async fn sync_pairs_from_checkpoint<M: Middleware>(
     path_to_checkpoint: String,
-    provider: Arc<Provider<P>>,
+    middlewear: Arc<M>,
     update_checkpoint: bool,
     checkpoint_file_name: String,
-) -> Result<(Vec<Dex>, Vec<Pool>), CFFMError<P>> {
+) -> Result<(Vec<Dex>, Vec<Pool>), CFFMError<M>> {
     sync_pairs_from_checkpoint_with_throttle(
         path_to_checkpoint,
-        provider,
+        middlewear,
         0,
         update_checkpoint,
         checkpoint_file_name,
@@ -40,13 +40,13 @@ pub async fn sync_pairs_from_checkpoint<P: 'static + JsonRpcClient>(
 }
 
 //Get all pairs from last synced block and sync reserve values for each Dex in the `dexes` vec.
-pub async fn sync_pairs_from_checkpoint_with_throttle<P: 'static + JsonRpcClient>(
+pub async fn sync_pairs_from_checkpoint_with_throttle<M: Middleware>(
     path_to_checkpoint: String,
-    provider: Arc<Provider<P>>,
+    middlewear: Arc<M>,
     requests_per_second_limit: usize,
     update_checkpoint: bool,
     checkpoint_file_name: String,
-) -> Result<(Vec<Dex>, Vec<Pool>), CFFMError<P>> {
+) -> Result<(Vec<Dex>, Vec<Pool>), CFFMError<M>> {
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
 
     //Read in checkpoint
@@ -54,11 +54,11 @@ pub async fn sync_pairs_from_checkpoint_with_throttle<P: 'static + JsonRpcClient
 
     //Get all pools since checkpoint last sync and add it to the vec of pool
     let mut new_pools =
-        get_all_pools(dexes.clone(), provider.clone(), requests_per_second_limit).await?;
+        get_all_pools(dexes.clone(), middlewear.clone(), requests_per_second_limit).await?;
 
     for pool in new_pools.iter_mut() {
         request_throttle.lock().unwrap().increment_or_sleep(5);
-        pool.get_pool_data(provider.clone()).await?;
+        pool.get_pool_data(middlewear.clone()).await?;
     }
 
     //Add new pools to pools
@@ -67,11 +67,11 @@ pub async fn sync_pairs_from_checkpoint_with_throttle<P: 'static + JsonRpcClient
     //Update reserves for all pools
     for pool in pools.iter_mut() {
         request_throttle.lock().unwrap().increment_or_sleep(2);
-        pool.sync_pool(provider.clone()).await?;
+        pool.sync_pool(middlewear.clone()).await?;
     }
 
     if update_checkpoint {
-        let latest_block = provider.get_block_number().await?;
+        let latest_block = middlewear.get_block_number().await?;
         construct_checkpoint(
             dexes.clone(),
             &pools,
@@ -84,25 +84,25 @@ pub async fn sync_pairs_from_checkpoint_with_throttle<P: 'static + JsonRpcClient
 }
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
-pub async fn generate_checkpoint<P: 'static + JsonRpcClient>(
+pub async fn generate_checkpoint<M: Middleware>(
     dexes: Vec<Dex>,
-    provider: Arc<Provider<P>>,
+    middlewear: Arc<M>,
     checkpoint_file_name: String,
-) -> Result<(), CFFMError<P>> {
+) -> Result<(), CFFMError<M>> {
     //Sync pairs with throttle but set the requests per second limit to 0, disabling the throttle.
-    generate_checkpoint_with_throttle(dexes, provider, 0, checkpoint_file_name).await
+    generate_checkpoint_with_throttle(dexes, middlewear, 0, checkpoint_file_name).await
 }
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
-pub async fn generate_checkpoint_with_throttle<P: 'static + JsonRpcClient>(
+pub async fn generate_checkpoint_with_throttle<M: Middleware>(
     dexes: Vec<Dex>,
-    provider: Arc<Provider<P>>,
+    middlewear: Arc<M>,
     requests_per_second_limit: usize,
     checkpoint_file_name: String,
-) -> Result<(), CFFMError<P>> {
+) -> Result<(), CFFMError<M>> {
     //Initalize a new request throttle
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
-    let current_block = provider.get_block_number().await?;
+    let current_block = middlewear.get_block_number().await?;
 
     //Aggregate the populated pools from each thread
     let mut aggregated_pools: Vec<Pool> = vec![];
@@ -113,7 +113,7 @@ pub async fn generate_checkpoint_with_throttle<P: 'static + JsonRpcClient>(
 
     //For each dex supplied, get all pair created events and get reserve values
     for dex in dexes.clone() {
-        let async_provider = provider.clone();
+        let async_provider = middlewear.clone();
         let request_throttle = request_throttle.clone();
         let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
 
@@ -157,7 +157,7 @@ pub async fn generate_checkpoint_with_throttle<P: 'static + JsonRpcClient>(
 
             progress_bar.finish();
 
-            Ok::<_, CFFMError<P>>(pools)
+            Ok::<_, CFFMError<M>>(pools)
         }));
     }
 
@@ -175,7 +175,7 @@ pub async fn generate_checkpoint_with_throttle<P: 'static + JsonRpcClient>(
         }
     }
 
-    let latest_block = provider.get_block_number().await?;
+    let latest_block = middlewear.get_block_number().await?;
 
     println!("total pools :{}", aggregated_pools.len());
 
@@ -190,19 +190,19 @@ pub async fn generate_checkpoint_with_throttle<P: 'static + JsonRpcClient>(
 }
 
 //Syncs all reserve values for pools in checkpoint and returns a vec of Pool
-pub async fn sync_pools_from_checkpoint<P: 'static + JsonRpcClient>(
+pub async fn sync_pools_from_checkpoint<M: Middleware>(
     path_to_checkpoint: String,
-    provider: Arc<Provider<P>>,
-) -> Result<(Vec<Dex>, Vec<Pool>), CFFMError<P>> {
-    sync_pools_from_checkpoint_with_throttle(path_to_checkpoint, provider, 0).await
+    middlewear: Arc<M>,
+) -> Result<(Vec<Dex>, Vec<Pool>), CFFMError<M>> {
+    sync_pools_from_checkpoint_with_throttle(path_to_checkpoint, middlewear, 0).await
 }
 
 //Syncs all reserve values with throttle for pools in checkpoint and returns a vec of Pool
-pub async fn sync_pools_from_checkpoint_with_throttle<P: 'static + JsonRpcClient>(
+pub async fn sync_pools_from_checkpoint_with_throttle<M: Middleware>(
     path_to_checkpoint: String,
-    provider: Arc<Provider<P>>,
+    middlewear: Arc<M>,
     requests_per_second_limit: usize,
-) -> Result<(Vec<Dex>, Vec<Pool>), CFFMError<P>> {
+) -> Result<(Vec<Dex>, Vec<Pool>), CFFMError<M>> {
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
 
     let multi_progress_bar = MultiProgress::new();
@@ -225,7 +225,7 @@ pub async fn sync_pools_from_checkpoint_with_throttle<P: 'static + JsonRpcClient
         request_throttle.lock().unwrap().increment_or_sleep(2);
         progress_bar.inc(1);
 
-        match pool.sync_pool(provider.clone()).await {
+        match pool.sync_pool(middlewear.clone()).await {
             Ok(_) => {}
             Err(pair_sync_error) => match pair_sync_error {
                 CFFMError::ProviderError(provider_error) => {

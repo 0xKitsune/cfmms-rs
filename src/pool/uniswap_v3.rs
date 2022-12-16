@@ -2,7 +2,7 @@ use std::{ops::Add, sync::Arc};
 
 use ethers::{
     abi::{decode, ParamType},
-    providers::{JsonRpcClient, Provider},
+    providers::{JsonRpcClient, Middleware, Provider},
     types::{Log, H160, I256, U256},
 };
 use num_bigfloat::BigFloat;
@@ -58,10 +58,10 @@ impl UniswapV3Pool {
     }
 
     //Creates a new instance of the pool from the pair address
-    pub async fn new_from_address<P: 'static + JsonRpcClient>(
+    pub async fn new_from_address<M: Middleware>(
         pair_address: H160,
-        provider: Arc<Provider<P>>,
-    ) -> Result<Self, CFFMError<P>> {
+        middlewear: Arc<M>,
+    ) -> Result<Self, CFFMError<M>> {
         let mut pool = UniswapV3Pool {
             address: pair_address,
             token_a: H160::zero(),
@@ -77,23 +77,23 @@ impl UniswapV3Pool {
             liquidity_net: 0,
         };
 
-        pool.get_pool_data(provider.clone()).await?;
+        pool.get_pool_data(middlewear.clone()).await?;
 
-        pool.sync_pool(provider.clone()).await?;
+        pool.sync_pool(middlewear).await?;
 
         Ok(pool)
     }
 
-    pub async fn get_pool_data<P: 'static + JsonRpcClient>(
+    pub async fn get_pool_data<M: Middleware>(
         &mut self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<(), CFFMError<P>> {
-        self.token_a = self.get_token_0(provider.clone()).await?;
-        self.token_b = self.get_token_1(provider.clone()).await?;
+        middlewear: Arc<M>,
+    ) -> Result<(), CFFMError<M>> {
+        self.token_a = self.get_token_0(middlewear.clone()).await?;
+        self.token_b = self.get_token_1(middlewear.clone()).await?;
         (self.token_a_decimals, self.token_b_decimals) =
-            self.get_token_decimals(provider.clone()).await?;
-        self.fee = self.get_fee(provider.clone()).await?;
-        self.tick_spacing = self.get_tick_spacing(provider.clone()).await?;
+            self.get_token_decimals(middlewear.clone()).await?;
+        self.fee = self.get_fee(middlewear.clone()).await?;
+        self.tick_spacing = self.get_tick_spacing(middlewear.clone()).await?;
         Ok(())
     }
 
