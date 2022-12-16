@@ -1,7 +1,7 @@
 use std::{cmp::Ordering, sync::Arc};
 
 use ethers::{
-    providers::{JsonRpcClient, Middleware, Provider},
+    providers::Middleware,
     types::{H160, U256},
 };
 

@@ -194,7 +194,7 @@ impl UniswapV3Pool {
         &mut self,
         middleware: Arc<M>,
     ) -> Result<(), CFMMError<M>> {
-        self.liquidity = self.get_liquidity(middleware).await?;
+        self.liquidity = self.get_liquidity(middleware.clone()).await?;
 
         let slot_0 = self.get_slot_0(middleware.clone()).await?;
         self.sqrt_price = slot_0.0;

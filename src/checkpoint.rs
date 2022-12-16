@@ -24,7 +24,7 @@ use crate::{
 };
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
-pub async fn sync_pairs_from_checkpoint<M: Middleware>(
+pub async fn sync_pairs_from_checkpoint<M: 'static + Middleware>(
     path_to_checkpoint: String,
     middleware: Arc<M>,
     update_checkpoint: bool,
@@ -41,7 +41,7 @@ pub async fn sync_pairs_from_checkpoint<M: Middleware>(
 }
 
 //Get all pairs from last synced block and sync reserve values for each Dex in the `dexes` vec.
-pub async fn sync_pairs_from_checkpoint_with_throttle<M: Middleware>(
+pub async fn sync_pairs_from_checkpoint_with_throttle<M: 'static + Middleware>(
     path_to_checkpoint: String,
     middleware: Arc<M>,
     requests_per_second_limit: usize,
@@ -72,7 +72,11 @@ pub async fn sync_pairs_from_checkpoint_with_throttle<M: Middleware>(
     }
 
     if update_checkpoint {
-        let latest_block = middleware.get_block_number().await?;
+        let latest_block = middleware
+            .get_block_number()
+            .await
+            .map_err(CFMMError::MiddlewareError)?;
+
         construct_checkpoint(
             dexes.clone(),
             &pools,
@@ -85,7 +89,7 @@ pub async fn sync_pairs_from_checkpoint_with_throttle<M: Middleware>(
 }
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
-pub async fn generate_checkpoint<M: Middleware>(
+pub async fn generate_checkpoint<M: 'static + Middleware>(
     dexes: Vec<Dex>,
     middleware: Arc<M>,
     checkpoint_file_name: String,
@@ -95,7 +99,7 @@ pub async fn generate_checkpoint<M: Middleware>(
 }
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
-pub async fn generate_checkpoint_with_throttle<M: Middleware>(
+pub async fn generate_checkpoint_with_throttle<M: 'static + Middleware>(
     dexes: Vec<Dex>,
     middleware: Arc<M>,
     requests_per_second_limit: usize,
@@ -103,7 +107,10 @@ pub async fn generate_checkpoint_with_throttle<M: Middleware>(
 ) -> Result<(), CFMMError<M>> {
     //Initalize a new request throttle
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
-    let current_block = middleware.get_block_number().await?;
+    let current_block = middleware
+        .get_block_number()
+        .await
+        .map_err(CFMMError::MiddlewareError)?;
 
     //Aggregate the populated pools from each thread
     let mut aggregated_pools: Vec<Pool> = vec![];
@@ -176,7 +183,10 @@ pub async fn generate_checkpoint_with_throttle<M: Middleware>(
         }
     }
 
-    let latest_block = middleware.get_block_number().await?;
+    let latest_block = middleware
+        .get_block_number()
+        .await
+        .map_err(CFMMError::MiddlewareError)?;
 
     println!("total pools :{}", aggregated_pools.len());
 

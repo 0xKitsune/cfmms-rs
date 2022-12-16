@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use ethers::{
     abi::ParamType,
-    providers::{JsonRpcClient, Middleware, Provider},
+    providers::Middleware,
     types::{Log, H160, U256},
 };
 

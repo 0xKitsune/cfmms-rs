@@ -1,14 +1,10 @@
-use crate::{
-    checkpoint,
-    error::{self, CFMMError},
-};
+use crate::{checkpoint, error::CFMMError};
 
 use super::dex::Dex;
 use super::pool::Pool;
 use super::throttle::RequestThrottle;
 use ethers::{
-    prelude::gas_oracle::MiddlewareError,
-    providers::{JsonRpcClient, Middleware, Provider},
+    providers::Middleware,
     types::{BlockNumber, Filter, ValueOrArray, H160, U64},
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -28,23 +24,6 @@ pub async fn sync_pairs<M: 'static + Middleware>(
 }
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
-pub async fn sync_pairs_with_throttlex<M: Middleware>(
-    dexes: Vec<Dex>,
-    middleware: Arc<M>,
-    requests_per_second_limit: usize,
-    save_checkpoint: bool,
-) -> Result<(), CFMMError<M>> {
-    //Initalize a new request throttle
-    let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
-    let current_block = middleware
-        .get_block_number()
-        .await
-        .map_err(CFMMError::MiddlewareError)?;
-
-    Ok(())
-}
-
-//Get all pairs and sync reserve values for each Dex in the `dexes` vec.
 pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
     dexes: Vec<Dex>,
     middleware: Arc<M>,
@@ -53,10 +32,6 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
 ) -> Result<Vec<Pool>, CFMMError<M>> {
     //Initalize a new request throttle
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
-    let current_block = middleware
-        .get_block_number()
-        .await
-        .map_err(CFMMError::MiddlewareError)?;
 
     let current_block = middleware
         .get_block_number()
@@ -151,11 +126,6 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
     }
 
     if save_checkpoint {
-        let latest_block = middleware
-            .get_block_number()
-            .await
-            .map_err(CFMMError::MiddlewareError)?;
-
         let latest_block = middleware
             .get_block_number()
             .await
@@ -365,7 +335,7 @@ pub async fn get_all_pool_data<M: Middleware>(
             Ok(_) => updated_pools.push(pool),
 
             Err(cfmm_error) => {
-                if let CFMMError::MiddlewareError(middleware_error) = &cfmm_error {
+                if let CFMMError::MiddlewareError(_) = &cfmm_error {
                     return Err(cfmm_error);
                 }
             }
