@@ -97,46 +97,43 @@ impl UniswapV3Pool {
         Ok(())
     }
 
-    pub async fn get_tick_word<P: JsonRpcClient>(
+    pub async fn get_tick_word<M: Middleware>(
         &self,
         tick: i32,
-        provider: Arc<Provider<P>>,
-    ) -> Result<U256, CFFMError<P>> {
-        let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
+        middlewear: Arc<M>,
+    ) -> Result<U256, CFFMError<M>> {
+        let v3_pool = abi::IUniswapV3Pool::new(self.address, middlewear);
         let (word_position, _) = uniswap_v3_math::tick_bit_map::position(tick);
         Ok(v3_pool.tick_bitmap(word_position).call().await?)
     }
 
-    pub async fn get_next_word<P: JsonRpcClient>(
+    pub async fn get_next_word<M: Middleware>(
         &self,
         word_position: i16,
-        provider: Arc<Provider<P>>,
-    ) -> Result<U256, CFFMError<P>> {
-        let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
+        middlewear: Arc<M>,
+    ) -> Result<U256, CFFMError<M>> {
+        let v3_pool = abi::IUniswapV3Pool::new(self.address, middlewear);
         Ok(v3_pool.tick_bitmap(word_position).call().await?)
     }
 
-    pub async fn get_tick_spacing<P: JsonRpcClient>(
+    pub async fn get_tick_spacing<M: Middleware>(
         &self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<i32, CFFMError<P>> {
-        let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
+        middlewear: Arc<M>,
+    ) -> Result<i32, CFFMError<M>> {
+        let v3_pool = abi::IUniswapV3Pool::new(self.address, middlewear);
         Ok(v3_pool.tick_spacing().call().await?)
     }
 
-    pub async fn get_tick<P: JsonRpcClient>(
-        &self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<i32, CFFMError<P>> {
-        Ok(self.get_slot_0(provider).await?.1)
+    pub async fn get_tick<M: Middleware>(&self, middlewear: Arc<M>) -> Result<i32, CFFMError<M>> {
+        Ok(self.get_slot_0(middlewear).await?.1)
     }
 
-    pub async fn get_tick_info<P: JsonRpcClient>(
+    pub async fn get_tick_info<M: Middleware>(
         &self,
         tick: i32,
-        provider: Arc<Provider<P>>,
-    ) -> Result<(u128, i128, U256, U256, i64, U256, u32, bool), CFFMError<P>> {
-        let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
+        middlewear: Arc<M>,
+    ) -> Result<(u128, i128, U256, U256, i64, U256, u32, bool), CFFMError<M>> {
+        let v3_pool = abi::IUniswapV3Pool::new(self.address, middlewear.clone());
 
         let tick_info = v3_pool.ticks(tick).call().await?;
 
@@ -152,72 +149,72 @@ impl UniswapV3Pool {
         ))
     }
 
-    pub async fn get_liquidity_net<P: JsonRpcClient>(
+    pub async fn get_liquidity_net<M: Middleware>(
         &self,
         tick: i32,
-        provider: Arc<Provider<P>>,
-    ) -> Result<i128, CFFMError<P>> {
-        let tick_info = self.get_tick_info(tick, provider.clone()).await?;
+        middlewear: Arc<M>,
+    ) -> Result<i128, CFFMError<M>> {
+        let tick_info = self.get_tick_info(tick, middlewear).await?;
         Ok(tick_info.1)
     }
 
-    pub async fn get_initialized<P: JsonRpcClient>(
+    pub async fn get_initialized<M: Middleware>(
         &self,
         tick: i32,
-        provider: Arc<Provider<P>>,
-    ) -> Result<bool, CFFMError<P>> {
-        let tick_info = self.get_tick_info(tick, provider.clone()).await?;
+        middlewear: Arc<M>,
+    ) -> Result<bool, CFFMError<M>> {
+        let tick_info = self.get_tick_info(tick, middlewear).await?;
         Ok(tick_info.7)
     }
 
-    pub async fn get_slot_0<P: JsonRpcClient>(
+    pub async fn get_slot_0<M: Middleware>(
         &self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<(U256, i32, u16, u16, u16, u8, bool), CFFMError<P>> {
-        let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
+        middlewear: Arc<M>,
+    ) -> Result<(U256, i32, u16, u16, u16, u8, bool), CFFMError<M>> {
+        let v3_pool = abi::IUniswapV3Pool::new(self.address, middlewear);
         Ok(v3_pool.slot_0().call().await?)
     }
 
-    pub async fn get_liquidity<P: JsonRpcClient>(
+    pub async fn get_liquidity<M: Middleware>(
         &self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<u128, CFFMError<P>> {
-        let v3_pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
+        middlewear: Arc<M>,
+    ) -> Result<u128, CFFMError<M>> {
+        let v3_pool = abi::IUniswapV3Pool::new(self.address, middlewear);
         Ok(v3_pool.liquidity().call().await?)
     }
 
-    pub async fn get_sqrt_price<P: JsonRpcClient>(
+    pub async fn get_sqrt_price<M: Middleware>(
         &self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<U256, CFFMError<P>> {
-        Ok(self.get_slot_0(provider).await?.0)
+        middlewear: Arc<M>,
+    ) -> Result<U256, CFFMError<M>> {
+        Ok(self.get_slot_0(middlewear).await?.0)
     }
 
-    pub async fn sync_pool<P: 'static + JsonRpcClient>(
+    pub async fn sync_pool<M: Middleware>(
         &mut self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<(), CFFMError<P>> {
-        self.liquidity = self.get_liquidity(provider.clone()).await?;
+        middlewear: Arc<M>,
+    ) -> Result<(), CFFMError<M>> {
+        self.liquidity = self.get_liquidity(middlewear).await?;
 
-        let slot_0 = self.get_slot_0(provider.clone()).await?;
+        let slot_0 = self.get_slot_0(middlewear.clone()).await?;
         self.sqrt_price = slot_0.0;
         self.tick = slot_0.1;
 
-        self.tick_word = self.get_tick_word(self.tick, provider.clone()).await?;
-        self.liquidity_net = self.get_liquidity_net(self.tick, provider.clone()).await?;
+        self.tick_word = self.get_tick_word(self.tick, middlewear.clone()).await?;
+        self.liquidity_net = self.get_liquidity_net(self.tick, middlewear).await?;
 
         Ok(())
     }
 
-    pub async fn update_pool_from_swap_log<P: JsonRpcClient>(
+    pub async fn update_pool_from_swap_log<M: Middleware>(
         &mut self,
         swap_log: &Log,
-        provider: Arc<Provider<P>>,
-    ) -> Result<(), CFFMError<P>> {
+        middlewear: Arc<M>,
+    ) -> Result<(), CFFMError<M>> {
         (_, _, self.sqrt_price, self.liquidity, self.tick) = self.decode_swap_log(swap_log);
 
-        self.tick_word = self.get_tick_word(self.tick, provider.clone()).await?;
-        self.liquidity_net = self.get_liquidity_net(self.tick, provider.clone()).await?;
+        self.tick_word = self.get_tick_word(self.tick, middlewear.clone()).await?;
+        self.liquidity_net = self.get_liquidity_net(self.tick, middlewear).await?;
 
         Ok(())
     }
@@ -245,16 +242,16 @@ impl UniswapV3Pool {
         (amount_0, amount_1, sqrt_price, liquidity, tick)
     }
 
-    pub async fn get_token_decimals<P: 'static + JsonRpcClient>(
+    pub async fn get_token_decimals<M: Middleware>(
         &mut self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<(u8, u8), CFFMError<P>> {
-        let token_a_decimals = abi::IErc20::new(self.token_a, provider.clone())
+        middlewear: Arc<M>,
+    ) -> Result<(u8, u8), CFFMError<M>> {
+        let token_a_decimals = abi::IErc20::new(self.token_a, middlewear.clone())
             .decimals()
             .call()
             .await?;
 
-        let token_b_decimals = abi::IErc20::new(self.token_b, provider)
+        let token_b_decimals = abi::IErc20::new(self.token_b, middlewear)
             .decimals()
             .call()
             .await?;
@@ -262,11 +259,11 @@ impl UniswapV3Pool {
         Ok((token_a_decimals, token_b_decimals))
     }
 
-    pub async fn get_fee<P: 'static + JsonRpcClient>(
+    pub async fn get_fee<M: Middleware>(
         &mut self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<u32, CFFMError<P>> {
-        let fee = abi::IUniswapV3Pool::new(self.address, provider.clone())
+        middlewear: Arc<M>,
+    ) -> Result<u32, CFFMError<M>> {
+        let fee = abi::IUniswapV3Pool::new(self.address, middlewear)
             .fee()
             .call()
             .await?;
@@ -274,11 +271,11 @@ impl UniswapV3Pool {
         Ok(fee)
     }
 
-    pub async fn get_token_0<P: JsonRpcClient>(
+    pub async fn get_token_0<M: Middleware>(
         &self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<H160, CFFMError<P>> {
-        let v2_pair = abi::IUniswapV2Pair::new(self.address, provider);
+        middlewear: Arc<M>,
+    ) -> Result<H160, CFFMError<M>> {
+        let v2_pair = abi::IUniswapV2Pair::new(self.address, middlewear);
 
         let token0 = match v2_pair.token_0().call().await {
             Ok(result) => result,
@@ -288,11 +285,11 @@ impl UniswapV3Pool {
         Ok(token0)
     }
 
-    pub async fn get_token_1<P: JsonRpcClient>(
+    pub async fn get_token_1<M: Middleware>(
         &self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<H160, CFFMError<P>> {
-        let v2_pair = abi::IUniswapV2Pair::new(self.address, provider);
+        middlewear: Arc<M>,
+    ) -> Result<H160, CFFMError<M>> {
+        let v2_pair = abi::IUniswapV2Pair::new(self.address, middlewear);
 
         let token1 = match v2_pair.token_1().call().await {
             Ok(result) => result,
@@ -357,12 +354,12 @@ impl UniswapV3Pool {
         self.address
     }
 
-    pub async fn simulate_swap<P: 'static + JsonRpcClient>(
+    pub async fn simulate_swap<M: Middleware>(
         &self,
         token_in: H160,
         amount_in: U256,
-        provider: Arc<Provider<P>>,
-    ) -> Result<U256, CFFMError<P>> {
+        middlewear: Arc<M>,
+    ) -> Result<U256, CFFMError<M>> {
         //Initialize zero_for_one to true if token_in is token_a
         let zero_for_one = token_in == self.token_a;
 
@@ -382,7 +379,7 @@ impl UniswapV3Pool {
             liquidity: self.liquidity, //Current available liquidity in the tick range
         };
 
-        let pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
+        let pool = abi::IUniswapV3Pool::new(self.address, middlewear.clone());
 
         //Get the first initialized tick within one word of the current tick
         let mut tick_word = pool
@@ -409,7 +406,9 @@ impl UniswapV3Pool {
             //If there are no initialized ticks within the current word, then we need to get the next word, at word_position + 1
             if !step.initialized {
                 let (word_position, _) = uniswap_v3_math::tick_bit_map::position(self.tick);
-                tick_word = self.get_next_word(word_position, provider.clone()).await?;
+                tick_word = self
+                    .get_next_word(word_position, middlewear.clone())
+                    .await?;
 
                 (step.tick_next, step.initialized) =
                     uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
@@ -463,7 +462,7 @@ impl UniswapV3Pool {
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
                 if step.initialized {
                     let mut liquidity_net = self
-                        .get_liquidity_net(step.tick_next, provider.clone())
+                        .get_liquidity_net(step.tick_next, middlewear.clone())
                         .await?;
 
                     // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
@@ -496,12 +495,12 @@ impl UniswapV3Pool {
         ))
     }
 
-    pub async fn simulate_swap_mut<P: 'static + JsonRpcClient>(
+    pub async fn simulate_swap_mut<M: Middleware>(
         &mut self,
         token_in: H160,
         amount_in: U256,
-        provider: Arc<Provider<P>>,
-    ) -> Result<U256, CFFMError<P>> {
+        middlewear: Arc<M>,
+    ) -> Result<U256, CFFMError<M>> {
         //Initialize zero_for_one to true if token_in is token_a
         let zero_for_one = token_in == self.token_a;
 
@@ -521,7 +520,7 @@ impl UniswapV3Pool {
             liquidity: self.liquidity, //Current available liquidity in the tick range
         };
 
-        let pool = abi::IUniswapV3Pool::new(self.address, provider.clone());
+        let pool = abi::IUniswapV3Pool::new(self.address, middlewear.clone());
 
         //Get the first initialized tick within one word of the current tick
         let mut tick_word = pool
@@ -549,7 +548,9 @@ impl UniswapV3Pool {
             //If there are no initialized ticks within the current word, then we need to get the next word, at word_position + 1
             if !step.initialized {
                 let (word_position, _) = uniswap_v3_math::tick_bit_map::position(self.tick);
-                tick_word = self.get_next_word(word_position, provider.clone()).await?;
+                tick_word = self
+                    .get_next_word(word_position, middlewear.clone())
+                    .await?;
 
                 (step.tick_next, step.initialized) =
                     uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
@@ -604,7 +605,7 @@ impl UniswapV3Pool {
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
                 if step.initialized {
                     liquidity_net = self
-                        .get_liquidity_net(step.tick_next, provider.clone())
+                        .get_liquidity_net(step.tick_next, middlewear.clone())
                         .await?;
 
                     // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee

@@ -1,7 +1,7 @@
 use std::{str::FromStr, sync::Arc};
 
 use ethers::{
-    providers::{JsonRpcClient, Provider},
+    providers::{JsonRpcClient, Middleware, Provider},
     types::{BlockNumber, Log, H160, H256},
 };
 
@@ -65,25 +65,22 @@ impl Dex {
         }
     }
 
-    pub async fn new_pool_from_event<P: 'static + JsonRpcClient>(
+    pub async fn new_pool_from_event<M: Middleware>(
         &self,
         log: Log,
-        provider: Arc<Provider<P>>,
-    ) -> Result<Pool, CFFMError<P>> {
+        middlewear: Arc<M>,
+    ) -> Result<Pool, CFFMError<M>> {
         match self {
             Dex::UniswapV2(uniswap_v2_dex) => {
-                Ok(uniswap_v2_dex.new_pool_from_event(log, provider).await?)
+                Ok(uniswap_v2_dex.new_pool_from_event(log, middlewear).await?)
             }
             Dex::UniswapV3(uniswap_v3_dex) => {
-                Ok(uniswap_v3_dex.new_pool_from_event(log, provider).await?)
+                Ok(uniswap_v3_dex.new_pool_from_event(log, middlewear).await?)
             }
         }
     }
 
-    pub fn new_empty_pool_from_event<P: 'static + JsonRpcClient>(
-        &self,
-        log: Log,
-    ) -> Result<Pool, CFFMError<P>> {
+    pub fn new_empty_pool_from_event<M: Middleware>(&self, log: Log) -> Result<Pool, CFFMError<M>> {
         match self {
             Dex::UniswapV2(uniswap_v2_dex) => uniswap_v2_dex.new_empty_pool_from_event(log),
             Dex::UniswapV3(uniswap_v3_dex) => uniswap_v3_dex.new_empty_pool_from_event(log),
@@ -93,16 +90,16 @@ impl Dex {
     //TODO: rename this to be specific to what it needs to do
     //This should get the pool with the best liquidity from the dex variant.
     //If univ2, there will only be one pool, if univ3 there will be multiple
-    pub async fn get_pool_with_best_liquidity<P: 'static + JsonRpcClient>(
+    pub async fn get_pool_with_best_liquidity<M: Middleware>(
         &self,
         token_a: H160,
         token_b: H160,
-        provider: Arc<Provider<P>>,
-    ) -> Result<Option<Pool>, CFFMError<P>> {
+        middlewear: Arc<M>,
+    ) -> Result<Option<Pool>, CFFMError<M>> {
         match self {
             Dex::UniswapV2(uniswap_v2_dex) => {
                 let uniswap_v2_factory =
-                    abi::IUniswapV2Factory::new(uniswap_v2_dex.factory_address, provider.clone());
+                    abi::IUniswapV2Factory::new(uniswap_v2_dex.factory_address, middlewear.clone());
 
                 let pair_address = uniswap_v2_factory.get_pair(token_a, token_b).call().await?;
 
@@ -110,14 +107,14 @@ impl Dex {
                     Ok(None)
                 } else {
                     Ok(Some(Pool::UniswapV2(
-                        UniswapV2Pool::new_from_address(pair_address, provider).await?,
+                        UniswapV2Pool::new_from_address(pair_address, middlewear).await?,
                     )))
                 }
             }
 
             Dex::UniswapV3(uniswap_v3_dex) => {
                 let uniswap_v3_factory =
-                    abi::IUniswapV3Factory::new(uniswap_v3_dex.factory_address, provider.clone());
+                    abi::IUniswapV3Factory::new(uniswap_v3_dex.factory_address, middlewear.clone());
 
                 let mut best_liquidity = 0;
                 let mut best_pool_address = H160::zero();
@@ -141,7 +138,8 @@ impl Dex {
                         }
                     };
 
-                    let uniswap_v3_pool = abi::IUniswapV3Pool::new(pool_address, provider.clone());
+                    let uniswap_v3_pool =
+                        abi::IUniswapV3Pool::new(pool_address, middlewear.clone());
 
                     let liquidity = uniswap_v3_pool.liquidity().call().await?;
                     if best_liquidity < liquidity {
@@ -154,7 +152,7 @@ impl Dex {
                     Ok(None)
                 } else {
                     Ok(Some(Pool::UniswapV3(
-                        UniswapV3Pool::new_from_address(best_pool_address, provider).await?,
+                        UniswapV3Pool::new_from_address(best_pool_address, middlewear).await?,
                     )))
                 }
             }
@@ -162,16 +160,16 @@ impl Dex {
     }
 
     //If univ2, there will only be one pool, if univ3 there will be multiple
-    pub async fn get_all_pools_for_pair<P: 'static + JsonRpcClient>(
+    pub async fn get_all_pools_for_pair<M: Middleware>(
         &self,
         token_a: H160,
         token_b: H160,
-        provider: Arc<Provider<P>>,
-    ) -> Result<Option<Vec<Pool>>, CFFMError<P>> {
+        middlewear: Arc<M>,
+    ) -> Result<Option<Vec<Pool>>, CFFMError<M>> {
         match self {
             Dex::UniswapV2(uniswap_v2_dex) => {
                 let uniswap_v2_factory =
-                    abi::IUniswapV2Factory::new(uniswap_v2_dex.factory_address, provider.clone());
+                    abi::IUniswapV2Factory::new(uniswap_v2_dex.factory_address, middlewear.clone());
 
                 let pair_address = uniswap_v2_factory.get_pair(token_a, token_b).call().await?;
 
@@ -179,14 +177,14 @@ impl Dex {
                     Ok(None)
                 } else {
                     Ok(Some(vec![Pool::UniswapV2(
-                        UniswapV2Pool::new_from_address(pair_address, provider).await?,
+                        UniswapV2Pool::new_from_address(pair_address, middlewear).await?,
                     )]))
                 }
             }
 
             Dex::UniswapV3(uniswap_v3_dex) => {
                 let uniswap_v3_factory =
-                    abi::IUniswapV3Factory::new(uniswap_v3_dex.factory_address, provider.clone());
+                    abi::IUniswapV3Factory::new(uniswap_v3_dex.factory_address, middlewear.clone());
 
                 let mut pools = vec![];
 
@@ -199,7 +197,7 @@ impl Dex {
                         Ok(address) => {
                             if !address.is_zero() {
                                 pools.push(Pool::UniswapV3(
-                                    UniswapV3Pool::new_from_address(address, provider.clone())
+                                    UniswapV3Pool::new_from_address(address, middlewear.clone())
                                         .await?,
                                 ))
                             }

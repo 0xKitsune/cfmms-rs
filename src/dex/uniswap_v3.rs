@@ -2,7 +2,7 @@ use std::{str::FromStr, sync::Arc};
 
 use ethers::{
     abi::ParamType,
-    providers::{JsonRpcClient, Provider},
+    providers::{JsonRpcClient, Middleware, Provider},
     types::{BlockNumber, Log, H160, H256, U256},
 };
 
@@ -39,11 +39,11 @@ impl UniswapV3Dex {
             .unwrap()
     }
 
-    pub async fn new_pool_from_event<P: 'static + JsonRpcClient>(
+    pub async fn new_pool_from_event<M: Middleware>(
         &self,
         log: Log,
-        provider: Arc<Provider<P>>,
-    ) -> Result<Pool, CFFMError<P>> {
+        middlewear: Arc<M>,
+    ) -> Result<Pool, CFFMError<M>> {
         let tokens = ethers::abi::decode(
             &[
                 ParamType::Address,
@@ -56,13 +56,10 @@ impl UniswapV3Dex {
         )?;
 
         let pair_address = tokens[4].to_owned().into_address().unwrap();
-        Pool::new_from_address(pair_address, DexVariant::UniswapV3, provider).await
+        Pool::new_from_address(pair_address, DexVariant::UniswapV3, middlewear).await
     }
 
-    pub fn new_empty_pool_from_event<P: 'static + JsonRpcClient>(
-        &self,
-        log: Log,
-    ) -> Result<Pool, CFFMError<P>> {
+    pub fn new_empty_pool_from_event<M: Middleware>(&self, log: Log) -> Result<Pool, CFFMError<M>> {
         let tokens = ethers::abi::decode(
             &[
                 ParamType::Address,

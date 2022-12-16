@@ -1,7 +1,7 @@
 use std::{cmp::Ordering, sync::Arc};
 
 use ethers::{
-    providers::{JsonRpcClient, Provider},
+    providers::{JsonRpcClient, Middleware, Provider},
     types::{H160, U256},
 };
 
@@ -20,29 +20,29 @@ pub enum Pool {
 
 impl Pool {
     //Creates a new pool with all pool data populated from the pair address.
-    pub async fn new_from_address<P: 'static + JsonRpcClient>(
+    pub async fn new_from_address<M: Middleware>(
         pair_address: H160,
         dex_variant: DexVariant,
-        provider: Arc<Provider<P>>,
-    ) -> Result<Self, CFFMError<P>> {
+        middlewear: Arc<M>,
+    ) -> Result<Self, CFFMError<M>> {
         match dex_variant {
             DexVariant::UniswapV2 => Ok(Pool::UniswapV2(
-                UniswapV2Pool::new_from_address(pair_address, provider).await?,
+                UniswapV2Pool::new_from_address(pair_address, middlewear).await?,
             )),
 
             DexVariant::UniswapV3 => Ok(Pool::UniswapV3(
-                UniswapV3Pool::new_from_address(pair_address, provider).await?,
+                UniswapV3Pool::new_from_address(pair_address, middlewear).await?,
             )),
         }
     }
 
-    pub async fn sync_pool<P: 'static + JsonRpcClient>(
+    pub async fn sync_pool<M: Middleware>(
         &mut self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<(), CFFMError<P>> {
+        middlewear: Arc<M>,
+    ) -> Result<(), CFFMError<M>> {
         match self {
-            Pool::UniswapV2(pool) => pool.sync_pool(provider).await,
-            Pool::UniswapV3(pool) => pool.sync_pool(provider).await,
+            Pool::UniswapV2(pool) => pool.sync_pool(middlewear).await,
+            Pool::UniswapV3(pool) => pool.sync_pool(middlewear).await,
         }
     }
 
@@ -54,13 +54,13 @@ impl Pool {
         }
     }
 
-    pub async fn get_pool_data<P: 'static + JsonRpcClient>(
+    pub async fn get_pool_data<M: Middleware>(
         &mut self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<(), CFFMError<P>> {
+        middlewear: Arc<M>,
+    ) -> Result<(), CFFMError<M>> {
         match self {
-            Pool::UniswapV2(pool) => pool.get_pool_data(provider).await?,
-            Pool::UniswapV3(pool) => pool.get_pool_data(provider).await?,
+            Pool::UniswapV2(pool) => pool.get_pool_data(middlewear).await?,
+            Pool::UniswapV3(pool) => pool.get_pool_data(middlewear).await?,
         }
         Ok(())
     }
@@ -72,27 +72,30 @@ impl Pool {
         }
     }
 
-    pub async fn simulate_swap<P: 'static + JsonRpcClient>(
+    pub async fn simulate_swap<M: Middleware>(
         &self,
         token_in: H160,
         amount_in: U256,
-        provider: Arc<Provider<P>>,
-    ) -> Result<U256, CFFMError<P>> {
+        middlewear: Arc<M>,
+    ) -> Result<U256, CFFMError<M>> {
         match self {
             Pool::UniswapV2(pool) => Ok(pool.simulate_swap(token_in, amount_in)),
-            Pool::UniswapV3(pool) => pool.simulate_swap(token_in, amount_in, provider).await,
+            Pool::UniswapV3(pool) => pool.simulate_swap(token_in, amount_in, middlewear).await,
         }
     }
 
-    pub async fn simulate_swap_mut<P: 'static + JsonRpcClient>(
+    pub async fn simulate_swap_mut<M: Middleware>(
         &mut self,
         token_in: H160,
         amount_in: U256,
-        provider: Arc<Provider<P>>,
-    ) -> Result<U256, CFFMError<P>> {
+        middlewear: Arc<M>,
+    ) -> Result<U256, CFFMError<M>> {
         match self {
             Pool::UniswapV2(pool) => Ok(pool.simulate_swap_mut(token_in, amount_in)),
-            Pool::UniswapV3(pool) => pool.simulate_swap_mut(token_in, amount_in, provider).await,
+            Pool::UniswapV3(pool) => {
+                pool.simulate_swap_mut(token_in, amount_in, middlewear)
+                    .await
+            }
         }
     }
 }

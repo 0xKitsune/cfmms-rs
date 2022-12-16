@@ -1,3 +1,4 @@
+use ethers::prelude::gas_oracle::MiddlewareError;
 use ethers::prelude::{AbiError, ContractError};
 use ethers::providers::{JsonRpcClient, Middleware, Provider, ProviderError};
 use ethers::types::H160;
@@ -10,6 +11,10 @@ pub enum CFFMError<M>
 where
     M: Middleware,
 {
+    #[error("Middlewear error")]
+    MiddlewareError(#[from] MiddlewareError<M>),
+    #[error("Contract error")]
+    ContractError(#[from] ContractError<M>),
     #[error("ABI Codec error")]
     ABICodecError(#[from] AbiError),
     #[error("Eth ABI error")]
