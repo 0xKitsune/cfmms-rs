@@ -18,7 +18,7 @@ use std::{
 };
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
-pub async fn sync_pairs<M: Middleware>(
+pub async fn sync_pairs<M: 'static + Middleware>(
     dexes: Vec<Dex>,
     middleware: Arc<M>,
     save_checkpoint: bool,
@@ -26,8 +26,6 @@ pub async fn sync_pairs<M: Middleware>(
     //Sync pairs with throttle but set the requests per second limit to 0, disabling the throttle.
     sync_pairs_with_throttle(dexes, middleware, 0, save_checkpoint).await
 }
-
-
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
 pub async fn sync_pairs_with_throttlex<M: Middleware>(
@@ -38,14 +36,16 @@ pub async fn sync_pairs_with_throttlex<M: Middleware>(
 ) -> Result<(), CFMMError<M>> {
     //Initalize a new request throttle
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
-    let current_block = middleware.get_block_number().await?;
+    let current_block = middleware
+        .get_block_number()
+        .await
+        .map_err(CFMMError::MiddlewareError)?;
 
-   
     Ok(())
 }
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
-pub async fn sync_pairs_with_throttle<M: Middleware>(
+pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
     dexes: Vec<Dex>,
     middleware: Arc<M>,
     requests_per_second_limit: usize,
@@ -53,15 +53,15 @@ pub async fn sync_pairs_with_throttle<M: Middleware>(
 ) -> Result<Vec<Pool>, CFMMError<M>> {
     //Initalize a new request throttle
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
-    let current_block = middleware.get_block_number().await?;
+    let current_block = middleware
+        .get_block_number()
+        .await
+        .map_err(CFMMError::MiddlewareError)?;
 
-    let current_block = match middleware.get_block_number().await {
-        Ok(ok) => ok,
-        Err(err) => {
-
-            err.
-        }
-    };
+    let current_block = middleware
+        .get_block_number()
+        .await
+        .map_err(CFMMError::MiddlewareError)?;
 
     //Aggregate the populated pools from each thread
     let mut aggregated_pools: Vec<Pool> = vec![];
@@ -151,9 +151,16 @@ pub async fn sync_pairs_with_throttle<M: Middleware>(
     }
 
     if save_checkpoint {
-        let latest_block = middleware.get_block_number().await?;
+        let latest_block = middleware
+            .get_block_number()
+            .await
+            .map_err(CFMMError::MiddlewareError)?;
 
-        let latest_block = middleware.get_block_number().await?;
+        let latest_block = middleware
+            .get_block_number()
+            .await
+            .map_err(CFMMError::MiddlewareError)?;
+
         checkpoint::construct_checkpoint(
             dexes,
             &aggregated_pools,
@@ -167,14 +174,18 @@ pub async fn sync_pairs_with_throttle<M: Middleware>(
 }
 
 //Get all pairs
-pub async fn get_all_pools<M: Middleware>(
+pub async fn get_all_pools<M: 'static + Middleware>(
     dexes: Vec<Dex>,
     middleware: Arc<M>,
     requests_per_second_limit: usize,
 ) -> Result<Vec<Pool>, CFMMError<M>> {
     //Initalize a new request throttle
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
-    let current_block = middleware.get_block_number().await?;
+    let current_block = middleware
+        .get_block_number()
+        .await
+        .map_err(CFMMError::MiddlewareError)?;
+
     let mut handles = vec![];
 
     //Initialize multi progress bar
@@ -228,7 +239,7 @@ pub async fn get_all_pools<M: Middleware>(
 }
 
 //Function to get all pair created events for a given Dex factory address and sync pool data
-pub async fn get_all_pools_from_dex<M: Middleware>(
+pub async fn get_all_pools_from_dex<M: 'static + Middleware>(
     dex: Dex,
     middleware: Arc<M>,
     current_block: BlockNumber,
@@ -284,7 +295,8 @@ pub async fn get_all_pools_from_dex<M: Middleware>(
                         .from_block(BlockNumber::Number(U64([from_block])))
                         .to_block(BlockNumber::Number(U64([to_block]))),
                 )
-                .await?;
+                .await
+                .map_err(CFMMError::MiddlewareError)?;
 
             //For each pair created log, create a new Pair type and add it to the pairs vec
             for log in logs {
@@ -352,9 +364,9 @@ pub async fn get_all_pool_data<M: Middleware>(
         match pool.get_pool_data(provider.clone()).await {
             Ok(_) => updated_pools.push(pool),
 
-            Err(pair_sync_error) => {
-                if let CFMMError::ProviderError(provider_error) = pair_sync_error {
-                    return Err(CFMMError::ProviderError(provider_error));
+            Err(cfmm_error) => {
+                if let CFMMError::MiddlewareError(middleware_error) = &cfmm_error {
+                    return Err(cfmm_error);
                 }
             }
         }
