@@ -1,19 +1,19 @@
 use ethers::prelude::{AbiError, ContractError};
-use ethers::providers::{JsonRpcClient, Provider, ProviderError};
+use ethers::providers::Middleware;
 use ethers::types::H160;
 use thiserror::Error;
 use tokio::task::JoinError;
 use uniswap_v3_math::error::UniswapV3MathError;
 
 #[derive(Error, Debug)]
-pub enum CFFMError<P>
+pub enum CFMMError<M>
 where
-    P: JsonRpcClient,
+    M: Middleware,
 {
-    #[error("Provider error")]
-    ProviderError(#[from] ProviderError),
+    #[error("Middleware error")]
+    MiddlewareError(<M as Middleware>::Error),
     #[error("Contract error")]
-    ContractError(#[from] ContractError<Provider<P>>),
+    ContractError(#[from] ContractError<M>),
     #[error("ABI Codec error")]
     ABICodecError(#[from] AbiError),
     #[error("Eth ABI error")]

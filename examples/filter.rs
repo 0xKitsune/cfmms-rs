@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let rpc_endpoint = "";
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
-    let mut dexes = vec![
+    let dexes = vec![
         //Add UniswapV3
         Dex::new(
             H160::from_str("0x1F98431c8aD98523631AE4a59f267346ea31F984").unwrap(),

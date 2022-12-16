@@ -1,9 +1,9 @@
 use crate::dex::Dex;
-use crate::error::CFFMError;
+use crate::error::CFMMError;
 use crate::pool::{Pool, UniswapV2Pool, UniswapV3Pool};
 use crate::throttle::RequestThrottle;
 use async_trait::async_trait;
-use ethers::providers::{JsonRpcClient, Provider};
+use ethers::providers::Middleware;
 use ethers::types::H160;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use num_bigfloat::BigFloat;
@@ -17,15 +17,15 @@ trait FilteredPool {
 
     fn address(&self) -> H160;
 
-    async fn get_weth_value_in_pool<P: 'static + JsonRpcClient>(
+    async fn get_weth_value_in_pool<M: Middleware>(
         &self,
         weth_address: H160,
         dexes: &[Dex],
         token_weth_pool_min_weth_threshold: u128,
-        provider: Arc<Provider<P>>,
+        middleware: Arc<M>,
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
-    ) -> Result<f64, CFFMError<P>>;
+    ) -> Result<f64, CFMMError<M>>;
 }
 
 //Filters out pools where the blacklisted address is the token_a address or token_b address
@@ -93,7 +93,7 @@ pub fn filter_blacklisted_addresses(
 
 //Filter that removes pools with that contain less than a specified usd value
 #[allow(clippy::too_many_arguments)]
-pub async fn filter_pools_below_usd_threshold<P: 'static + JsonRpcClient>(
+pub async fn filter_pools_below_usd_threshold<M: Middleware>(
     pools: Vec<Pool>,
     dexes: Vec<Dex>,
     usd_weth_pool: Pool,
@@ -101,8 +101,8 @@ pub async fn filter_pools_below_usd_threshold<P: 'static + JsonRpcClient>(
     weth_address: H160,
     usd_threshold: f64,
     token_weth_pool_min_weth_threshold: u128,
-    provider: Arc<Provider<P>>,
-) -> Result<Vec<Pool>, CFFMError<P>> {
+    middleware: Arc<M>,
+) -> Result<Vec<Pool>, CFMMError<M>> {
     filter_pools_below_usd_threshold_with_throttle(
         pools,
         dexes,
@@ -111,7 +111,7 @@ pub async fn filter_pools_below_usd_threshold<P: 'static + JsonRpcClient>(
         weth_address,
         usd_threshold,
         token_weth_pool_min_weth_threshold,
-        provider,
+        middleware,
         0,
     )
     .await
@@ -119,7 +119,7 @@ pub async fn filter_pools_below_usd_threshold<P: 'static + JsonRpcClient>(
 
 //Filter that removes pools with that contain less than a specified usd value
 #[allow(clippy::too_many_arguments)]
-pub async fn filter_pools_below_usd_threshold_with_throttle<P: 'static + JsonRpcClient>(
+pub async fn filter_pools_below_usd_threshold_with_throttle<M: Middleware>(
     pools: Vec<Pool>,
     dexes: Vec<Dex>,
     usd_weth_pool: Pool,
@@ -127,9 +127,9 @@ pub async fn filter_pools_below_usd_threshold_with_throttle<P: 'static + JsonRpc
     weth_address: H160,
     usd_threshold: f64,
     token_weth_pool_min_weth_threshold: u128,
-    provider: Arc<Provider<P>>,
+    middleware: Arc<M>,
     requests_per_second_limit: usize,
-) -> Result<Vec<Pool>, CFFMError<P>> {
+) -> Result<Vec<Pool>, CFMMError<M>> {
     let multi_progress_bar = MultiProgress::new();
     let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
     progress_bar.set_style(
@@ -160,7 +160,7 @@ pub async fn filter_pools_below_usd_threshold_with_throttle<P: 'static + JsonRpc
                 weth_address,
                 &dexes,
                 token_weth_pool_min_weth_threshold,
-                provider.clone(),
+                middleware.clone(),
                 token_weth_prices.clone(),
                 request_throttle.clone(),
             )
@@ -168,11 +168,11 @@ pub async fn filter_pools_below_usd_threshold_with_throttle<P: 'static + JsonRpc
         {
             Ok(weth_value_in_pool) => weth_value_in_pool * usd_price_per_weth,
             Err(pair_sync_error) => match pair_sync_error {
-                CFFMError::PairDoesNotExistInDexes(token_a, token_b) => {
+                CFMMError::PairDoesNotExistInDexes(token_a, token_b) => {
                     println!("Pair does not exist in dexes: {:?} {:?}", token_a, token_b);
                     0.0
                 }
-                CFFMError::ContractError(contract_error) => {
+                CFMMError::ContractError(contract_error) => {
                     println!("Contract Error: {:?}", contract_error);
 
                     0.0
@@ -191,35 +191,35 @@ pub async fn filter_pools_below_usd_threshold_with_throttle<P: 'static + JsonRpc
 
 //Filter that removes pools with that contain less than a specified weth value
 //
-pub async fn filter_pools_below_weth_threshold<P: 'static + JsonRpcClient>(
+pub async fn filter_pools_below_weth_threshold<M: Middleware>(
     pools: Vec<Pool>,
     dexes: Vec<Dex>,
     weth_address: H160,
     weth_threshold: f64,
     token_weth_pool_min_weth_threshold: u128,
-    provider: Arc<Provider<P>>,
-) -> Result<Vec<Pool>, CFFMError<P>> {
+    middleware: Arc<M>,
+) -> Result<Vec<Pool>, CFMMError<M>> {
     filter_pools_below_weth_threshold_with_throttle(
         pools,
         dexes,
         weth_address,
         weth_threshold,
         token_weth_pool_min_weth_threshold,
-        provider,
+        middleware,
         0,
     )
     .await
 }
 
-pub async fn filter_pools_below_weth_threshold_with_throttle<P: 'static + JsonRpcClient>(
+pub async fn filter_pools_below_weth_threshold_with_throttle<M: Middleware>(
     pools: Vec<Pool>,
     dexes: Vec<Dex>,
     weth_address: H160,
     weth_threshold: f64,
     token_weth_pool_min_weth_threshold: u128,
-    provider: Arc<Provider<P>>,
+    middleware: Arc<M>,
     requests_per_second_limit: usize,
-) -> Result<Vec<Pool>, CFFMError<P>> {
+) -> Result<Vec<Pool>, CFMMError<M>> {
     let multi_progress_bar = MultiProgress::new();
     let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
     progress_bar.set_style(
@@ -242,7 +242,7 @@ pub async fn filter_pools_below_weth_threshold_with_throttle<P: 'static + JsonRp
     for pool in pools {
         let token_weth_prices = token_weth_prices.clone();
         let request_throttle = request_throttle.clone();
-        let provider = provider.clone();
+        let middleware = middleware.clone();
         let dexes = dexes.clone();
         let progress_bar = progress_bar.clone();
 
@@ -253,7 +253,7 @@ pub async fn filter_pools_below_weth_threshold_with_throttle<P: 'static + JsonRp
                 weth_address,
                 &dexes,
                 token_weth_pool_min_weth_threshold,
-                provider.clone(),
+                middleware.clone(),
                 token_weth_prices.clone(),
                 request_throttle.clone(),
             )
@@ -261,7 +261,7 @@ pub async fn filter_pools_below_weth_threshold_with_throttle<P: 'static + JsonRp
         {
             Ok(weth_value_in_pool) => weth_value_in_pool,
             Err(pair_sync_error) => match pair_sync_error {
-                CFFMError::PairDoesNotExistInDexes(_, _) | CFFMError::ContractError(_) => 0.0,
+                CFMMError::PairDoesNotExistInDexes(_, _) | CFMMError::ContractError(_) => 0.0,
                 _ => return Err(pair_sync_error),
             },
         };
@@ -274,13 +274,13 @@ pub async fn filter_pools_below_weth_threshold_with_throttle<P: 'static + JsonRp
     Ok(filtered_pools)
 }
 
-async fn get_price_of_token_per_weth<P: 'static + JsonRpcClient>(
+async fn get_price_of_token_per_weth<M: Middleware>(
     token_address: H160,
     weth_address: H160,
     dexes: &[Dex],
     token_weth_pool_min_weth_threshold: u128,
-    provider: Arc<Provider<P>>,
-) -> Result<f64, CFFMError<P>> {
+    middleware: Arc<M>,
+) -> Result<f64, CFMMError<M>> {
     if token_address == weth_address {
         return Ok(1.0);
     }
@@ -291,7 +291,7 @@ async fn get_price_of_token_per_weth<P: 'static + JsonRpcClient>(
         weth_address,
         dexes,
         token_weth_pool_min_weth_threshold,
-        provider.clone(),
+        middleware.clone(),
     )
     .await?;
 
@@ -301,13 +301,13 @@ async fn get_price_of_token_per_weth<P: 'static + JsonRpcClient>(
 }
 
 //Gets the best token to weth pairing from the dexes provided
-async fn get_token_to_weth_pool<P: 'static + JsonRpcClient>(
+async fn get_token_to_weth_pool<M: Middleware>(
     token_a: H160,
     weth_address: H160,
     dexes: &[Dex],
     token_weth_pool_min_weth_threshold: u128,
-    provider: Arc<Provider<P>>,
-) -> Result<Pool, CFFMError<P>> {
+    middleware: Arc<M>,
+) -> Result<Pool, CFMMError<M>> {
     let _pair_address = H160::zero();
     let mut _pool: Pool;
 
@@ -316,7 +316,7 @@ async fn get_token_to_weth_pool<P: 'static + JsonRpcClient>(
 
     for dex in dexes {
         match dex
-            .get_pool_with_best_liquidity(token_a, weth_address, provider.clone())
+            .get_pool_with_best_liquidity(token_a, weth_address, middleware.clone())
             .await
         {
             Ok(pool) => {
@@ -364,7 +364,7 @@ async fn get_token_to_weth_pool<P: 'static + JsonRpcClient>(
             }
 
             Err(pair_sync_error) => match pair_sync_error {
-                CFFMError::ContractError(_) => continue,
+                CFMMError::ContractError(_) => continue,
                 other => return Err(other),
             },
         };
@@ -374,16 +374,9 @@ async fn get_token_to_weth_pool<P: 'static + JsonRpcClient>(
     if best_weth_reserves >= token_weth_pool_min_weth_threshold {
         Ok(best_pool.unwrap())
     } else {
-        Err(CFFMError::PairDoesNotExistInDexes(token_a, weth_address))
+        Err(CFMMError::PairDoesNotExistInDexes(token_a, weth_address))
     }
 }
-
-//Filter to remove tokens that incorporate fees on transfer.
-//This filter determines fee on transfer tokens by simulating a transfer and checking if the recieved amount is less
-//than the sent amount. It can not be guaranteed that all fee tokens are filtered out. For example,
-//if a token has a fee mechanic but the fee is set to 0, this filter will not remove the token.
-#[allow(dead_code)]
-fn filter_fee_tokens<P: 'static + JsonRpcClient>(_provider: Arc<Provider<P>>) {}
 
 #[async_trait]
 impl FilteredPool for Pool {
@@ -401,22 +394,22 @@ impl FilteredPool for Pool {
         }
     }
 
-    async fn get_weth_value_in_pool<P: 'static + JsonRpcClient>(
+    async fn get_weth_value_in_pool<M: Middleware>(
         &self,
         weth_address: H160,
         dexes: &[Dex],
         token_weth_pool_min_weth_threshold: u128,
-        provider: Arc<Provider<P>>,
+        middleware: Arc<M>,
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
-    ) -> Result<f64, CFFMError<P>> {
+    ) -> Result<f64, CFMMError<M>> {
         match self {
             Pool::UniswapV2(pool) => {
                 pool.get_weth_value_in_pool(
                     weth_address,
                     dexes,
                     token_weth_pool_min_weth_threshold,
-                    provider,
+                    middleware,
                     token_weth_prices,
                     request_throttle,
                 )
@@ -427,7 +420,7 @@ impl FilteredPool for Pool {
                     weth_address,
                     dexes,
                     token_weth_pool_min_weth_threshold,
-                    provider,
+                    middleware,
                     token_weth_prices,
                     request_throttle,
                 )
@@ -447,15 +440,15 @@ impl FilteredPool for UniswapV2Pool {
         vec![self.token_a, self.token_b]
     }
 
-    async fn get_weth_value_in_pool<P: 'static + JsonRpcClient>(
+    async fn get_weth_value_in_pool<M: Middleware>(
         &self,
         weth_address: H160,
         dexes: &[Dex],
         token_weth_pool_min_weth_threshold: u128,
-        provider: Arc<Provider<P>>,
+        middleware: Arc<M>,
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
-    ) -> Result<f64, CFFMError<P>> {
+    ) -> Result<f64, CFMMError<M>> {
         let token_a_price_per_weth = token_weth_prices
             .lock()
             .unwrap()
@@ -471,7 +464,7 @@ impl FilteredPool for UniswapV2Pool {
                     weth_address,
                     dexes,
                     token_weth_pool_min_weth_threshold,
-                    provider.clone(),
+                    middleware.clone(),
                 )
                 .await?;
 
@@ -504,7 +497,7 @@ impl FilteredPool for UniswapV2Pool {
                     weth_address,
                     dexes,
                     token_weth_pool_min_weth_threshold,
-                    provider.clone(),
+                    middleware.clone(),
                 )
                 .await?;
 
@@ -537,15 +530,15 @@ impl FilteredPool for UniswapV3Pool {
         vec![self.token_a, self.token_b]
     }
 
-    async fn get_weth_value_in_pool<P: 'static + JsonRpcClient>(
+    async fn get_weth_value_in_pool<M: Middleware>(
         &self,
         weth_address: H160,
         dexes: &[Dex],
         token_weth_pool_min_weth_threshold: u128,
-        provider: Arc<Provider<P>>,
+        middleware: Arc<M>,
         token_weth_prices: Arc<Mutex<HashMap<H160, f64>>>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
-    ) -> Result<f64, CFFMError<P>> {
+    ) -> Result<f64, CFMMError<M>> {
         let (reserve_0, reserve_1) = self.calculate_virtual_reserves();
 
         let token_a_price_per_weth = token_weth_prices
@@ -563,7 +556,7 @@ impl FilteredPool for UniswapV3Pool {
                     weth_address,
                     dexes,
                     token_weth_pool_min_weth_threshold,
-                    provider.clone(),
+                    middleware.clone(),
                 )
                 .await?;
 
@@ -596,7 +589,7 @@ impl FilteredPool for UniswapV3Pool {
                     weth_address,
                     dexes,
                     token_weth_pool_min_weth_threshold,
-                    provider.clone(),
+                    middleware.clone(),
                 )
                 .await?;
 

@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use ethers::{
     abi::ParamType,
-    providers::{JsonRpcClient, Provider},
+    providers::Middleware,
     types::{Log, H160, U256},
 };
 
-use crate::{abi, error::CFFMError};
+use crate::{abi, error::CFMMError};
 
 use super::{convert_to_common_decimals, convert_to_decimals};
 
@@ -47,10 +47,10 @@ impl UniswapV2Pool {
     }
 
     //Creates a new instance of the pool from the pair address, and syncs the pool data
-    pub async fn new_from_address<P: 'static + JsonRpcClient>(
+    pub async fn new_from_address<M: Middleware>(
         pair_address: H160,
-        provider: Arc<Provider<P>>,
-    ) -> Result<Self, CFFMError<P>> {
+        middleware: Arc<M>,
+    ) -> Result<Self, CFMMError<M>> {
         let mut pool = UniswapV2Pool {
             address: pair_address,
             token_a: H160::zero(),
@@ -62,61 +62,61 @@ impl UniswapV2Pool {
             fee: 300,
         };
 
-        pool.get_pool_data(provider.clone()).await?;
-        pool.sync_pool(provider).await?;
+        pool.get_pool_data(middleware.clone()).await?;
+        pool.sync_pool(middleware).await?;
 
         Ok(pool)
     }
 
-    pub async fn get_pool_data<P: 'static + JsonRpcClient>(
+    pub async fn get_pool_data<M: Middleware>(
         &mut self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<(), CFFMError<P>> {
-        self.token_a = self.get_token_0(self.address, provider.clone()).await?;
-        self.token_b = self.get_token_1(self.address, provider.clone()).await?;
+        middleware: Arc<M>,
+    ) -> Result<(), CFMMError<M>> {
+        self.token_a = self.get_token_0(self.address, middleware.clone()).await?;
+        self.token_b = self.get_token_1(self.address, middleware.clone()).await?;
 
         (self.token_a_decimals, self.token_b_decimals) =
-            self.get_token_decimals(provider.clone()).await?;
+            self.get_token_decimals(middleware).await?;
 
         Ok(())
     }
 
-    pub async fn get_reserves<P: JsonRpcClient>(
+    pub async fn get_reserves<M: Middleware>(
         &self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<(u128, u128), CFFMError<P>> {
+        middleware: Arc<M>,
+    ) -> Result<(u128, u128), CFMMError<M>> {
         //Initialize a new instance of the Pool
-        let v2_pair = abi::IUniswapV2Pair::new(self.address, provider);
+        let v2_pair = abi::IUniswapV2Pair::new(self.address, middleware);
 
         // Make a call to get the reserves
         let (reserve_0, reserve_1, _) = match v2_pair.get_reserves().call().await {
             Ok(result) => result,
 
-            Err(contract_error) => return Err(CFFMError::ContractError(contract_error)),
+            Err(contract_error) => return Err(CFMMError::ContractError(contract_error)),
         };
 
         Ok((reserve_0, reserve_1))
     }
 
-    pub async fn sync_pool<P: 'static + JsonRpcClient>(
+    pub async fn sync_pool<M: Middleware>(
         &mut self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<(), CFFMError<P>> {
-        (self.reserve_0, self.reserve_1) = self.get_reserves(provider).await?;
+        middleware: Arc<M>,
+    ) -> Result<(), CFMMError<M>> {
+        (self.reserve_0, self.reserve_1) = self.get_reserves(middleware).await?;
 
         Ok(())
     }
 
-    pub async fn get_token_decimals<P: 'static + JsonRpcClient>(
+    pub async fn get_token_decimals<M: Middleware>(
         &mut self,
-        provider: Arc<Provider<P>>,
-    ) -> Result<(u8, u8), CFFMError<P>> {
-        let token_a_decimals = abi::IErc20::new(self.token_a, provider.clone())
+        middleware: Arc<M>,
+    ) -> Result<(u8, u8), CFMMError<M>> {
+        let token_a_decimals = abi::IErc20::new(self.token_a, middleware.clone())
             .decimals()
             .call()
             .await?;
 
-        let token_b_decimals = abi::IErc20::new(self.token_b, provider)
+        let token_b_decimals = abi::IErc20::new(self.token_b, middleware)
             .decimals()
             .call()
             .await?;
@@ -124,31 +124,31 @@ impl UniswapV2Pool {
         Ok((token_a_decimals, token_b_decimals))
     }
 
-    pub async fn get_token_0<P: JsonRpcClient>(
+    pub async fn get_token_0<M: Middleware>(
         &self,
         pair_address: H160,
-        provider: Arc<Provider<P>>,
-    ) -> Result<H160, CFFMError<P>> {
-        let v2_pair = abi::IUniswapV2Pair::new(pair_address, provider);
+        middleware: Arc<M>,
+    ) -> Result<H160, CFMMError<M>> {
+        let v2_pair = abi::IUniswapV2Pair::new(pair_address, middleware);
 
         let token0 = match v2_pair.token_0().call().await {
             Ok(result) => result,
-            Err(contract_error) => return Err(CFFMError::ContractError(contract_error)),
+            Err(contract_error) => return Err(CFMMError::ContractError(contract_error)),
         };
 
         Ok(token0)
     }
 
-    pub async fn get_token_1<P: JsonRpcClient>(
+    pub async fn get_token_1<M: Middleware>(
         &self,
         pair_address: H160,
-        provider: Arc<Provider<P>>,
-    ) -> Result<H160, CFFMError<P>> {
-        let v2_pair = abi::IUniswapV2Pair::new(pair_address, provider);
+        middleware: Arc<M>,
+    ) -> Result<H160, CFMMError<M>> {
+        let v2_pair = abi::IUniswapV2Pair::new(pair_address, middleware);
 
         let token1 = match v2_pair.token_1().call().await {
             Ok(result) => result,
-            Err(contract_error) => return Err(CFFMError::ContractError(contract_error)),
+            Err(contract_error) => return Err(CFMMError::ContractError(contract_error)),
         };
 
         Ok(token1)

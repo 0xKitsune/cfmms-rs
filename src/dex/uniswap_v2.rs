@@ -2,12 +2,12 @@ use std::{str::FromStr, sync::Arc};
 
 use ethers::{
     abi::ParamType,
-    providers::{JsonRpcClient, Provider},
+    providers::Middleware,
     types::{BlockNumber, Log, H160, H256},
 };
 
 use crate::{
-    error::CFFMError,
+    error::CFMMError,
     pool::{Pool, UniswapV2Pool},
 };
 
@@ -39,11 +39,11 @@ impl UniswapV2Dex {
             .unwrap()
     }
 
-    pub async fn new_pool_from_event<P: 'static + JsonRpcClient>(
+    pub async fn new_pool_from_event<M: Middleware>(
         &self,
         log: Log,
-        provider: Arc<Provider<P>>,
-    ) -> Result<Pool, CFFMError<P>> {
+        middleware: Arc<M>,
+    ) -> Result<Pool, CFMMError<M>> {
         let tokens = ethers::abi::decode(
             &[
                 ParamType::Address,
@@ -55,13 +55,10 @@ impl UniswapV2Dex {
         )?;
 
         let pair_address = tokens[2].to_owned().into_address().unwrap();
-        Pool::new_from_address(pair_address, DexVariant::UniswapV2, provider).await
+        Pool::new_from_address(pair_address, DexVariant::UniswapV2, middleware).await
     }
 
-    pub fn new_empty_pool_from_event<P: 'static + JsonRpcClient>(
-        &self,
-        log: Log,
-    ) -> Result<Pool, CFFMError<P>> {
+    pub fn new_empty_pool_from_event<M: Middleware>(&self, log: Log) -> Result<Pool, CFMMError<M>> {
         let tokens = ethers::abi::decode(
             &[
                 ParamType::Address,
