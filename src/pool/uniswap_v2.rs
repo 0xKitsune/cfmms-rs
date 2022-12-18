@@ -154,6 +154,7 @@ impl UniswapV2Pool {
         Ok(token1)
     }
 
+    //Calculates base/quote, meaning the price of base token per quote (ie. exchange rate is X base per 1 quote)
     pub fn calculate_price(&self, base_token: H160) -> f64 {
         let reserve_0 = self.reserve_0 as f64 / 10f64.powf(self.token_a_decimals.into());
         let reserve_1 = self.reserve_1 as f64 / 10f64.powf(self.token_b_decimals.into());
@@ -206,22 +207,30 @@ impl UniswapV2Pool {
             self.token_b_decimals,
         );
 
-        //Apply fee on amount in
-        //Fee will always be .3% for Univ2
-        let amount_in = amount_in * U256::from(997) / U256::from(1000);
-
         // x * y = k
         // (x + ∆x) * (y - ∆y) = k
         // y - (k/(x + ∆x)) = ∆y
         let k = reserve_0 * reserve_1;
 
         if self.token_a == token_in {
+            //Apply fee on amount in
+            //Fee will always be .3% for Univ2
+            let amount_in = convert_to_decimals(amount_in, self.token_a_decimals, common_decimals)
+                * U256::from(997)
+                / U256::from(1000);
+
             convert_to_decimals(
                 reserve_1 - k / (reserve_0 + amount_in),
                 common_decimals,
                 self.token_b_decimals,
             )
         } else {
+            //Apply fee on amount in
+            //Fee will always be .3% for Univ2
+            let amount_in = convert_to_decimals(amount_in, self.token_b_decimals, common_decimals)
+                * U256::from(997)
+                / U256::from(1000);
+
             convert_to_decimals(
                 reserve_0 - k / (reserve_1 + amount_in),
                 common_decimals,
@@ -238,34 +247,48 @@ impl UniswapV2Pool {
             self.token_b_decimals,
         );
 
-        //Apply fee on amount in
-        //Fee will always be .3% for Univ2
-        let amount_in = amount_in * U256::from(997) / U256::from(1000);
-
         // x * y = k
         // (x + ∆x) * (y - ∆y) = k
         // y - (k/(x + ∆x)) = ∆y
         let k = reserve_0 * reserve_1;
 
         if self.token_a == token_in {
+            //Apply fee on amount in
+            //Fee will always be .3% for Univ2
+            let amount_in = convert_to_decimals(amount_in, self.token_a_decimals, common_decimals)
+                * U256::from(997)
+                / U256::from(1000);
+
             let amount_out = convert_to_decimals(
                 reserve_1 - k / (reserve_0 + amount_in),
                 common_decimals,
                 self.token_b_decimals,
             );
 
-            self.reserve_0 -= amount_in.as_u128();
-            self.reserve_1 += amount_out.as_u128();
+            self.reserve_0 +=
+                convert_to_decimals(amount_in, common_decimals, self.token_a_decimals).as_u128();
+            self.reserve_1 -=
+                convert_to_decimals(amount_out, common_decimals, self.token_b_decimals).as_u128();
+
             amount_out
         } else {
+            //Apply fee on amount in
+            //Fee will always be .3% for Univ2
+            let amount_in = convert_to_decimals(amount_in, self.token_b_decimals, common_decimals)
+                * U256::from(997)
+                / U256::from(1000);
+
             let amount_out = convert_to_decimals(
                 reserve_0 - k / (reserve_1 + amount_in),
                 common_decimals,
                 self.token_a_decimals,
             );
 
-            self.reserve_0 += amount_out.as_u128();
-            self.reserve_1 -= amount_in.as_u128();
+            self.reserve_0 -=
+                convert_to_decimals(amount_out, common_decimals, self.token_a_decimals).as_u128();
+            self.reserve_1 +=
+                convert_to_decimals(amount_in, common_decimals, self.token_b_decimals).as_u128();
+
             amount_out
         }
     }
