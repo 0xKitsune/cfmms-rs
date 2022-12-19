@@ -307,8 +307,6 @@ impl UniswapV2Pool {
             Token::Bytes(calldata),
         ];
 
-        // function swap(uint amount0Out, uint amount1Out, address to, bytes calldata data)
-
         abi::IUNISWAPV2PAIR_ABI.functions.get("swap").unwrap()[0]
             .encode_input(&input_tokens)
             .expect("Could not encode swap calldata")
