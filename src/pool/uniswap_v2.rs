@@ -314,3 +314,24 @@ impl UniswapV2Pool {
             .expect("Could not encode swap calldata")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use ethers::types::{H160, U256};
+
+    use super::UniswapV2Pool;
+
+    #[test]
+    fn test_swap_calldata() {
+        let uniswap_v2_pool = UniswapV2Pool::default();
+
+        let calldata = uniswap_v2_pool.swap_calldata(
+            U256::from(123456789),
+            U256::zero(),
+            H160::from_str("0x41c36f504BE664982e7519480409Caf36EE4f008").unwrap(),
+            vec![],
+        );
+    }
+}
