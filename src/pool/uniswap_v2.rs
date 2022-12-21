@@ -8,8 +8,6 @@ use ethers::{
 
 use crate::{abi, error::CFMMError};
 
-use super::{convert_to_common_decimals, convert_to_decimals};
-
 #[derive(Debug, Clone, Copy, Default)]
 pub struct UniswapV2Pool {
     pub address: H160,
