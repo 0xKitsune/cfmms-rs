@@ -1,7 +1,7 @@
 use std::{ops::Add, sync::Arc};
 
 use ethers::{
-    abi::{decode, ParamType},
+    abi::{decode, ethabi::Bytes, ParamType, Token},
     providers::Middleware,
     types::{Log, H160, I256, U256},
 };
@@ -643,6 +643,29 @@ impl UniswapV3Pool {
         Ok(U256::from(
             (-current_state.amount_calculated.as_i128()) as u128,
         ))
+    }
+
+    pub fn swap_calldata(
+        &self,
+        recipient: H160,
+        zero_for_one: bool,
+        amount_specified: I256,
+        sqrt_price_limit_x_96: U256,
+        calldata: Vec<u8>,
+    ) -> Bytes {
+        let input_tokens = vec![
+            Token::Address(recipient),
+            Token::Bool(zero_for_one),
+            Token::Int(amount_specified.into_raw()),
+            Token::Uint(sqrt_price_limit_x_96),
+            Token::Bytes(calldata),
+        ];
+
+        abi::IUNISWAPV3POOL_ABI
+            .function("swap")
+            .unwrap()
+            .encode_input(&input_tokens)
+            .expect("Could not encode swap calldata")
     }
 }
 

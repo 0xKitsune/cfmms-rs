@@ -1,14 +1,12 @@
 use std::sync::Arc;
 
 use ethers::{
-    abi::ParamType,
+    abi::{ethabi::Bytes, ParamType, Token},
     providers::Middleware,
     types::{Log, H160, U256},
 };
 
 use crate::{abi, error::CFMMError};
-
-use super::{convert_to_common_decimals, convert_to_decimals};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct UniswapV2Pool {
@@ -200,96 +198,98 @@ impl UniswapV2Pool {
     }
 
     pub fn simulate_swap(&self, token_in: H160, amount_in: U256) -> U256 {
-        let (reserve_0, reserve_1, common_decimals) = convert_to_common_decimals(
-            U256::from(self.reserve_0),
-            self.token_a_decimals,
-            U256::from(self.reserve_1),
-            self.token_b_decimals,
-        );
-
-        // x * y = k
-        // (x + ∆x) * (y - ∆y) = k
-        // y - (k/(x + ∆x)) = ∆y
-        let k = reserve_0 * reserve_1;
-
         if self.token_a == token_in {
-            //Apply fee on amount in
-            //Fee will always be .3% for Univ2
-            let amount_in = convert_to_decimals(amount_in, self.token_a_decimals, common_decimals)
-                * U256::from(997)
-                / U256::from(1000);
-
-            convert_to_decimals(
-                reserve_1 - k / (reserve_0 + amount_in),
-                common_decimals,
-                self.token_b_decimals,
+            self.get_amount_out(
+                amount_in,
+                U256::from(self.reserve_0),
+                U256::from(self.reserve_1),
             )
         } else {
-            //Apply fee on amount in
-            //Fee will always be .3% for Univ2
-            let amount_in = convert_to_decimals(amount_in, self.token_b_decimals, common_decimals)
-                * U256::from(997)
-                / U256::from(1000);
-
-            convert_to_decimals(
-                reserve_0 - k / (reserve_1 + amount_in),
-                common_decimals,
-                self.token_a_decimals,
+            self.get_amount_out(
+                amount_in,
+                U256::from(self.reserve_1),
+                U256::from(self.reserve_0),
             )
         }
     }
 
     pub fn simulate_swap_mut(&mut self, token_in: H160, amount_in: U256) -> U256 {
-        let (reserve_0, reserve_1, common_decimals) = convert_to_common_decimals(
-            U256::from(self.reserve_0),
-            self.token_a_decimals,
-            U256::from(self.reserve_1),
-            self.token_b_decimals,
-        );
-
-        // x * y = k
-        // (x + ∆x) * (y - ∆y) = k
-        // y - (k/(x + ∆x)) = ∆y
-        let k = reserve_0 * reserve_1;
-
         if self.token_a == token_in {
-            //Apply fee on amount in
-            //Fee will always be .3% for Univ2
-            let amount_in = convert_to_decimals(amount_in, self.token_a_decimals, common_decimals)
-                * U256::from(997)
-                / U256::from(1000);
-
-            let amount_out = convert_to_decimals(
-                reserve_1 - k / (reserve_0 + amount_in),
-                common_decimals,
-                self.token_b_decimals,
+            let amount_out = self.get_amount_out(
+                amount_in,
+                U256::from(self.reserve_0),
+                U256::from(self.reserve_1),
             );
 
-            self.reserve_0 +=
-                convert_to_decimals(amount_in, common_decimals, self.token_a_decimals).as_u128();
-            self.reserve_1 -=
-                convert_to_decimals(amount_out, common_decimals, self.token_b_decimals).as_u128();
+            self.reserve_0 += amount_in.as_u128();
+            self.reserve_1 -= amount_out.as_u128();
 
             amount_out
         } else {
-            //Apply fee on amount in
-            //Fee will always be .3% for Univ2
-            let amount_in = convert_to_decimals(amount_in, self.token_b_decimals, common_decimals)
-                * U256::from(997)
-                / U256::from(1000);
-
-            let amount_out = convert_to_decimals(
-                reserve_0 - k / (reserve_1 + amount_in),
-                common_decimals,
-                self.token_a_decimals,
+            let amount_out = self.get_amount_out(
+                amount_in,
+                U256::from(self.reserve_1),
+                U256::from(self.reserve_0),
             );
 
-            self.reserve_0 -=
-                convert_to_decimals(amount_out, common_decimals, self.token_a_decimals).as_u128();
-            self.reserve_1 +=
-                convert_to_decimals(amount_in, common_decimals, self.token_b_decimals).as_u128();
+            self.reserve_0 -= amount_out.as_u128();
+            self.reserve_1 += amount_in.as_u128();
 
             amount_out
         }
+    }
+
+    pub fn get_amount_out(&self, amount_in: U256, reserve_in: U256, reserve_out: U256) -> U256 {
+        if amount_in.is_zero() || reserve_in.is_zero() || reserve_out.is_zero() {
+            return U256::zero();
+        }
+
+        let amount_in_with_fee = amount_in * U256::from(997);
+        let numerator = amount_in_with_fee * reserve_out;
+        let denominator = reserve_in * U256::from(1000) + amount_in_with_fee;
+
+        numerator / denominator
+    }
+
+    pub fn swap_calldata(
+        &self,
+        amount_0_out: U256,
+        amount_1_out: U256,
+        to: H160,
+        calldata: Vec<u8>,
+    ) -> Bytes {
+        let input_tokens = vec![
+            Token::Uint(amount_0_out),
+            Token::Uint(amount_1_out),
+            Token::Address(to),
+            Token::Bytes(calldata),
+        ];
+
+        abi::IUNISWAPV2PAIR_ABI
+            .function("swap")
+            .unwrap()
+            .encode_input(&input_tokens)
+            .expect("Could not encode swap calldata")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use ethers::types::{H160, U256};
+
+    use super::UniswapV2Pool;
+
+    #[test]
+    fn test_swap_calldata() {
+        let uniswap_v2_pool = UniswapV2Pool::default();
+
+        let calldata = uniswap_v2_pool.swap_calldata(
+            U256::from(123456789),
+            U256::zero(),
+            H160::from_str("0x41c36f504BE664982e7519480409Caf36EE4f008").unwrap(),
+            vec![],
+        );
     }
 }
