@@ -32,7 +32,7 @@ abigen!(
         function tickSpacing() external view returns (int24)
         function ticks(int24 tick) external view returns (uint128, int128, uint256, uint256, int56, uint160, uint32, bool)
         function tickBitmap(int16 wordPosition) external view returns (uint256)
-
+        function swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqrtPriceLimitX96, bytes calldata data) external returns (int256, int256) 
     ]"#;
 
     IUniswapV3Quoter,

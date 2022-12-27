@@ -265,7 +265,9 @@ impl UniswapV2Pool {
             Token::Bytes(calldata),
         ];
 
-        abi::IUNISWAPV2PAIR_ABI.functions.get("swap").unwrap()[0]
+        abi::IUNISWAPV2PAIR_ABI
+            .function("swap")
+            .unwrap()
             .encode_input(&input_tokens)
             .expect("Could not encode swap calldata")
     }
