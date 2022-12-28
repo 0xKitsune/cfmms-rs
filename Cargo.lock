@@ -363,7 +363,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "cfmms"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "async-trait",
  "ethers",
@@ -2571,9 +2571,9 @@ checksum = "f962df74c8c05a667b5ee8bcf162993134c104e96440b663c8daa176dc772d8c"
 
 [[package]]
 name = "uniswap_v3_math"
-version = "0.2.10"
+version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0299171859c476ad182f32d915f3401ed4de209c33267620666afbe9afde27f8"
+checksum = "f35275bb2247eba7c9f2171e89ec09cf545b38de7c9d8a82162cb7b8a13f240f"
 dependencies = [
  "ethers",
  "thiserror",
