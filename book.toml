@@ -1,0 +1,26 @@
+[book]
+authors = [""]
+language = "en"
+multilingual = false
+src = "book"
+title = "CFMMs Book"
+description = "A book on all things CFMMs-rs"
+
+[output.html]
+git-repository-url = "https://github.com/0xKitsune/cfmms-rs"
+default-theme = "ayu"
+no-section-label = true
+
+[output.html.fold]
+enable = true
+level = 1
+
+[build]
+build-dir = "target/book"
+
+[preprocessor.template]
+before = [ "links" ]
+
+[preprocessor.index]
+
+[preprocessor.links]
