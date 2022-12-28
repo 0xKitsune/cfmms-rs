@@ -21,7 +21,7 @@ pub struct UniswapV3Pool {
     pub fee: u32,
     pub tick: i32,
     pub tick_spacing: i32,
-    pub tick_word: U256,
+    pub tick_word: U256, //TODO: FIXME: Remove tick word, we do not need to be tracking this in the pool, we are calling the tick word from the pool
     pub liquidity_net: i128,
 }
 
@@ -379,14 +379,6 @@ impl UniswapV3Pool {
             liquidity: self.liquidity, //Current available liquidity in the tick range
         };
 
-        let pool = abi::IUniswapV3Pool::new(self.address, middleware.clone());
-
-        //Get the first initialized tick within one word of the current tick
-        let mut tick_word = pool
-            .tick_bitmap(uniswap_v3_math::tick_bit_map::position(current_state.tick).0)
-            .call()
-            .await?;
-
         while current_state.amount_specified_remaining > I256::zero() {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
             let mut step = StepComputations::default();
@@ -394,30 +386,16 @@ impl UniswapV3Pool {
             //Get the next initialized tick within one word of the current tick
             (step.tick_next, step.initialized) =
                 uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
-                    tick_word,
                     current_state.tick,
                     self.tick_spacing,
                     zero_for_one,
-                );
+                    self.address,
+                    middleware.clone(),
+                )
+                .await?;
 
             //Set the sqrt_price_start_x_96 to the current sqrt_price_x_96
             step.sqrt_price_start_x_96 = current_state.sqrt_price_x_96;
-
-            //If there are no initialized ticks within the current word, then we need to get the next word, at word_position + 1
-            if !step.initialized {
-                let (word_position, _) = uniswap_v3_math::tick_bit_map::position(self.tick);
-                tick_word = self
-                    .get_next_word(word_position, middleware.clone())
-                    .await?;
-
-                (step.tick_next, step.initialized) =
-                    uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
-                        tick_word,
-                        current_state.tick,
-                        self.tick_spacing,
-                        zero_for_one,
-                    );
-            }
 
             //Get the next sqrt price from the input amount
             step.sqrt_price_next_x96 =
@@ -495,6 +473,7 @@ impl UniswapV3Pool {
         ))
     }
 
+    //TODO: FIXME: we dont need to
     pub async fn simulate_swap_mut<M: Middleware>(
         &mut self,
         token_in: H160,
@@ -505,6 +484,7 @@ impl UniswapV3Pool {
         let zero_for_one = token_in == self.token_a;
 
         //Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending on zero_for_one
+        //TODO: make these constant values
         let sqrt_price_limit_x_96 = if zero_for_one {
             U256::from("4295128739") + 1
         } else {
@@ -520,14 +500,6 @@ impl UniswapV3Pool {
             liquidity: self.liquidity, //Current available liquidity in the tick range
         };
 
-        let pool = abi::IUniswapV3Pool::new(self.address, middleware.clone());
-
-        //Get the first initialized tick within one word of the current tick
-        let mut tick_word = pool
-            .tick_bitmap(uniswap_v3_math::tick_bit_map::position(current_state.tick).0)
-            .call()
-            .await?;
-
         let mut liquidity_net = self.liquidity_net;
 
         while current_state.amount_specified_remaining > I256::zero() {
@@ -540,33 +512,19 @@ impl UniswapV3Pool {
             //Get the next initialized tick within one word of the current tick
             (step.tick_next, step.initialized) =
                 uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
-                    tick_word,
                     current_state.tick,
                     self.tick_spacing,
                     zero_for_one,
-                );
-            //If there are no initialized ticks within the current word, then we need to get the next word, at word_position + 1
-            if !step.initialized {
-                let (word_position, _) = uniswap_v3_math::tick_bit_map::position(self.tick);
-                tick_word = self
-                    .get_next_word(word_position, middleware.clone())
-                    .await?;
-
-                (step.tick_next, step.initialized) =
-                    uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
-                        tick_word,
-                        current_state.tick,
-                        self.tick_spacing,
-                        zero_for_one,
-                    );
-            }
+                    self.address,
+                    middleware.clone(),
+                )
+                .await?;
 
             //Get the next sqrt price from the input amount
             step.sqrt_price_next_x96 =
                 uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
 
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
-
             step.tick_next = step.tick_next.clamp(MIN_TICK, MAX_TICK);
 
             //Target spot price
@@ -638,7 +596,6 @@ impl UniswapV3Pool {
         self.sqrt_price = current_state.sqrt_price_x_96;
         self.tick = current_state.tick;
         self.liquidity_net = liquidity_net;
-        self.tick_word = tick_word;
 
         Ok(U256::from(
             (-current_state.amount_calculated.as_i128()) as u128,
