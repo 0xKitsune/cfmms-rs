@@ -365,7 +365,7 @@ impl UniswapV3Pool {
 
         //Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending on zero_for_one
         let sqrt_price_limit_x_96 = if zero_for_one {
-            U256::from("4295128739") + 1
+            U256::from_dec_str("4295128739").unwrap() + 1
         } else {
             U256::from("0xFFFD8963EFD1FC6A506488495D951D5263988D26") - 1
         };
@@ -486,7 +486,7 @@ impl UniswapV3Pool {
         //Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending on zero_for_one
         //TODO: make these constant values
         let sqrt_price_limit_x_96 = if zero_for_one {
-            U256::from("4295128739") + 1
+            U256::from_dec_str("4295128739").unwrap() + 1
         } else {
             U256::from("0xFFFD8963EFD1FC6A506488495D951D5263988D26") - 1
         };
