@@ -664,12 +664,19 @@ mod test {
     use std::{str::FromStr, sync::Arc};
 
     use ethers::{
+        prelude::abigen,
         providers::{Http, Provider},
-        types::H160,
+        types::{H160, U256},
     };
 
     use super::UniswapV3Pool;
     use std::error::Error;
+
+    abigen!(
+        IQuoter,
+    r#"[
+        function quoteExactInputSingle(address tokenIn, address tokenOut,uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitX96) external returns (uint256 amountOut)
+    ]"#;);
 
     #[tokio::test]
     async fn test_simulate_swap() {
@@ -683,5 +690,31 @@ mod test {
         )
         .await
         .unwrap();
+
+        let quoter = IQuoter::new(
+            H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6").unwrap(),
+            middleware.clone(),
+        );
+
+        let amount_in = U256::from_dec_str("1000000000000000000").unwrap();
+
+        let expected_amount_out = quoter
+            .quote_exact_input_single(
+                pool.token_a,
+                pool.token_b,
+                pool.fee,
+                amount_in,
+                U256::zero(),
+            )
+            .call()
+            .await
+            .unwrap();
+
+        let amount_out = pool
+            .simulate_swap(pool.token_a, amount_in, middleware.clone())
+            .await
+            .unwrap();
+
+        println!("ao: {:?}, eao: {:?}", amount_out, expected_amount_out);
     }
 }
