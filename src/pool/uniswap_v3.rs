@@ -659,3 +659,29 @@ pub struct Tick {
     pub seconds_outside: u32,
     pub initialized: bool,
 }
+
+mod test {
+    use std::{str::FromStr, sync::Arc};
+
+    use ethers::{
+        providers::{Http, Provider},
+        types::H160,
+    };
+
+    use super::UniswapV3Pool;
+    use std::error::Error;
+
+    #[tokio::test]
+    async fn test_simulate_swap() {
+        //Add rpc endpoint here:
+        let rpc_endpoint = "";
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let pool = UniswapV3Pool::new_from_address(
+            H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            middleware.clone(),
+        )
+        .await
+        .unwrap();
+    }
+}
