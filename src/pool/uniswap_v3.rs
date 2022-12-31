@@ -476,7 +476,6 @@ impl UniswapV3Pool {
         ))
     }
 
-    //TODO: FIXME: we dont need to
     pub async fn simulate_swap_mut<M: Middleware>(
         &mut self,
         token_in: H160,
@@ -487,11 +486,10 @@ impl UniswapV3Pool {
         let zero_for_one = token_in == self.token_a;
 
         //Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending on zero_for_one
-        //TODO: make these constant values
         let sqrt_price_limit_x_96 = if zero_for_one {
-            U256::from_dec_str("4295128739").unwrap() + 1
+            MIN_SQRT_RATIO + 1
         } else {
-            U256::from("0xFFFD8963EFD1FC6A506488495D951D5263988D26") - 1
+            MAX_SQRT_RATIO - 1
         };
 
         //Initialize a mutable state state struct to hold the dynamic simulated state of the pool
@@ -507,10 +505,10 @@ impl UniswapV3Pool {
 
         while current_state.amount_specified_remaining > I256::zero() {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
-            let mut step = StepComputations {
-                sqrt_price_start_x_96: current_state.sqrt_price_x_96,
-                ..Default::default()
-            };
+            let mut step = StepComputations::default();
+
+            //Set the sqrt_price_start_x_96 to the current sqrt_price_x_96
+            step.sqrt_price_start_x_96 = current_state.sqrt_price_x_96;
 
             //Get the next initialized tick within one word of the current tick
             (step.tick_next, step.initialized) =
@@ -523,10 +521,6 @@ impl UniswapV3Pool {
                 )
                 .await?;
 
-            //Get the next sqrt price from the input amount
-            step.sqrt_price_next_x96 =
-                uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
-
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
             step.tick_next = step.tick_next.clamp(MIN_TICK, MAX_TICK);
 
@@ -538,10 +532,14 @@ impl UniswapV3Pool {
                     step.sqrt_price_next_x96
                 }
             } else if step.sqrt_price_next_x96 > sqrt_price_limit_x_96 {
-                step.sqrt_price_next_x96
-            } else {
                 sqrt_price_limit_x_96
+            } else {
+                step.sqrt_price_next_x96
             };
+
+            //Get the next sqrt price from the input amount
+            step.sqrt_price_next_x96 =
+                uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
 
             //Compute swap step and update the current state
             (
@@ -581,7 +579,7 @@ impl UniswapV3Pool {
                 }
                 //Increment the current tick
                 current_state.tick = if zero_for_one {
-                    step.tick_next - 1
+                    step.tick_next.wrapping_sub(1)
                 } else {
                     step.tick_next
                 }
