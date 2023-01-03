@@ -680,9 +680,8 @@ mod test {
 
     #[tokio::test]
     async fn test_simulate_swap() {
-        //Add rpc endpoint here:
-        let rpc_endpoint =
-            std::env::var("ETHEREUM_MAINNET").expect("could not get ETHEREUM_MAINNET env variable");
+        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
+            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
         let pool = UniswapV3Pool::new_from_address(
