@@ -386,10 +386,10 @@ impl UniswapV3Pool {
             && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96
         {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
-            let mut step = StepComputations::default();
-
-            //Set the sqrt_price_start_x_96 to the current sqrt_price_x_96
-            step.sqrt_price_start_x_96 = current_state.sqrt_price_x_96;
+            let mut step = StepComputations {
+                sqrt_price_start_x_96: current_state.sqrt_price_x_96, //Set the sqrt_price_start_x_96 to the current sqrt_price_x_96
+                ..Default::default()
+            };
 
             //Get the next initialized tick within one word of the current tick
             (step.tick_next, step.initialized) =
@@ -505,10 +505,10 @@ impl UniswapV3Pool {
 
         while current_state.amount_specified_remaining > I256::zero() {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
-            let mut step = StepComputations::default();
-
-            //Set the sqrt_price_start_x_96 to the current sqrt_price_x_96
-            step.sqrt_price_start_x_96 = current_state.sqrt_price_x_96;
+            let mut step = StepComputations {
+                sqrt_price_start_x_96: current_state.sqrt_price_x_96, //Set the sqrt_price_start_x_96 to the current sqrt_price_x_96
+                ..Default::default()
+            };
 
             //Get the next initialized tick within one word of the current tick
             (step.tick_next, step.initialized) =
