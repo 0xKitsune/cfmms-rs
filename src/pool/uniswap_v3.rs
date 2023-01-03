@@ -681,7 +681,8 @@ mod test {
     #[tokio::test]
     async fn test_simulate_swap() {
         //Add rpc endpoint here:
-        let rpc_endpoint = "";
+        let rpc_endpoint =
+            std::env::var("ETHEREUM_MAINNET").expect("could not get ETHEREUM_MAINNET env variable");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
         let pool = UniswapV3Pool::new_from_address(
@@ -700,7 +701,12 @@ mod test {
         let amount_in_1 = U256::from_dec_str("10000000000").unwrap();
         let amount_in_2 = U256::from_dec_str("10000000000").unwrap();
         let amount_in_3 = U256::from_dec_str("100000000000").unwrap();
-        let amount_in_4 = U256::from_dec_str("1000000000000").unwrap();
+        let amount_in_4 = U256::from_dec_str("10000000000000").unwrap();
+
+        let amount_out = pool
+            .simulate_swap(pool.token_a, amount_in, middleware.clone())
+            .await
+            .unwrap();
 
         let expected_amount_out = quoter
             .quote_exact_input_single(
@@ -711,6 +717,11 @@ mod test {
                 U256::zero(),
             )
             .call()
+            .await
+            .unwrap();
+
+        let amount_out_1 = pool
+            .simulate_swap(pool.token_a, amount_in_1, middleware.clone())
             .await
             .unwrap();
 
@@ -725,6 +736,12 @@ mod test {
             .call()
             .await
             .unwrap();
+
+        let amount_out_2 = pool
+            .simulate_swap(pool.token_a, amount_in_2, middleware.clone())
+            .await
+            .unwrap();
+
         let expected_amount_out_2 = quoter
             .quote_exact_input_single(
                 pool.token_a,
@@ -734,6 +751,11 @@ mod test {
                 U256::zero(),
             )
             .call()
+            .await
+            .unwrap();
+
+        let amount_out_3 = pool
+            .simulate_swap(pool.token_a, amount_in_3, middleware.clone())
             .await
             .unwrap();
         let expected_amount_out_3 = quoter
@@ -747,6 +769,12 @@ mod test {
             .call()
             .await
             .unwrap();
+
+        let amount_out_4 = pool
+            .simulate_swap(pool.token_a, amount_in_4, middleware.clone())
+            .await
+            .unwrap();
+
         let expected_amount_out_4 = quoter
             .quote_exact_input_single(
                 pool.token_a,
@@ -756,31 +784,6 @@ mod test {
                 U256::zero(),
             )
             .call()
-            .await
-            .unwrap();
-
-        let amount_out = pool
-            .simulate_swap(pool.token_a, amount_in, middleware.clone())
-            .await
-            .unwrap();
-
-        let amount_out_1 = pool
-            .simulate_swap(pool.token_a, amount_in, middleware.clone())
-            .await
-            .unwrap();
-
-        let amount_out_2 = pool
-            .simulate_swap(pool.token_a, amount_in, middleware.clone())
-            .await
-            .unwrap();
-
-        let amount_out_3 = pool
-            .simulate_swap(pool.token_a, amount_in, middleware.clone())
-            .await
-            .unwrap();
-
-        let amount_out_4 = pool
-            .simulate_swap(pool.token_a, amount_in, middleware.clone())
             .await
             .unwrap();
 
