@@ -382,7 +382,9 @@ impl UniswapV3Pool {
             liquidity: self.liquidity, //Current available liquidity in the tick range
         };
 
-        while current_state.amount_specified_remaining > I256::zero() {
+        while current_state.amount_specified_remaining > I256::zero()
+            && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96
+        {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
             let mut step = StepComputations::default();
 
@@ -403,6 +405,10 @@ impl UniswapV3Pool {
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
             step.tick_next = step.tick_next.clamp(MIN_TICK, MAX_TICK);
 
+            //Get the next sqrt price from the input amount
+            step.sqrt_price_next_x96 =
+                uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
+
             //Target spot price
             let swap_target_sqrt_ratio = if zero_for_one {
                 if step.sqrt_price_next_x96 < sqrt_price_limit_x_96 {
@@ -415,10 +421,6 @@ impl UniswapV3Pool {
             } else {
                 step.sqrt_price_next_x96
             };
-
-            //Get the next sqrt price from the input amount
-            step.sqrt_price_next_x96 =
-                uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
 
             //Compute swap step and update the current state
             (
@@ -471,9 +473,7 @@ impl UniswapV3Pool {
             }
         }
 
-        Ok(U256::from(
-            (-current_state.amount_calculated.as_i128()) as u128,
-        ))
+        Ok((-current_state.amount_calculated).into_raw())
     }
 
     pub async fn simulate_swap_mut<M: Middleware>(
@@ -524,6 +524,10 @@ impl UniswapV3Pool {
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
             step.tick_next = step.tick_next.clamp(MIN_TICK, MAX_TICK);
 
+            //Get the next sqrt price from the input amount
+            step.sqrt_price_next_x96 =
+                uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
+
             //Target spot price
             let swap_target_sqrt_ratio = if zero_for_one {
                 if step.sqrt_price_next_x96 < sqrt_price_limit_x_96 {
@@ -536,10 +540,6 @@ impl UniswapV3Pool {
             } else {
                 step.sqrt_price_next_x96
             };
-
-            //Get the next sqrt price from the input amount
-            step.sqrt_price_next_x96 =
-                uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
 
             //Compute swap step and update the current state
             (
@@ -598,9 +598,7 @@ impl UniswapV3Pool {
         self.tick = current_state.tick;
         self.liquidity_net = liquidity_net;
 
-        Ok(U256::from(
-            (-current_state.amount_calculated.as_i128()) as u128,
-        ))
+        Ok((-current_state.amount_calculated).into_raw())
     }
 
     pub fn swap_calldata(
@@ -661,16 +659,18 @@ pub struct Tick {
 }
 
 mod test {
-    use std::{str::FromStr, sync::Arc};
-
+    #[allow(unused)]
+    use super::UniswapV3Pool;
+    #[allow(unused)]
     use ethers::{
         prelude::abigen,
         providers::{Http, Provider},
         types::{H160, U256},
     };
-
-    use super::UniswapV3Pool;
+    #[allow(unused)]
     use std::error::Error;
+    #[allow(unused)]
+    use std::{str::FromStr, sync::Arc};
 
     abigen!(
         IQuoter,
@@ -696,7 +696,11 @@ mod test {
             middleware.clone(),
         );
 
-        let amount_in = U256::from_dec_str("1000000000000000000").unwrap();
+        let amount_in = U256::from_dec_str("100000000").unwrap();
+        let amount_in_1 = U256::from_dec_str("10000000000").unwrap();
+        let amount_in_2 = U256::from_dec_str("10000000000").unwrap();
+        let amount_in_3 = U256::from_dec_str("100000000000").unwrap();
+        let amount_in_4 = U256::from_dec_str("1000000000000").unwrap();
 
         let expected_amount_out = quoter
             .quote_exact_input_single(
@@ -710,11 +714,80 @@ mod test {
             .await
             .unwrap();
 
+        let expected_amount_out_1 = quoter
+            .quote_exact_input_single(
+                pool.token_a,
+                pool.token_b,
+                pool.fee,
+                amount_in_1,
+                U256::zero(),
+            )
+            .call()
+            .await
+            .unwrap();
+        let expected_amount_out_2 = quoter
+            .quote_exact_input_single(
+                pool.token_a,
+                pool.token_b,
+                pool.fee,
+                amount_in_2,
+                U256::zero(),
+            )
+            .call()
+            .await
+            .unwrap();
+        let expected_amount_out_3 = quoter
+            .quote_exact_input_single(
+                pool.token_a,
+                pool.token_b,
+                pool.fee,
+                amount_in_3,
+                U256::zero(),
+            )
+            .call()
+            .await
+            .unwrap();
+        let expected_amount_out_4 = quoter
+            .quote_exact_input_single(
+                pool.token_a,
+                pool.token_b,
+                pool.fee,
+                amount_in_4,
+                U256::zero(),
+            )
+            .call()
+            .await
+            .unwrap();
+
         let amount_out = pool
             .simulate_swap(pool.token_a, amount_in, middleware.clone())
             .await
             .unwrap();
 
-        println!("ao: {:?}, eao: {:?}", amount_out, expected_amount_out);
+        let amount_out_1 = pool
+            .simulate_swap(pool.token_a, amount_in, middleware.clone())
+            .await
+            .unwrap();
+
+        let amount_out_2 = pool
+            .simulate_swap(pool.token_a, amount_in, middleware.clone())
+            .await
+            .unwrap();
+
+        let amount_out_3 = pool
+            .simulate_swap(pool.token_a, amount_in, middleware.clone())
+            .await
+            .unwrap();
+
+        let amount_out_4 = pool
+            .simulate_swap(pool.token_a, amount_in, middleware.clone())
+            .await
+            .unwrap();
+
+        assert_eq!(amount_out, expected_amount_out);
+        assert_eq!(amount_out_1, expected_amount_out_1);
+        assert_eq!(amount_out_2, expected_amount_out_2);
+        assert_eq!(amount_out_3, expected_amount_out_3);
+        assert_eq!(amount_out_4, expected_amount_out_4);
     }
 }

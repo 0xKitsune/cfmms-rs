@@ -2465,9 +2465,9 @@ checksum = "f962df74c8c05a667b5ee8bcf162993134c104e96440b663c8daa176dc772d8c"
 
 [[package]]
 name = "uniswap_v3_math"
-version = "0.2.20"
+version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b0daa5f317fcc4a01fb6e15a1dd418bd033f0351c768edc8939c427e339c69d"
+checksum = "f97f5809790833924a0c6a1bd53f8efb4a3e64d7eb436f7883e76e334c6ce139"
 dependencies = [
  "ethers",
  "ruint",
