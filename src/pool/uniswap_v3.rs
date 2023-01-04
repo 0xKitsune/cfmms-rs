@@ -9,6 +9,9 @@ use num_bigfloat::BigFloat;
 
 use crate::{abi, error::CFMMError};
 
+pub const MIN_SQRT_RATIO: U256 = U256([4295128739, 0, 0, 0]);
+pub const MAX_SQRT_RATIO: U256 = U256([6743328256752651558, 17280870778742802505, 4294805859, 0]);
+
 #[derive(Clone, Copy, Debug, Default)]
 pub struct UniswapV3Pool {
     pub address: H160,
@@ -21,7 +24,7 @@ pub struct UniswapV3Pool {
     pub fee: u32,
     pub tick: i32,
     pub tick_spacing: i32,
-    pub tick_word: U256,
+    pub tick_word: U256, //TODO: FIXME: Remove tick word, we do not need to be tracking this in the pool, we are calling the tick word from the pool
     pub liquidity_net: i128,
 }
 
@@ -365,9 +368,9 @@ impl UniswapV3Pool {
 
         //Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending on zero_for_one
         let sqrt_price_limit_x_96 = if zero_for_one {
-            U256::from("4295128739") + 1
+            MIN_SQRT_RATIO + 1
         } else {
-            U256::from("0xFFFD8963EFD1FC6A506488495D951D5263988D26") - 1
+            MAX_SQRT_RATIO - 1
         };
 
         //Initialize a mutable state state struct to hold the dynamic simulated state of the pool
@@ -379,52 +382,32 @@ impl UniswapV3Pool {
             liquidity: self.liquidity, //Current available liquidity in the tick range
         };
 
-        let pool = abi::IUniswapV3Pool::new(self.address, middleware.clone());
-
-        //Get the first initialized tick within one word of the current tick
-        let mut tick_word = pool
-            .tick_bitmap(uniswap_v3_math::tick_bit_map::position(current_state.tick).0)
-            .call()
-            .await?;
-
-        while current_state.amount_specified_remaining > I256::zero() {
+        while current_state.amount_specified_remaining > I256::zero()
+            && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96
+        {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
-            let mut step = StepComputations::default();
+            let mut step = StepComputations {
+                sqrt_price_start_x_96: current_state.sqrt_price_x_96, //Set the sqrt_price_start_x_96 to the current sqrt_price_x_96
+                ..Default::default()
+            };
 
             //Get the next initialized tick within one word of the current tick
             (step.tick_next, step.initialized) =
                 uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
-                    tick_word,
                     current_state.tick,
                     self.tick_spacing,
                     zero_for_one,
-                );
+                    self.address,
+                    middleware.clone(),
+                )
+                .await?;
 
-            //Set the sqrt_price_start_x_96 to the current sqrt_price_x_96
-            step.sqrt_price_start_x_96 = current_state.sqrt_price_x_96;
-
-            //If there are no initialized ticks within the current word, then we need to get the next word, at word_position + 1
-            if !step.initialized {
-                let (word_position, _) = uniswap_v3_math::tick_bit_map::position(self.tick);
-                tick_word = self
-                    .get_next_word(word_position, middleware.clone())
-                    .await?;
-
-                (step.tick_next, step.initialized) =
-                    uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
-                        tick_word,
-                        current_state.tick,
-                        self.tick_spacing,
-                        zero_for_one,
-                    );
-            }
+            // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
+            step.tick_next = step.tick_next.clamp(MIN_TICK, MAX_TICK);
 
             //Get the next sqrt price from the input amount
             step.sqrt_price_next_x96 =
                 uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
-
-            // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
-            step.tick_next = step.tick_next.clamp(MIN_TICK, MAX_TICK);
 
             //Target spot price
             let swap_target_sqrt_ratio = if zero_for_one {
@@ -434,9 +417,9 @@ impl UniswapV3Pool {
                     step.sqrt_price_next_x96
                 }
             } else if step.sqrt_price_next_x96 > sqrt_price_limit_x_96 {
-                step.sqrt_price_next_x96
-            } else {
                 sqrt_price_limit_x_96
+            } else {
+                step.sqrt_price_next_x96
             };
 
             //Compute swap step and update the current state
@@ -477,22 +460,20 @@ impl UniswapV3Pool {
                 }
                 //Increment the current tick
                 current_state.tick = if zero_for_one {
-                    step.tick_next - 1
+                    step.tick_next.wrapping_sub(1)
                 } else {
                     step.tick_next
                 }
                 //If the current_state sqrt price is not equal to the step sqrt price, then we are not on the same tick.
                 //Update the current_state.tick to the tick at the current_state.sqrt_price_x_96
             } else if current_state.sqrt_price_x_96 != step.sqrt_price_start_x_96 {
-                current_state.tick = uniswap_v3_math::sqrt_price_math::get_tick_at_sqrt_ratio(
+                current_state.tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(
                     current_state.sqrt_price_x_96,
                 )?;
             }
         }
 
-        Ok(U256::from(
-            (-current_state.amount_calculated.as_i128()) as u128,
-        ))
+        Ok((-current_state.amount_calculated).into_raw())
     }
 
     pub async fn simulate_swap_mut<M: Middleware>(
@@ -506,9 +487,9 @@ impl UniswapV3Pool {
 
         //Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending on zero_for_one
         let sqrt_price_limit_x_96 = if zero_for_one {
-            U256::from("4295128739") + 1
+            MIN_SQRT_RATIO + 1
         } else {
-            U256::from("0xFFFD8963EFD1FC6A506488495D951D5263988D26") - 1
+            MAX_SQRT_RATIO - 1
         };
 
         //Initialize a mutable state state struct to hold the dynamic simulated state of the pool
@@ -520,54 +501,32 @@ impl UniswapV3Pool {
             liquidity: self.liquidity, //Current available liquidity in the tick range
         };
 
-        let pool = abi::IUniswapV3Pool::new(self.address, middleware.clone());
-
-        //Get the first initialized tick within one word of the current tick
-        let mut tick_word = pool
-            .tick_bitmap(uniswap_v3_math::tick_bit_map::position(current_state.tick).0)
-            .call()
-            .await?;
-
         let mut liquidity_net = self.liquidity_net;
 
         while current_state.amount_specified_remaining > I256::zero() {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
             let mut step = StepComputations {
-                sqrt_price_start_x_96: current_state.sqrt_price_x_96,
+                sqrt_price_start_x_96: current_state.sqrt_price_x_96, //Set the sqrt_price_start_x_96 to the current sqrt_price_x_96
                 ..Default::default()
             };
 
             //Get the next initialized tick within one word of the current tick
             (step.tick_next, step.initialized) =
                 uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
-                    tick_word,
                     current_state.tick,
                     self.tick_spacing,
                     zero_for_one,
-                );
-            //If there are no initialized ticks within the current word, then we need to get the next word, at word_position + 1
-            if !step.initialized {
-                let (word_position, _) = uniswap_v3_math::tick_bit_map::position(self.tick);
-                tick_word = self
-                    .get_next_word(word_position, middleware.clone())
-                    .await?;
+                    self.address,
+                    middleware.clone(),
+                )
+                .await?;
 
-                (step.tick_next, step.initialized) =
-                    uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
-                        tick_word,
-                        current_state.tick,
-                        self.tick_spacing,
-                        zero_for_one,
-                    );
-            }
+            // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
+            step.tick_next = step.tick_next.clamp(MIN_TICK, MAX_TICK);
 
             //Get the next sqrt price from the input amount
             step.sqrt_price_next_x96 =
                 uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
-
-            // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
-
-            step.tick_next = step.tick_next.clamp(MIN_TICK, MAX_TICK);
 
             //Target spot price
             let swap_target_sqrt_ratio = if zero_for_one {
@@ -577,9 +536,9 @@ impl UniswapV3Pool {
                     step.sqrt_price_next_x96
                 }
             } else if step.sqrt_price_next_x96 > sqrt_price_limit_x_96 {
-                step.sqrt_price_next_x96
-            } else {
                 sqrt_price_limit_x_96
+            } else {
+                step.sqrt_price_next_x96
             };
 
             //Compute swap step and update the current state
@@ -620,14 +579,14 @@ impl UniswapV3Pool {
                 }
                 //Increment the current tick
                 current_state.tick = if zero_for_one {
-                    step.tick_next - 1
+                    step.tick_next.wrapping_sub(1)
                 } else {
                     step.tick_next
                 }
                 //If the current_state sqrt price is not equal to the step sqrt price, then we are not on the same tick.
                 //Update the current_state.tick to the tick at the current_state.sqrt_price_x_96
             } else if current_state.sqrt_price_x_96 != step.sqrt_price_start_x_96 {
-                current_state.tick = uniswap_v3_math::sqrt_price_math::get_tick_at_sqrt_ratio(
+                current_state.tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(
                     current_state.sqrt_price_x_96,
                 )?;
             }
@@ -638,11 +597,8 @@ impl UniswapV3Pool {
         self.sqrt_price = current_state.sqrt_price_x_96;
         self.tick = current_state.tick;
         self.liquidity_net = liquidity_net;
-        self.tick_word = tick_word;
 
-        Ok(U256::from(
-            (-current_state.amount_calculated.as_i128()) as u128,
-        ))
+        Ok((-current_state.amount_calculated).into_raw())
     }
 
     pub fn swap_calldata(
@@ -700,4 +656,140 @@ pub struct Tick {
     pub seconds_per_liquidity_outside_x_128: U256,
     pub seconds_outside: u32,
     pub initialized: bool,
+}
+
+mod test {
+    #[allow(unused)]
+    use super::UniswapV3Pool;
+    #[allow(unused)]
+    use ethers::{
+        prelude::abigen,
+        providers::{Http, Provider},
+        types::{H160, U256},
+    };
+    #[allow(unused)]
+    use std::error::Error;
+    #[allow(unused)]
+    use std::{str::FromStr, sync::Arc};
+
+    abigen!(
+        IQuoter,
+    r#"[
+        function quoteExactInputSingle(address tokenIn, address tokenOut,uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitX96) external returns (uint256 amountOut)
+    ]"#;);
+
+    #[tokio::test]
+    async fn test_simulate_swap() {
+        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
+            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let pool = UniswapV3Pool::new_from_address(
+            H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            middleware.clone(),
+        )
+        .await
+        .unwrap();
+
+        let quoter = IQuoter::new(
+            H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6").unwrap(),
+            middleware.clone(),
+        );
+
+        let amount_in = U256::from_dec_str("100000000").unwrap();
+        let amount_in_1 = U256::from_dec_str("10000000000").unwrap();
+        let amount_in_2 = U256::from_dec_str("10000000000").unwrap();
+        let amount_in_3 = U256::from_dec_str("100000000000").unwrap();
+        let amount_in_4 = U256::from_dec_str("10000000000000").unwrap();
+
+        let amount_out = pool
+            .simulate_swap(pool.token_a, amount_in, middleware.clone())
+            .await
+            .unwrap();
+
+        let expected_amount_out = quoter
+            .quote_exact_input_single(
+                pool.token_a,
+                pool.token_b,
+                pool.fee,
+                amount_in,
+                U256::zero(),
+            )
+            .call()
+            .await
+            .unwrap();
+
+        let amount_out_1 = pool
+            .simulate_swap(pool.token_a, amount_in_1, middleware.clone())
+            .await
+            .unwrap();
+
+        let expected_amount_out_1 = quoter
+            .quote_exact_input_single(
+                pool.token_a,
+                pool.token_b,
+                pool.fee,
+                amount_in_1,
+                U256::zero(),
+            )
+            .call()
+            .await
+            .unwrap();
+
+        let amount_out_2 = pool
+            .simulate_swap(pool.token_a, amount_in_2, middleware.clone())
+            .await
+            .unwrap();
+
+        let expected_amount_out_2 = quoter
+            .quote_exact_input_single(
+                pool.token_a,
+                pool.token_b,
+                pool.fee,
+                amount_in_2,
+                U256::zero(),
+            )
+            .call()
+            .await
+            .unwrap();
+
+        let amount_out_3 = pool
+            .simulate_swap(pool.token_a, amount_in_3, middleware.clone())
+            .await
+            .unwrap();
+        let expected_amount_out_3 = quoter
+            .quote_exact_input_single(
+                pool.token_a,
+                pool.token_b,
+                pool.fee,
+                amount_in_3,
+                U256::zero(),
+            )
+            .call()
+            .await
+            .unwrap();
+
+        let amount_out_4 = pool
+            .simulate_swap(pool.token_a, amount_in_4, middleware.clone())
+            .await
+            .unwrap();
+
+        let expected_amount_out_4 = quoter
+            .quote_exact_input_single(
+                pool.token_a,
+                pool.token_b,
+                pool.fee,
+                amount_in_4,
+                U256::zero(),
+            )
+            .call()
+            .await
+            .unwrap();
+
+        assert_eq!(amount_out, expected_amount_out);
+        assert_eq!(amount_out_1, expected_amount_out_1);
+        assert_eq!(amount_out_2, expected_amount_out_2);
+        assert_eq!(amount_out_3, expected_amount_out_3);
+        assert_eq!(amount_out_4, expected_amount_out_4);
+    }
 }

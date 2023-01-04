@@ -285,7 +285,7 @@ mod tests {
     fn test_swap_calldata() {
         let uniswap_v2_pool = UniswapV2Pool::default();
 
-        let calldata = uniswap_v2_pool.swap_calldata(
+        let _calldata = uniswap_v2_pool.swap_calldata(
             U256::from(123456789),
             U256::zero(),
             H160::from_str("0x41c36f504BE664982e7519480409Caf36EE4f008").unwrap(),
