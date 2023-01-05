@@ -1,0 +1,21 @@
+{
+  "checkpoint_timestamp": 1672891008,
+  "dexes": [
+    {
+      "dex_variant": "UniswapV2",
+      "factory_address": "0x5c69bee701ef814a2b6a3edd4b1652cb9cc5aa6f",
+      "latest_synced_block": 16338047
+    },
+    {
+      "dex_variant": "UniswapV2",
+      "factory_address": "0xc0aee478e3658e2610c5f7a4a2e1777ce9e4f2ac",
+      "latest_synced_block": 16338047
+    },
+    {
+      "dex_variant": "UniswapV3",
+      "factory_address": "0x1f98431c8ad98523631ae4a59f267346ea31f984",
+      "latest_synced_block": 16338047
+    }
+  ],
+  "pools": []
+}
