@@ -7,6 +7,7 @@ use ethers::{
 };
 
 use crate::{
+    abi,
     error::CFMMError,
     pool::{Pool, UniswapV3Pool},
 };
@@ -29,14 +30,15 @@ impl UniswapV3Dex {
 
     pub fn swap_event_signature(&self) -> H256 {
         //TODO: make this a const
-        H256::from_str("0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67")
-            .unwrap()
+        abi::IUNISWAPV3POOL_ABI.event("Swap").unwrap().signature()
     }
 
     pub fn pool_created_event_signature(&self) -> H256 {
         //TODO: make this a const
-        H256::from_str("0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118")
+        abi::IUNISWAPV3FACTORY_ABI
+            .event("PoolCreated")
             .unwrap()
+            .signature()
     }
 
     pub async fn new_pool_from_event<M: Middleware>(
@@ -44,37 +46,17 @@ impl UniswapV3Dex {
         log: Log,
         middleware: Arc<M>,
     ) -> Result<Pool, CFMMError<M>> {
-        let tokens = ethers::abi::decode(
-            &[
-                ParamType::Address,
-                ParamType::Address,
-                ParamType::Uint(32),
-                ParamType::Uint(128),
-                ParamType::Address,
-            ],
-            &log.data,
-        )?;
-
-        let pair_address = tokens[4].to_owned().into_address().unwrap();
+        let tokens = ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
+        let pair_address = tokens[1].to_owned().into_address().unwrap();
         Pool::new_from_address(pair_address, DexVariant::UniswapV3, middleware).await
     }
 
     pub fn new_empty_pool_from_event<M: Middleware>(&self, log: Log) -> Result<Pool, CFMMError<M>> {
-        let tokens = ethers::abi::decode(
-            &[
-                ParamType::Address,
-                ParamType::Address,
-                ParamType::Uint(32),
-                ParamType::Uint(128),
-                ParamType::Address,
-            ],
-            &log.data,
-        )?;
-
-        let token_a = tokens[0].to_owned().into_address().unwrap();
-        let token_b = tokens[1].to_owned().into_address().unwrap();
-        let fee = tokens[2].to_owned().into_uint().unwrap().as_u32();
-        let address = tokens[4].to_owned().into_address().unwrap();
+        let tokens = ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
+        let token_a = H160::from(log.topics[0]);
+        let token_b = H160::from(log.topics[1]);
+        let fee = tokens[0].to_owned().into_uint().unwrap().as_u32();
+        let address = tokens[1].to_owned().into_address().unwrap();
 
         Ok(Pool::UniswapV3(UniswapV3Pool {
             address,

@@ -104,7 +104,7 @@ pub async fn generate_checkpoint_with_throttle<M: 'static + Middleware>(
     requests_per_second_limit: usize,
     checkpoint_file_name: String,
 ) -> Result<(), CFMMError<M>> {
-    //Initalize a new request throttle
+    //Initialize a new request throttle
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
     let current_block = middleware
         .get_block_number()
