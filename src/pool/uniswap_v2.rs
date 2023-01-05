@@ -5,6 +5,7 @@ use ethers::{
     providers::Middleware,
     types::{Log, H160, U256},
 };
+use num_bigfloat::BigFloat;
 
 use crate::{abi, error::CFMMError};
 
@@ -154,13 +155,15 @@ impl UniswapV2Pool {
 
     //Calculates base/quote, meaning the price of base token per quote (ie. exchange rate is X base per 1 quote)
     pub fn calculate_price(&self, base_token: H160) -> f64 {
-        let reserve_0 = self.reserve_0 as f64 / 10f64.powf(self.token_a_decimals.into());
-        let reserve_1 = self.reserve_1 as f64 / 10f64.powf(self.token_b_decimals.into());
+        let reserve_0 = BigFloat::from(self.reserve_0)
+            / BigFloat::from(10_u32.pow(self.token_a_decimals.into()));
+        let reserve_1 = BigFloat::from(self.reserve_1)
+            / BigFloat::from(10_u32.pow(self.token_b_decimals.into()));
 
         if base_token == self.token_a {
-            reserve_0 / reserve_1
+            (reserve_0 / reserve_1).to_f64()
         } else {
-            reserve_1 / reserve_0
+            (reserve_1 / reserve_0).to_f64()
         }
     }
 
