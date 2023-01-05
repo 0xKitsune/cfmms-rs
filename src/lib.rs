@@ -6,3 +6,5 @@ pub mod filter;
 pub mod pool;
 pub mod sync;
 mod throttle;
+pub use pool::simulate_route;
+pub use pool::simulate_route_mut;

@@ -1,6 +1,7 @@
 use std::{cmp::Ordering, sync::Arc};
 
 use ethers::{
+    middleware,
     providers::Middleware,
     types::{H160, U256},
 };
@@ -125,4 +126,78 @@ pub fn convert_to_common_decimals(
         }
         Ordering::Equal => (amount_a, amount_b, a_decimals),
     }
+}
+
+pub async fn simulate_route<M: Middleware>(
+    mut token_in: H160,
+    mut amount_in: U256,
+    route: &[Pool],
+    middleware: Arc<M>,
+) -> Result<U256, CFMMError<M>> {
+    let mut amount_out = U256::zero();
+
+    for pool in route {
+        amount_out = pool
+            .simulate_swap(token_in, amount_in, middleware.clone())
+            .await?;
+
+        token_in = match pool {
+            Pool::UniswapV2(pool) => {
+                if token_in == pool.token_a {
+                    pool.token_b
+                } else {
+                    pool.token_a
+                }
+            }
+
+            Pool::UniswapV3(pool) => {
+                if token_in == pool.token_a {
+                    pool.token_b
+                } else {
+                    pool.token_a
+                }
+            }
+        };
+
+        amount_in = amount_out
+    }
+
+    Ok(amount_out)
+}
+
+pub async fn simulate_route_mut<M: Middleware>(
+    mut token_in: H160,
+    mut amount_in: U256,
+    route: &mut [Pool],
+    middleware: Arc<M>,
+) -> Result<U256, CFMMError<M>> {
+    let mut amount_out = U256::zero();
+
+    for pool in route {
+        amount_out = pool
+            .simulate_swap_mut(token_in, amount_in, middleware.clone())
+            .await?;
+
+        token_in = match pool {
+            Pool::UniswapV2(pool) => {
+                if token_in == pool.token_a {
+                    pool.token_b
+                } else {
+                    pool.token_a
+                }
+            }
+
+            Pool::UniswapV3(pool) => {
+                if token_in == pool.token_a {
+                    pool.token_b
+                } else {
+                    pool.token_a
+                }
+            }
+        };
+
+        amount_in = amount_out
+    }
+
+    Ok(amount_out)
 }
