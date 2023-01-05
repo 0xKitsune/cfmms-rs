@@ -1,7 +1,6 @@
 use std::{cmp::Ordering, sync::Arc};
 
 use ethers::{
-    middleware,
     providers::Middleware,
     types::{H160, U256},
 };
