@@ -1,4 +1,4 @@
-use std::{str::FromStr, sync::Arc};
+use std::{sync::Arc};
 
 use ethers::{
     providers::Middleware,
@@ -227,29 +227,15 @@ pub enum DexVariant {
 impl DexVariant {
     pub fn sync_event_signature(&self) -> H256 {
         match self {
-            //TODO: use constants instead of h256 from str
-            DexVariant::UniswapV2 => {
-                H256::from_str("0x1c411e9a96e071241c2f21f7726b17ae89e3cab4c78be50e062b03a9fffbbad1")
-                    .unwrap()
-            }
-            DexVariant::UniswapV3 => {
-                H256::from_str("0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67")
-                    .unwrap()
-            }
+            DexVariant::UniswapV2 => uniswap_v2::SYNC_EVENT_SIGNATURE,
+            DexVariant::UniswapV3 => uniswap_v3::SWAP_EVENT_SIGNATURE,
         }
     }
 
     pub fn pool_created_event_signature(&self) -> H256 {
         match self {
-            //TODO: use constants instead of h256 from str
-            DexVariant::UniswapV2 => {
-                H256::from_str("0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9")
-                    .unwrap()
-            }
-            DexVariant::UniswapV3 => {
-                H256::from_str("0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118")
-                    .unwrap()
-            }
+            DexVariant::UniswapV2 => uniswap_v2::PAIR_CREATED_EVENT_SIGNATURE,
+            DexVariant::UniswapV3 => uniswap_v3::POOL_CREATED_EVENT_SIGNATURE,
         }
     }
 }

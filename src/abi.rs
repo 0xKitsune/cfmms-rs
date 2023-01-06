@@ -13,7 +13,7 @@ abigen!(
         function token0() external view returns (address)
         function token1() external view returns (address)
         function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data);
-
+        event Sync(uint112 reserve0, uint112 reserve1)
     ]"#;
 
     IUniswapV3Factory,
@@ -32,7 +32,8 @@ abigen!(
         function tickSpacing() external view returns (int24)
         function ticks(int24 tick) external view returns (uint128, int128, uint256, uint256, int56, uint160, uint32, bool)
         function tickBitmap(int16 wordPosition) external view returns (uint256)
-        function swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqrtPriceLimitX96, bytes calldata data) external returns (int256, int256) 
+        function swap(address recipient, bool zeroForOne, int256 amountSpecified, uint160 sqrtPriceLimitX96, bytes calldata data) external returns (int256, int256)
+        event Swap( address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)
     ]"#;
 
     IUniswapV3Quoter,
