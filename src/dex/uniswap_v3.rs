@@ -1,4 +1,4 @@
-use std::{sync::Arc};
+use std::sync::Arc;
 
 use ethers::{
     abi::ParamType,
@@ -20,6 +20,15 @@ pub struct UniswapV3Dex {
     pub creation_block: BlockNumber,
 }
 
+pub const POOL_CREATED_EVENT_SIGNATURE: H256 = H256([
+    120, 60, 202, 28, 4, 18, 221, 13, 105, 94, 120, 69, 104, 201, 109, 162, 233, 194, 47, 249, 137,
+    53, 122, 46, 139, 29, 155, 43, 78, 107, 113, 24,
+]);
+pub const SWAP_EVENT_SIGNATURE: H256 = H256([
+    196, 32, 121, 249, 74, 99, 80, 215, 230, 35, 95, 41, 23, 73, 36, 249, 40, 204, 42, 200, 24,
+    235, 100, 254, 216, 0, 78, 17, 95, 188, 202, 103,
+]);
+
 impl UniswapV3Dex {
     pub fn new(factory_address: H160, creation_block: BlockNumber) -> UniswapV3Dex {
         UniswapV3Dex {
@@ -28,17 +37,12 @@ impl UniswapV3Dex {
         }
     }
 
-    pub fn swap_event_signature(&self) -> H256 {
-        //TODO: make this a const
-        abi::IUNISWAPV3POOL_ABI.event("Swap").unwrap().signature()
+    pub const fn swap_event_signature(&self) -> H256 {
+        SWAP_EVENT_SIGNATURE
     }
 
-    pub fn pool_created_event_signature(&self) -> H256 {
-        //TODO: make this a const
-        abi::IUNISWAPV3FACTORY_ABI
-            .event("PoolCreated")
-            .unwrap()
-            .signature()
+    pub const fn pool_created_event_signature(&self) -> H256 {
+        POOL_CREATED_EVENT_SIGNATURE
     }
 
     pub async fn new_pool_from_event<M: Middleware>(
