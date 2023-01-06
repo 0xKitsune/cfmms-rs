@@ -7,7 +7,6 @@ use ethers::{
 };
 
 use crate::{
-    abi,
     error::CFMMError,
     pool::{Pool, UniswapV3Pool},
 };
