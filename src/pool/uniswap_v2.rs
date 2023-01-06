@@ -9,7 +9,7 @@ use num_bigfloat::BigFloat;
 
 use crate::{abi, error::CFMMError};
 
-use super::Pool;
+
 
 pub const SYNC_EVENT_SIGNATURE: H256 = H256([
     28, 65, 30, 154, 150, 224, 113, 36, 28, 47, 33, 247, 114, 107, 23, 174, 137, 227, 202, 180,
@@ -79,7 +79,7 @@ impl UniswapV2Pool {
     ) -> Result<Self, CFMMError<M>> {
         let tokens = ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
         let pair_address = tokens[0].to_owned().into_address().unwrap();
-        Ok(UniswapV2Pool::new_from_address(pair_address, middleware).await?)
+        UniswapV2Pool::new_from_address(pair_address, middleware).await
     }
 
     pub fn new_empty_pool_from_event_log<M: Middleware>(log: Log) -> Result<Self, CFMMError<M>> {

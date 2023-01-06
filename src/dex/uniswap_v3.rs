@@ -1,17 +1,12 @@
-use std::sync::Arc;
+
 
 use ethers::{
-    abi::ParamType,
-    providers::Middleware,
-    types::{BlockNumber, Log, H160, H256, U256},
+    types::{BlockNumber, H160, H256},
 };
 
-use crate::{
-    error::CFMMError,
-    pool::{Pool, UniswapV3Pool},
-};
 
-use super::DexVariant;
+
+
 
 #[derive(Debug, Clone, Copy)]
 pub struct UniswapV3Dex {

@@ -7,9 +7,9 @@ use ethers::{
 };
 use num_bigfloat::BigFloat;
 
-use crate::{abi, dex::DexVariant, error::CFMMError};
+use crate::{abi, error::CFMMError};
 
-use super::Pool;
+
 
 pub const MIN_SQRT_RATIO: U256 = U256([4295128739, 0, 0, 0]);
 pub const MAX_SQRT_RATIO: U256 = U256([6743328256752651558, 17280870778742802505, 4294805859, 0]);
@@ -95,7 +95,7 @@ impl UniswapV3Pool {
     ) -> Result<Self, CFMMError<M>> {
         let tokens = ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
         let pair_address = tokens[1].to_owned().into_address().unwrap();
-        Ok(UniswapV3Pool::new_from_address(pair_address, middleware).await?)
+        UniswapV3Pool::new_from_address(pair_address, middleware).await
     }
 
     pub fn new_empty_pool_from_event_log<M: Middleware>(log: Log) -> Result<Self, CFMMError<M>> {
