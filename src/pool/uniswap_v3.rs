@@ -3,14 +3,20 @@ use std::{ops::Add, sync::Arc};
 use ethers::{
     abi::{decode, ethabi::Bytes, ParamType, Token},
     providers::Middleware,
-    types::{Log, H160, I256, U256},
+    types::{Log, H160, H256, I256, U256},
 };
 use num_bigfloat::BigFloat;
 
-use crate::{abi, error::CFMMError};
+use crate::{abi, dex::DexVariant, error::CFMMError};
+
+use super::Pool;
 
 pub const MIN_SQRT_RATIO: U256 = U256([4295128739, 0, 0, 0]);
 pub const MAX_SQRT_RATIO: U256 = U256([6743328256752651558, 17280870778742802505, 4294805859, 0]);
+pub const SWAP_EVENT_SIGNATURE: H256 = H256([
+    196, 32, 121, 249, 74, 99, 80, 215, 230, 35, 95, 41, 23, 73, 36, 249, 40, 204, 42, 200, 24,
+    235, 100, 254, 216, 0, 78, 17, 95, 188, 202, 103,
+]);
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct UniswapV3Pool {
@@ -24,7 +30,6 @@ pub struct UniswapV3Pool {
     pub fee: u32,
     pub tick: i32,
     pub tick_spacing: i32,
-    pub tick_word: U256, //TODO: FIXME: Remove tick word, we do not need to be tracking this in the pool, we are calling the tick word from the pool
     pub liquidity_net: i128,
 }
 
@@ -41,7 +46,6 @@ impl UniswapV3Pool {
         sqrt_price: U256,
         tick: i32,
         tick_spacing: i32,
-        tick_word: U256,
         liquidity_net: i128,
     ) -> UniswapV3Pool {
         UniswapV3Pool {
@@ -55,7 +59,6 @@ impl UniswapV3Pool {
             sqrt_price,
             tick,
             tick_spacing,
-            tick_word,
             liquidity_net,
         }
     }
@@ -75,7 +78,6 @@ impl UniswapV3Pool {
             sqrt_price: U256::zero(),
             tick: 0,
             tick_spacing: 0,
-            tick_word: U256::zero(),
             fee: 0,
             liquidity_net: 0,
         };
@@ -85,6 +87,37 @@ impl UniswapV3Pool {
         pool.sync_pool(middleware).await?;
 
         Ok(pool)
+    }
+
+    pub async fn new_from_event_log<M: Middleware>(
+        log: Log,
+        middleware: Arc<M>,
+    ) -> Result<Self, CFMMError<M>> {
+        let tokens = ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
+        let pair_address = tokens[1].to_owned().into_address().unwrap();
+        Ok(UniswapV3Pool::new_from_address(pair_address, middleware).await?)
+    }
+
+    pub fn new_empty_pool_from_event_log<M: Middleware>(log: Log) -> Result<Self, CFMMError<M>> {
+        let tokens = ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
+        let token_a = H160::from(log.topics[0]);
+        let token_b = H160::from(log.topics[1]);
+        let fee = tokens[0].to_owned().into_uint().unwrap().as_u32();
+        let address = tokens[1].to_owned().into_address().unwrap();
+
+        Ok(UniswapV3Pool {
+            address,
+            token_a,
+            token_b,
+            token_a_decimals: 0,
+            token_b_decimals: 0,
+            fee,
+            liquidity: 0,
+            sqrt_price: U256::zero(),
+            tick_spacing: 0,
+            tick: 0,
+            liquidity_net: 0,
+        })
     }
 
     pub async fn get_pool_data<M: Middleware>(
@@ -203,7 +236,6 @@ impl UniswapV3Pool {
         self.sqrt_price = slot_0.0;
         self.tick = slot_0.1;
 
-        self.tick_word = self.get_tick_word(self.tick, middleware.clone()).await?;
         self.liquidity_net = self.get_liquidity_net(self.tick, middleware).await?;
 
         Ok(())
@@ -216,7 +248,6 @@ impl UniswapV3Pool {
     ) -> Result<(), CFMMError<M>> {
         (_, _, self.sqrt_price, self.liquidity, self.tick) = self.decode_swap_log(swap_log);
 
-        self.tick_word = self.get_tick_word(self.tick, middleware.clone()).await?;
         self.liquidity_net = self.get_liquidity_net(self.tick, middleware).await?;
 
         Ok(())

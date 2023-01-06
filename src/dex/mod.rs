@@ -1,4 +1,4 @@
-use std::{sync::Arc};
+use std::sync::Arc;
 
 use ethers::{
     providers::Middleware,
@@ -8,7 +8,7 @@ use ethers::{
 use crate::{
     abi,
     error::CFMMError,
-    pool::{Pool, UniswapV2Pool, UniswapV3Pool},
+    pool::{self, Pool, UniswapV2Pool, UniswapV3Pool},
 };
 
 use self::{uniswap_v2::UniswapV2Dex, uniswap_v3::UniswapV3Dex};
@@ -58,33 +58,19 @@ impl Dex {
         }
     }
 
-    pub fn sync_event_signature(&self) -> H256 {
-        match self {
-            Dex::UniswapV2(uniswap_v2_dex) => uniswap_v2_dex.sync_event_signature(),
-            Dex::UniswapV3(uniswap_v3_dex) => uniswap_v3_dex.swap_event_signature(),
-        }
-    }
-
-    pub async fn new_pool_from_event<M: Middleware>(
+    pub async fn new_pool_from_event_log<M: Middleware>(
         &self,
         log: Log,
         middleware: Arc<M>,
     ) -> Result<Pool, CFMMError<M>> {
-        match self {
-            Dex::UniswapV2(uniswap_v2_dex) => {
-                Ok(uniswap_v2_dex.new_pool_from_event(log, middleware).await?)
-            }
-            Dex::UniswapV3(uniswap_v3_dex) => {
-                Ok(uniswap_v3_dex.new_pool_from_event(log, middleware).await?)
-            }
-        }
+        pool::Pool::new_from_event_log(log, middleware).await
     }
 
-    pub fn new_empty_pool_from_event<M: Middleware>(&self, log: Log) -> Result<Pool, CFMMError<M>> {
-        match self {
-            Dex::UniswapV2(uniswap_v2_dex) => uniswap_v2_dex.new_empty_pool_from_event(log),
-            Dex::UniswapV3(uniswap_v3_dex) => uniswap_v3_dex.new_empty_pool_from_event(log),
-        }
+    pub fn new_empty_pool_from_event_log<M: Middleware>(
+        &self,
+        log: Log,
+    ) -> Result<Pool, CFMMError<M>> {
+        pool::Pool::new_empty_pool_from_event_log(log)
     }
 
     //TODO: rename this to be specific to what it needs to do
@@ -225,13 +211,6 @@ pub enum DexVariant {
     UniswapV3,
 }
 impl DexVariant {
-    pub fn sync_event_signature(&self) -> H256 {
-        match self {
-            DexVariant::UniswapV2 => uniswap_v2::SYNC_EVENT_SIGNATURE,
-            DexVariant::UniswapV3 => uniswap_v3::SWAP_EVENT_SIGNATURE,
-        }
-    }
-
     pub fn pool_created_event_signature(&self) -> H256 {
         match self {
             DexVariant::UniswapV2 => uniswap_v2::PAIR_CREATED_EVENT_SIGNATURE,

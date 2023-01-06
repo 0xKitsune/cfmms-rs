@@ -2,10 +2,13 @@ use std::{cmp::Ordering, sync::Arc};
 
 use ethers::{
     providers::Middleware,
-    types::{H160, U256},
+    types::{Log, H160, U256},
 };
 
-use crate::{dex::DexVariant, error::CFMMError};
+use crate::{
+    dex::{self, DexVariant},
+    error::CFMMError,
+};
 
 pub mod uniswap_v2;
 pub mod uniswap_v3;
@@ -33,6 +36,43 @@ impl Pool {
             DexVariant::UniswapV3 => Ok(Pool::UniswapV3(
                 UniswapV3Pool::new_from_address(pair_address, middleware).await?,
             )),
+        }
+    }
+
+    //Creates a new pool with all pool data populated from the pair address.
+    pub async fn new_from_event_log<M: Middleware>(
+        log: Log,
+        middleware: Arc<M>,
+    ) -> Result<Self, CFMMError<M>> {
+        let event_signature = log.topics[0];
+
+        if event_signature == dex::uniswap_v2::PAIR_CREATED_EVENT_SIGNATURE {
+            Ok(Pool::UniswapV2(
+                UniswapV2Pool::new_from_event_log(log, middleware).await?,
+            ))
+        } else if event_signature == dex::uniswap_v3::POOL_CREATED_EVENT_SIGNATURE {
+            Ok(Pool::UniswapV3(
+                UniswapV3Pool::new_from_event_log(log, middleware).await?,
+            ))
+        } else {
+            Err(CFMMError::UnrecognizedPoolCreatedEventLog)
+        }
+    }
+
+    //Creates a new pool with all pool data populated from the pair address.
+    pub fn new_empty_pool_from_event_log<M: Middleware>(log: Log) -> Result<Self, CFMMError<M>> {
+        let event_signature = log.topics[0];
+
+        if event_signature == dex::uniswap_v2::PAIR_CREATED_EVENT_SIGNATURE {
+            Ok(Pool::UniswapV2(
+                UniswapV2Pool::new_empty_pool_from_event_log(log)?,
+            ))
+        } else if event_signature == dex::uniswap_v3::POOL_CREATED_EVENT_SIGNATURE {
+            Ok(Pool::UniswapV3(
+                UniswapV3Pool::new_empty_pool_from_event_log(log)?,
+            ))
+        } else {
+            Err(CFMMError::UnrecognizedPoolCreatedEventLog)
         }
     }
 

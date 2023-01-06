@@ -3,11 +3,18 @@ use std::sync::Arc;
 use ethers::{
     abi::{ethabi::Bytes, ParamType, Token},
     providers::Middleware,
-    types::{Log, H160, U256},
+    types::{Log, H160, H256, U256},
 };
 use num_bigfloat::BigFloat;
 
 use crate::{abi, error::CFMMError};
+
+use super::Pool;
+
+pub const SYNC_EVENT_SIGNATURE: H256 = H256([
+    28, 65, 30, 154, 150, 224, 113, 36, 28, 47, 33, 247, 114, 107, 23, 174, 137, 227, 202, 180,
+    199, 139, 229, 14, 6, 43, 3, 169, 255, 251, 186, 209,
+]);
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct UniswapV2Pool {
@@ -65,6 +72,32 @@ impl UniswapV2Pool {
         pool.sync_pool(middleware).await?;
 
         Ok(pool)
+    }
+    pub async fn new_from_event_log<M: Middleware>(
+        log: Log,
+        middleware: Arc<M>,
+    ) -> Result<Self, CFMMError<M>> {
+        let tokens = ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
+        let pair_address = tokens[0].to_owned().into_address().unwrap();
+        Ok(UniswapV2Pool::new_from_address(pair_address, middleware).await?)
+    }
+
+    pub fn new_empty_pool_from_event_log<M: Middleware>(log: Log) -> Result<Self, CFMMError<M>> {
+        let tokens = ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
+        let token_a = H160::from(log.topics[0]);
+        let token_b = H160::from(log.topics[1]);
+        let address = tokens[0].to_owned().into_address().unwrap();
+
+        Ok(UniswapV2Pool {
+            address,
+            token_a,
+            token_b,
+            token_a_decimals: 0,
+            token_b_decimals: 0,
+            reserve_0: 0,
+            reserve_1: 0,
+            fee: 300,
+        })
     }
 
     pub async fn get_pool_data<M: Middleware>(

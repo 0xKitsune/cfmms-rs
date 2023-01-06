@@ -270,7 +270,7 @@ pub async fn get_all_pools_from_dex<M: 'static + Middleware>(
 
             //For each pair created log, create a new Pair type and add it to the pairs vec
             for log in logs {
-                let pool = dex.new_empty_pool_from_event(log)?;
+                let pool = dex.new_empty_pool_from_event_log(log)?;
                 pools.push(pool);
             }
 
