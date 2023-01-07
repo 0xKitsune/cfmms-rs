@@ -1,12 +1,4 @@
-
-
-use ethers::{
-    types::{BlockNumber, H160, H256},
-};
-
-
-
-
+use ethers::types::{BlockNumber, H160, H256};
 
 #[derive(Debug, Clone, Copy)]
 pub struct UniswapV3Dex {
