@@ -9,8 +9,6 @@ use num_bigfloat::BigFloat;
 
 use crate::{abi, error::CFMMError};
 
-
-
 pub const MIN_SQRT_RATIO: U256 = U256([4295128739, 0, 0, 0]);
 pub const MAX_SQRT_RATIO: U256 = U256([6743328256752651558, 17280870778742802505, 4294805859, 0]);
 pub const SWAP_EVENT_SIGNATURE: H256 = H256([
@@ -372,9 +370,9 @@ impl UniswapV3Pool {
         let price = BigFloat::from_u128(
             ((self.sqrt_price.overflowing_mul(self.sqrt_price).0) >> 128).as_u128(),
         )
-        .div(&BigFloat::from(2f64.powf(64.0)))
-        .mul(&BigFloat::from_f64(10f64.powf(
-            (self.token_a_decimals as i8 - self.token_b_decimals as i8) as f64,
+        .div(&BigFloat::from(2_u64.pow(64)))
+        .mul(&BigFloat::from(2_u64.pow(
+            (self.token_a_decimals as i8 - self.token_b_decimals as i8) as u32,
         )));
 
         if self.token_a == base_token {

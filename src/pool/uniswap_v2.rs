@@ -9,8 +9,6 @@ use num_bigfloat::BigFloat;
 
 use crate::{abi, error::CFMMError};
 
-
-
 pub const SYNC_EVENT_SIGNATURE: H256 = H256([
     28, 65, 30, 154, 150, 224, 113, 36, 28, 47, 33, 247, 114, 107, 23, 174, 137, 227, 202, 180,
     199, 139, 229, 14, 6, 43, 3, 169, 255, 251, 186, 209,
@@ -189,9 +187,9 @@ impl UniswapV2Pool {
     //Calculates base/quote, meaning the price of base token per quote (ie. exchange rate is X base per 1 quote)
     pub fn calculate_price(&self, base_token: H160) -> f64 {
         let reserve_0 = BigFloat::from(self.reserve_0)
-            / BigFloat::from(10_u32.pow(self.token_a_decimals.into()));
+            / BigFloat::from(10_u128.pow(self.token_a_decimals.into()));
         let reserve_1 = BigFloat::from(self.reserve_1)
-            / BigFloat::from(10_u32.pow(self.token_b_decimals.into()));
+            / BigFloat::from(10_u128.pow(self.token_b_decimals.into()));
 
         if base_token == self.token_a {
             (reserve_0 / reserve_1).to_f64()
