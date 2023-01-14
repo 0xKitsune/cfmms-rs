@@ -1,11 +1,23 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-interface IUniswapV2Pair {}
+interface IUniswapV2Pair {
+    function token0() external view returns (address);
 
+    function token1() external view returns (address);
+
+    function getReserves()
+        external
+        view
+        returns (
+            uint112 reserve0,
+            uint112 reserve1,
+            uint32 blockTimestampLast
+        );
+}
 
 interface IERC20 {
-    function decimals() external view returns (uint256);
+    function decimals() external view returns (uint8);
 }
 
 /**
@@ -18,33 +30,34 @@ contract GetUniswapV2PoolDataBatchRequest {
         uint8 tokenADecimals;
         address tokenB;
         uint8 tokenBDecimals;
-        uint128 reserve0;
-        uint128 reserve1; 
-        
-        
+        uint112 reserve0;
+        uint112 reserve1;
     }
 
-    constructor(address[] calldata pools) {
-        // There is a max number of pool as a too big returned data times out the rpc
-        PoolData[] memory poolData = new address[](pools.length);
+    constructor(address[] memory pools) {
+        PoolData[] memory allPoolData = new PoolData[](pools.length);
 
-        // Query every pool balance
         for (uint256 i = 0; i < pools.length; ) {
-            allPairs[i] = IUniswapV2Pair(pools[i]).
+            PoolData memory poolData;
 
+            poolData.tokenA = IUniswapV2Pair(pools[i]).token0();
+            poolData.tokenADecimals = IERC20(poolData.tokenA).decimals();
+            poolData.tokenB = IUniswapV2Pair(pools[i]).token1();
+            poolData.tokenBDecimals = IERC20(poolData.tokenB).decimals();
+
+            (poolData.reserve0, poolData.reserve1, ) = IUniswapV2Pair(pools[i])
+                .getReserves();
+
+            allPoolData[i] = poolData;
             unchecked {
                 ++i;
             }
         }
 
-        // insure abi encoding, not needed here but increase reusability for different return types
-        // note: abi.encode add a first 32 bytes word with the address of the original data
-        bytes memory returnData = abi.encode(poolData);
+        bytes memory returnData = abi.encode(allPoolData);
         uint256 returnDataLength = returnData.length;
 
         assembly {
-            // Return from the start of the data (discarding the original data address)
-            // up to the end of the memory used
             mstore(0x00, returnData)
             return(0x00, returnDataLength)
         }

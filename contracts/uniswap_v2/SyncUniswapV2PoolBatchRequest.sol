@@ -1,8 +1,15 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-interface IFactory {
-    function allPairs(uint256 idx) external returns (address);
+interface IUniswapV2Pair {
+    function getReserves()
+        external
+        view
+        returns (
+            uint112 reserve0,
+            uint112 reserve1,
+            uint32 blockTimestampLast
+        );
 }
 
 /**
@@ -10,27 +17,30 @@ interface IFactory {
       deployment bytecode as payload.
  */
 contract SyncUniswapV2PoolBatchRequest {
-    constructor(
-        uint256 from,
-        uint256 step,
-        address factory
-    ) {
-        // There is a max number of pool as a too big returned data times out the rpc
-        address[] memory allPairs = new address[](step);
+    struct Reserves {
+        uint112 reserve0;
+        uint112 reserve1;
+    }
 
-        // Query every pool balance
-        for (uint256 i = 0; i < step; i++) {
-            allPairs[i] = IFactory(factory).allPairs(from + i);
+    constructor(address[] memory pools) {
+        Reserves[] memory allReserves = new Reserves[](pools.length);
+
+        for (uint256 i = 0; i < pools.length; ) {
+            Reserves memory reserves;
+
+            (reserves.reserve0, reserves.reserve1, ) = IUniswapV2Pair(pools[i])
+                .getReserves();
+
+            allReserves[i] = reserves;
+            unchecked {
+                ++i;
+            }
         }
 
-        // insure abi encoding, not needed here but increase reusability for different return types
-        // note: abi.encode add a first 32 bytes word with the address of the original data
-        bytes memory returnData = abi.encode(allPairs);
+        bytes memory returnData = abi.encode(allReserves);
         uint256 returnDataLength = returnData.length;
 
         assembly {
-            // Return from the start of the data (discarding the original data address)
-            // up to the end of the memory used
             mstore(0x00, returnData)
             return(0x00, returnDataLength)
         }
