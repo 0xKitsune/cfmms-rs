@@ -24,7 +24,6 @@ pub struct UniswapV3Pool {
     pub fee: u32,
     pub tick: i32,
     pub tick_spacing: i32,
-    pub tick_word: U256, //TODO: FIXME: Remove tick word, we do not need to be tracking this in the pool, we are calling the tick word from the pool
     pub liquidity_net: i128,
 }
 
@@ -75,7 +74,6 @@ impl UniswapV3Pool {
             sqrt_price: U256::zero(),
             tick: 0,
             tick_spacing: 0,
-            tick_word: U256::zero(),
             fee: 0,
             liquidity_net: 0,
         };
@@ -203,7 +201,6 @@ impl UniswapV3Pool {
         self.sqrt_price = slot_0.0;
         self.tick = slot_0.1;
 
-        self.tick_word = self.get_tick_word(self.tick, middleware.clone()).await?;
         self.liquidity_net = self.get_liquidity_net(self.tick, middleware).await?;
 
         Ok(())
@@ -216,7 +213,6 @@ impl UniswapV3Pool {
     ) -> Result<(), CFMMError<M>> {
         (_, _, self.sqrt_price, self.liquidity, self.tick) = self.decode_swap_log(swap_log);
 
-        self.tick_word = self.get_tick_word(self.tick, middleware.clone()).await?;
         self.liquidity_net = self.get_liquidity_net(self.tick, middleware).await?;
 
         Ok(())

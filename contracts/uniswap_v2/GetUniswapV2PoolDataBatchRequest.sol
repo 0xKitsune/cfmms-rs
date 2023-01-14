@@ -3,13 +3,25 @@ pragma solidity ^0.8.0;
 
 interface IUniswapV2Pair {}
 
+
+interface IERC20 {
+    function decimals() external view returns (uint256);
+}
+
 /**
  @dev This contract is not meant to be deployed. Instead, use a static call with the
       deployment bytecode as payload.
  */
 contract GetUniswapV2PoolDataBatchRequest {
     struct PoolData {
-        uint256 x;
+        address tokenA;
+        uint8 tokenADecimals;
+        address tokenB;
+        uint8 tokenBDecimals;
+        uint128 reserve0;
+        uint128 reserve1; 
+        
+        
     }
 
     constructor(address[] calldata pools) {
