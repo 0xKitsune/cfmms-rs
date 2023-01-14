@@ -78,7 +78,6 @@ impl UniswapV3Dex {
             sqrt_price: U256::zero(),
             tick_spacing: 0,
             tick: 0,
-            tick_word: U256::zero(),
             liquidity_net: 0,
         }))
     }

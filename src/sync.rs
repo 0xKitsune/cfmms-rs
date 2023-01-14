@@ -58,14 +58,14 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
                     .progress_chars("##-"),
             );
 
-            let pools = get_all_pools_from_dex(
-                dex,
-                async_provider.clone(),
-                BlockNumber::Number(current_block),
-                request_throttle.clone(),
-                progress_bar.clone(),
-            )
-            .await?;
+            let pools = dex
+                .get_all_pools(
+                    async_provider.clone(),
+                    current_block.into(),
+                    request_throttle.clone(),
+                    progress_bar.clone(),
+                )
+                .await?;
 
             progress_bar.reset();
             progress_bar.set_style(
@@ -174,14 +174,14 @@ pub async fn get_all_pools<M: 'static + Middleware>(
                     .progress_chars("##-"),
             );
 
-            let pools = get_all_pools_from_dex(
-                dex,
-                async_provider.clone(),
-                BlockNumber::Number(current_block),
-                request_throttle.clone(),
-                progress_bar.clone(),
-            )
-            .await?;
+            let pools = dex
+                .get_all_pools(
+                    async_provider.clone(),
+                    current_block.into(),
+                    request_throttle.clone(),
+                    progress_bar.clone(),
+                )
+                .await?;
 
             Ok::<_, CFMMError<M>>(pools)
         }));

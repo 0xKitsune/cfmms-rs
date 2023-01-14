@@ -222,13 +222,13 @@ impl Dex {
     }
 
     pub async fn get_all_pools<M: 'static + Middleware>(
-        dex: Dex,
+        &self,
         middleware: Arc<M>,
         current_block: BlockNumber,
         request_throttle: Arc<Mutex<RequestThrottle>>,
         progress_bar: ProgressBar,
     ) -> Result<Vec<Pool>, CFMMError<M>> {
-        match dex {
+        match self {
             Dex::UniswapV2(uniswap_v2_dex) => {
                 uniswap_v2_dex.get_all_pairs(middleware, progress_bar).await
             }

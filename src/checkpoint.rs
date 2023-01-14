@@ -131,14 +131,14 @@ pub async fn generate_checkpoint_with_throttle<M: 'static + Middleware>(
                     .progress_chars("##-"),
             );
 
-            let pools = sync::get_all_pools_from_dex(
-                dex,
-                async_provider.clone(),
-                BlockNumber::Number(current_block),
-                request_throttle.clone(),
-                progress_bar.clone(),
-            )
-            .await?;
+            let pools = dex
+                .get_all_pools(
+                    async_provider.clone(),
+                    current_block.into(),
+                    request_throttle.clone(),
+                    progress_bar.clone(),
+                )
+                .await?;
 
             progress_bar.reset();
             progress_bar.set_style(
@@ -431,7 +431,6 @@ pub fn deconstruct_pools_from_checkpoint(pools_array: &Vec<Value>) -> Vec<Pool> 
                             U256::zero(),
                             0,
                             0,
-                            U256::zero(),
                             0,
                         )));
                     }
