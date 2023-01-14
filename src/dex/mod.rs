@@ -1,14 +1,16 @@
-use std::{sync::Arc};
+use std::sync::{Arc, Mutex};
 
 use ethers::{
     providers::Middleware,
     types::{BlockNumber, Log, H160, H256},
 };
+use indicatif::ProgressBar;
 
 use crate::{
     abi,
     error::CFMMError,
     pool::{Pool, UniswapV2Pool, UniswapV3Pool},
+    throttle::RequestThrottle,
 };
 
 use self::{uniswap_v2::UniswapV2Dex, uniswap_v3::UniswapV3Dex};
@@ -215,6 +217,30 @@ impl Dex {
                 } else {
                     Ok(Some(pools))
                 }
+            }
+        }
+    }
+
+    pub async fn get_all_pools<M: 'static + Middleware>(
+        dex: Dex,
+        middleware: Arc<M>,
+        current_block: BlockNumber,
+        request_throttle: Arc<Mutex<RequestThrottle>>,
+        progress_bar: ProgressBar,
+    ) -> Result<Vec<Pool>, CFMMError<M>> {
+        match dex {
+            Dex::UniswapV2(uniswap_v2_dex) => {
+                uniswap_v2_dex.get_all_pairs(middleware, progress_bar).await
+            }
+            Dex::UniswapV3(uniswap_v3_dex) => {
+                uniswap_v3_dex
+                    .get_all_pools_from_logs(
+                        middleware,
+                        current_block,
+                        request_throttle,
+                        progress_bar,
+                    )
+                    .await
             }
         }
     }

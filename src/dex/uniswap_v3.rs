@@ -1,17 +1,23 @@
-use std::sync::Arc;
+use std::{
+    panic::resume_unwind,
+    sync::{Arc, Mutex},
+};
 
 use ethers::{
     abi::ParamType,
+    prelude::k256::elliptic_curve::consts::U64,
     providers::Middleware,
-    types::{BlockNumber, Log, H160, H256, U256},
+    types::{BlockNumber, Log, ValueOrArray, H160, H256, U256},
 };
+use indicatif::ProgressBar;
 
 use crate::{
     error::CFMMError,
     pool::{Pool, UniswapV3Pool},
+    throttle::RequestThrottle,
 };
 
-use super::DexVariant;
+use super::{Dex, DexVariant};
 
 #[derive(Debug, Clone, Copy)]
 pub struct UniswapV3Dex {
@@ -75,5 +81,96 @@ impl UniswapV3Dex {
             tick_word: U256::zero(),
             liquidity_net: 0,
         }))
+    }
+
+    pub async fn get_all_pools_from_logs<M: 'static + Middleware>(
+        self,
+        middleware: Arc<M>,
+        current_block: BlockNumber,
+        request_throttle: Arc<Mutex<RequestThrottle>>,
+        progress_bar: ProgressBar,
+    ) -> Result<Vec<Pool>, CFMMError<M>> {
+        let mut aggregated_pairs: Vec<Pool> = vec![];
+
+        //Define the step for searching a range of blocks for pair created events
+        let step = 100000;
+        //Unwrap can be used here because the creation block was verified within `Dex::new()`
+        let from_block = self
+            .creation_block
+            .as_number()
+            .expect("Error using converting creation block as number")
+            .as_u64();
+        let current_block = current_block
+            .as_number()
+            .expect("Error using converting current block as number")
+            .as_u64();
+
+        //Initialize the progress bar message
+        progress_bar.set_length(current_block - from_block);
+        progress_bar.set_message(format!("Getting all pools from: {}", self.factory_address));
+
+        //Init a new vec to keep track of tasks
+        let mut handles = vec![];
+
+        //For each block within the range, get all pairs asynchronously
+        for from_block in (from_block..=current_block).step_by(step) {
+            let request_throttle = request_throttle.clone();
+            let provider = middleware.clone();
+            let progress_bar = progress_bar.clone();
+
+            //Spawn a new task to get pair created events from the block range
+            handles.push(tokio::spawn(async move {
+                let mut pools = vec![];
+
+                //Get pair created event logs within the block range
+                let to_block = from_block + step as u64;
+
+                //Update the throttle
+                request_throttle
+                    .lock()
+                    .expect("Error when acquiring request throttle mutex lock")
+                    .increment_or_sleep(1);
+
+                let logs = provider
+                    .get_logs(
+                        &ethers::types::Filter::new()
+                            .topic0(ValueOrArray::Value(self.pool_created_event_signature()))
+                            .address(self.factory_address)
+                            .from_block(BlockNumber::Number(ethers::types::U64([from_block])))
+                            .to_block(BlockNumber::Number(ethers::types::U64([to_block]))),
+                    )
+                    .await
+                    .map_err(CFMMError::MiddlewareError)?;
+
+                //For each pair created log, create a new Pair type and add it to the pairs vec
+                for log in logs {
+                    let pool = self.new_empty_pool_from_event(log)?;
+                    pools.push(pool);
+                }
+
+                //Increment the progress bar by the step
+                progress_bar.inc(step as u64);
+
+                Ok::<Vec<Pool>, CFMMError<M>>(pools)
+            }));
+        }
+
+        //Wait for each thread to finish and aggregate the pairs from each Dex into a single aggregated pairs vec
+        for handle in handles {
+            match handle.await {
+                Ok(sync_result) => aggregated_pairs.extend(sync_result?),
+
+                Err(err) => {
+                    {
+                        if err.is_panic() {
+                            // Resume the panic on the main task
+                            resume_unwind(err.into_panic());
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(aggregated_pairs)
     }
 }

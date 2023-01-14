@@ -4,6 +4,7 @@ abigen!(
     IUniswapV2Factory,
     r#"[
         function getPair(address tokenA, address tokenB) external view returns (address pair)
+        function allPairs() external view returns (address[] memory)
         event PairCreated(address indexed token0, address indexed token1, address pair, uint256)
     ]"#;
 
