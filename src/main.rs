@@ -1,7 +1,7 @@
 use ethers::prelude::Abigen;
 
 fn main() {
-    Abigen::new("SyncUniswapV2PoolBatchRequest", "./x.json")
+    Abigen::new("SyncUniswapV3PoolBatchRequest", "./x.json")
         .unwrap()
         .generate()
         .unwrap()

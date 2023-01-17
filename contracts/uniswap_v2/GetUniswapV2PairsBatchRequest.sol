@@ -9,7 +9,7 @@ interface IFactory {
  @dev This contract is not meant to be deployed. Instead, use a static call with the
       deployment bytecode as payload.
  */
-contract GetAllUniswapV2PairsBatchRequest {
+contract GetUniswapV2PairsBatchRequest {
     constructor(
         uint256 from,
         uint256 step,
