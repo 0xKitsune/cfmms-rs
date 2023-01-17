@@ -2,13 +2,14 @@ use std::sync::Arc;
 
 use ethers::{
     abi::ParamType,
+    prelude::ContractFactory,
     providers::Middleware,
-    types::{BlockNumber, Log, H160, H256},
+    types::{BlockNumber, Log, H160, H256, U256},
 };
 use indicatif::ProgressBar;
 
 use crate::{
-    abi,
+    abi, batch_requests,
     error::CFMMError,
     pool::{Pool, UniswapV2Pool},
 };
@@ -81,79 +82,23 @@ impl UniswapV2Dex {
     ) -> Result<Vec<Pool>, CFMMError<M>> {
         let mut aggregated_pairs: Vec<Pool> = vec![];
 
-        let pairs = abi::IUniswapV2Factory::new(self.factory_address, middleware)
-            .all_pairs()
-            .call()
-            .await?;
+        let factory = abi::IUniswapV2Factory::new(self.factory_address, middleware.clone());
+
+        let pairs_length: U256 = factory.all_pairs_length().call().await?;
 
         //Initialize the progress bar message
-        progress_bar.set_length(pairs.len() as u64);
+        progress_bar.set_length(pairs_length.as_u64());
         progress_bar.set_message(format!("Getting all pools from: {}", self.factory_address));
 
-        //Init a new vec to keep track of tasks
-        // let mut handles = vec![];
+        //TODO: fix here
 
-        //For each block within the range, get all pairs asynchronously
-
-        //TODO: instead of going through each block, update this to batch everything into one call and get all pool data
-
-        // for from_block in (from_block..=current_block).step_by(step) {
-        //     let request_throttle = request_throttle.clone();
-        //     let provider = middleware.clone();
-        //     let progress_bar = progress_bar.clone();
-
-        //     //Spawn a new task to get pair created events from the block range
-        //     handles.push(tokio::spawn(async move {
-        //         let mut pools = vec![];
-
-        //         //Get pair created event logs within the block range
-        //         let to_block = from_block + step as u64;
-
-        //         //Update the throttle
-        //         request_throttle
-        //             .lock()
-        //             .expect("Error when acquiring request throttle mutex lock")
-        //             .increment_or_sleep(1);
-
-        //         let logs = provider
-        //             .get_logs(
-        //                 &ethers::types::Filter::new()
-        //                     .topic0(ValueOrArray::Value(self.pool_created_event_signature()))
-        //                     .address(self.factory_address)
-        //                     .from_block(BlockNumber::Number(ethers::types::U64([from_block])))
-        //                     .to_block(BlockNumber::Number(ethers::types::U64([to_block]))),
-        //             )
-        //             .await
-        //             .map_err(CFMMError::MiddlewareError)?;
-
-        //         //For each pair created log, create a new Pair type and add it to the pairs vec
-        //         for log in logs {
-        //             let pool = self.new_empty_pool_from_event(log)?;
-        //             pools.push(pool);
-        //         }
-
-        //         //Increment the progress bar by the step
-        //         progress_bar.inc(step as u64);
-
-        //         Ok::<Vec<Pool>, CFMMError<M>>(pools)
-        //     }));
-        // }
-
-        // //Wait for each thread to finish and aggregate the pairs from each Dex into a single aggregated pairs vec
-        // for handle in handles {
-        //     match handle.await {
-        //         Ok(sync_result) => aggregated_pairs.extend(sync_result?),
-
-        //         Err(err) => {
-        //             {
-        //                 if err.is_panic() {
-        //                     // Resume the panic on the main task
-        //                     resume_unwind(err.into_panic());
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
+        batch_requests::uniswap_v2::get_all_pairs(
+            self.factory_address,
+            U256::zero(),
+            pairs_length,
+            middleware.clone(),
+        )
+        .await?;
 
         Ok(aggregated_pairs)
     }
