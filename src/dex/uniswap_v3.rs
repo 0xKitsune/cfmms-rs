@@ -9,7 +9,7 @@ use ethers::{
     providers::Middleware,
     types::{BlockNumber, Log, ValueOrArray, H160, H256, U256},
 };
-use indicatif::ProgressBar;
+use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::{
     error::CFMMError,

@@ -9,7 +9,7 @@ use ethers::{
     providers::Middleware,
     types::{BlockNumber, Log, H160, H256, U256},
 };
-use indicatif::ProgressBar;
+use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::{
     abi, batch_requests,
@@ -85,30 +85,25 @@ impl UniswapV2Dex {
         request_throttle: Arc<Mutex<RequestThrottle>>,
         progress_bar: ProgressBar,
     ) -> Result<Vec<Pool>, CFMMError<M>> {
-        let mut pools: Vec<Pool> = vec![];
-
         let factory = abi::IUniswapV2Factory::new(self.factory_address, middleware.clone());
 
         let pairs_length: U256 = factory.all_pairs_length().call().await?;
-
         //Initialize the progress bar message
         progress_bar.set_length(pairs_length.as_u64());
         progress_bar.set_message(format!("Getting all pools from: {}", self.factory_address));
 
-        let mut pair_addresses = vec![];
-        let step = 100;
+        let mut pairs = vec![];
+        let step = 750;
         let mut idx_from = U256::zero();
         let mut idx_to = U256::from(step);
         for _ in (0..pairs_length.as_u128()).step_by(step) {
-            dbg!(idx_to);
-
             request_throttle
                 .lock()
                 .expect("Could not acquire mutex")
                 .increment_or_sleep(1);
 
-            pair_addresses.append(
-                &mut batch_requests::uniswap_v2::get_all_pairs(
+            pairs.append(
+                &mut batch_requests::uniswap_v2::get_pairs_batch_request(
                     self.factory_address,
                     idx_from,
                     idx_to,
@@ -120,15 +115,22 @@ impl UniswapV2Dex {
             idx_from = idx_to;
 
             if idx_to + step > pairs_length {
-                idx_to = pairs_length - idx_to;
+                idx_to = pairs_length - 1
             } else {
                 idx_to = idx_to + step;
             }
+
+            progress_bar.inc(step as u64);
         }
 
-        //TODO: fix here
+        let mut pools = vec![];
 
-        println!("aggregated pairs: {:?}", pair_addresses);
+        //Create new empty pools for each pair
+        for addr in pairs {
+            let mut pool = UniswapV2Pool::default();
+            pool.address = addr;
+            pools.push(Pool::UniswapV2(pool));
+        }
 
         Ok(pools)
     }

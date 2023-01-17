@@ -1,4 +1,4 @@
-use crate::{checkpoint, error::CFMMError};
+use crate::{batch_requests, checkpoint, dex::DexVariant, error::CFMMError};
 
 use super::dex::Dex;
 use super::pool::Pool;
@@ -9,18 +9,21 @@ use ethers::{
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use std::{
+    borrow::BorrowMut,
     panic::resume_unwind,
     sync::{Arc, Mutex},
 };
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
+
 pub async fn sync_pairs<M: 'static + Middleware>(
     dexes: Vec<Dex>,
     middleware: Arc<M>,
+    batched_calls: bool,
     save_checkpoint: bool,
 ) -> Result<Vec<Pool>, CFMMError<M>> {
     //Sync pairs with throttle but set the requests per second limit to 0, disabling the throttle.
-    sync_pairs_with_throttle(dexes, middleware, 0, save_checkpoint).await
+    sync_pairs_with_throttle(dexes, middleware, 0, batched_calls, save_checkpoint).await
 }
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
@@ -28,6 +31,7 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
     dexes: Vec<Dex>,
     middleware: Arc<M>,
     requests_per_second_limit: usize,
+    batched_calls: bool,
     save_checkpoint: bool,
 ) -> Result<Vec<Pool>, CFMMError<M>> {
     //Initialize a new request throttle
@@ -53,7 +57,7 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
 
         handles.push(tokio::spawn(async move {
             progress_bar.set_style(
-                ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7} Blocks")
+                ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7}")
                     .expect("Error when setting progress bar style")
                     .progress_chars("##-"),
             );
@@ -69,7 +73,7 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
 
             progress_bar.reset();
             progress_bar.set_style(
-                ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7} Pairs")
+                ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7}")
                     .expect("Error when setting progress bar style")
                     .progress_chars("##-"),
             );
@@ -168,12 +172,6 @@ pub async fn get_all_pools<M: 'static + Middleware>(
         let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
 
         handles.push(tokio::spawn(async move {
-            progress_bar.set_style(
-                ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7} Blocks")
-                    .expect("Error when setting progress bar style")
-                    .progress_chars("##-"),
-            );
-
             let pools = dex
                 .get_all_pools(
                     async_provider.clone(),
@@ -208,10 +206,11 @@ pub async fn get_all_pools<M: 'static + Middleware>(
     Ok(aggregated_pools)
 }
 
-//Function to get reserves for each pair in the `pairs` vec.
+//Function to get reserves for each pair in the `pairs` vec. for a given dex variant
 pub async fn get_all_pool_data<M: Middleware>(
-    pools: Vec<Pool>,
+    mut pools: Vec<Pool>,
     dex_factory_address: H160,
+    dex_variant: DexVariant,
     middleware: Arc<M>,
     request_throttle: Arc<Mutex<RequestThrottle>>,
     progress_bar: ProgressBar,
@@ -228,29 +227,25 @@ pub async fn get_all_pool_data<M: Middleware>(
         dex_factory_address
     ));
 
-    //For each pair in the pairs vec, get the reserves asyncrhonously
-    for mut pool in pools {
-        let request_throttle = request_throttle.clone();
-        let provider = middleware.clone();
-        let progress_bar = progress_bar.clone();
+    match dex_variant {
+        DexVariant::UniswapV2 => {
+            let step = 400;
+            for pools in pools.chunks_mut(step) {
+                request_throttle
+                    .lock()
+                    .expect("Error when acquiring request throttle mutex lock")
+                    .increment_or_sleep(4);
 
-        request_throttle
-            .lock()
-            .expect("Error when acquiring request throttle mutex lock")
-            .increment_or_sleep(4);
+                batch_requests::uniswap_v2::get_pool_data_batch_request(pools, middleware.clone())
+                    .await?;
 
-        match pool.get_pool_data(provider.clone()).await {
-            Ok(_) => updated_pools.push(pool),
-
-            Err(cfmm_error) => {
-                if let CFMMError::MiddlewareError(_) = &cfmm_error {
-                    return Err(cfmm_error);
-                }
+                progress_bar.inc(step as u64);
             }
         }
-
-        progress_bar.inc(1);
+        DexVariant::UniswapV3 => {}
     }
+
+    //For each pair in the pairs vec, get the pool data
 
     Ok(updated_pools)
 }

@@ -19,7 +19,7 @@ contract GetUniswapV2PairsBatchRequest {
         address[] memory allPairs = new address[](step);
 
         // Query every pool balance
-        for (uint256 i = 0; i < step; i++) {
+        for (uint256 i = from; i < step; i++) {
             allPairs[i] = IFactory(factory).allPairs(from + i);
         }
 
