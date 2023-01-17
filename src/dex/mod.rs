@@ -230,7 +230,9 @@ impl Dex {
     ) -> Result<Vec<Pool>, CFMMError<M>> {
         match self {
             Dex::UniswapV2(uniswap_v2_dex) => {
-                uniswap_v2_dex.get_all_pairs(middleware, progress_bar).await
+                uniswap_v2_dex
+                    .get_all_pairs(middleware, request_throttle.clone(), progress_bar)
+                    .await
             }
             Dex::UniswapV3(uniswap_v3_dex) => {
                 uniswap_v3_dex

@@ -22,18 +22,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
             DexVariant::UniswapV2,
             2638438,
         )),
-        //Add Sushiswap
-        Dex::new(
-            H160::from_str("0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac").unwrap(),
-            DexVariant::UniswapV2,
-            10794229,
-        ),
-        //Add UniswapV3
-        Dex::new(
-            H160::from_str("0x1F98431c8aD98523631AE4a59f267346ea31F984").unwrap(),
-            DexVariant::UniswapV3,
-            12369621,
-        ),
+        // //Add Sushiswap
+        // Dex::new(
+        //     H160::from_str("0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac").unwrap(),
+        //     DexVariant::UniswapV2,
+        //     10794229,
+        // ),
+        // //Add UniswapV3
+        // Dex::new(
+        //     H160::from_str("0x1F98431c8aD98523631AE4a59f267346ea31F984").unwrap(),
+        //     DexVariant::UniswapV3,
+        //     12369621,
+        // ),
     ];
     //Sync pairs
     sync::sync_pairs(dexes, provider, false).await?;

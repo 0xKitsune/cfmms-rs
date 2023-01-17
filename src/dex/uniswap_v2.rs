@@ -1,8 +1,11 @@
-use std::sync::Arc;
+use std::{
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
+};
 
 use ethers::{
     abi::ParamType,
-    prelude::ContractFactory,
     providers::Middleware,
     types::{BlockNumber, Log, H160, H256, U256},
 };
@@ -12,6 +15,7 @@ use crate::{
     abi, batch_requests,
     error::CFMMError,
     pool::{Pool, UniswapV2Pool},
+    throttle::RequestThrottle,
 };
 
 use super::DexVariant;
@@ -78,9 +82,10 @@ impl UniswapV2Dex {
     pub async fn get_all_pairs<M: 'static + Middleware>(
         self,
         middleware: Arc<M>,
+        request_throttle: Arc<Mutex<RequestThrottle>>,
         progress_bar: ProgressBar,
     ) -> Result<Vec<Pool>, CFMMError<M>> {
-        let mut aggregated_pairs: Vec<Pool> = vec![];
+        let mut pools: Vec<Pool> = vec![];
 
         let factory = abi::IUniswapV2Factory::new(self.factory_address, middleware.clone());
 
@@ -90,16 +95,41 @@ impl UniswapV2Dex {
         progress_bar.set_length(pairs_length.as_u64());
         progress_bar.set_message(format!("Getting all pools from: {}", self.factory_address));
 
+        let mut pair_addresses = vec![];
+        let step = 100;
+        let mut idx_from = U256::zero();
+        let mut idx_to = U256::from(step);
+        for _ in (0..pairs_length.as_u128()).step_by(step) {
+            dbg!(idx_to);
+
+            request_throttle
+                .lock()
+                .expect("Could not acquire mutex")
+                .increment_or_sleep(1);
+
+            pair_addresses.append(
+                &mut batch_requests::uniswap_v2::get_all_pairs(
+                    self.factory_address,
+                    idx_from,
+                    idx_to,
+                    middleware.clone(),
+                )
+                .await?,
+            );
+
+            idx_from = idx_to;
+
+            if idx_to + step > pairs_length {
+                idx_to = pairs_length - idx_to;
+            } else {
+                idx_to = idx_to + step;
+            }
+        }
+
         //TODO: fix here
 
-        batch_requests::uniswap_v2::get_all_pairs(
-            self.factory_address,
-            U256::zero(),
-            pairs_length,
-            middleware.clone(),
-        )
-        .await?;
+        println!("aggregated pairs: {:?}", pair_addresses);
 
-        Ok(aggregated_pairs)
+        Ok(pools)
     }
 }

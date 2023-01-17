@@ -1,5 +1,5 @@
 use ethers::prelude::{AbiError, ContractError};
-use ethers::providers::Middleware;
+use ethers::providers::{Middleware, ProviderError};
 use ethers::types::H160;
 use thiserror::Error;
 use tokio::task::JoinError;
@@ -12,6 +12,8 @@ where
 {
     #[error("Middleware error")]
     MiddlewareError(<M as Middleware>::Error),
+    #[error("Provider error")]
+    ProviderError(#[from] ProviderError),
     #[error("Contract error")]
     ContractError(#[from] ContractError<M>),
     #[error("ABI Codec error")]

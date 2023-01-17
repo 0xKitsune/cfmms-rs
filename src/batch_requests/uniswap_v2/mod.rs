@@ -4,10 +4,10 @@ use ethers::{
     abi::Token,
     prelude::{abigen, ContractError},
     providers::Middleware,
-    types::{H160, U256},
+    types::{Bytes, H160, U256},
 };
 
-use crate::{error::CFMMError, pool::Pool};
+use crate::error::CFMMError;
 
 abigen!(
     GetUniswapV2PairsBatchRequest,
@@ -24,20 +24,20 @@ pub async fn get_all_pairs<M: Middleware>(
     step: U256,
     middleware: Arc<M>,
 ) -> Result<Vec<H160>, CFMMError<M>> {
-    let pairs = vec![];
+    let mut pairs = vec![];
 
-    //TODO: FIXME: Just using unwrap right now to debug, DecodingError(InvalidData)
-    let deployer = GetUniswapV2PairsBatchRequest::deploy(
-        middleware,
-        vec![
-            Token::Uint(from),
-            Token::Uint(step),
-            Token::Address(factory),
-        ],
-    )
-    .unwrap();
+    let constructor_args = Token::Tuple(vec![
+        Token::Uint(from),
+        Token::Uint(step),
+        Token::Address(factory),
+    ]);
 
-    let x = deployer.send().await.unwrap();
+    let deployer = GetUniswapV2PairsBatchRequest::deploy(middleware, constructor_args).unwrap();
+    let return_data: Bytes = deployer.call_raw().await?;
+
+    for address_bytes in return_data.chunks(32) {
+        pairs.push(H160::from_slice(&address_bytes[12..]));
+    }
 
     Ok(pairs)
 }
