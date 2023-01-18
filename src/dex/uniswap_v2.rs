@@ -79,7 +79,7 @@ impl UniswapV2Dex {
         }))
     }
 
-    pub async fn get_all_pairs<M: 'static + Middleware>(
+    pub async fn get_all_pairs_via_batched_calls<M: 'static + Middleware>(
         self,
         middleware: Arc<M>,
         request_throttle: Arc<Mutex<RequestThrottle>>,
