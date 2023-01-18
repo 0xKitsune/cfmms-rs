@@ -90,7 +90,6 @@ impl UniswapV2Dex {
         let pairs_length: U256 = factory.all_pairs_length().call().await?;
         //Initialize the progress bar message
         progress_bar.set_length(pairs_length.as_u64());
-        progress_bar.set_message(format!("Getting all pools from: {}", self.factory_address));
 
         let mut pairs = vec![];
         let step = 750;

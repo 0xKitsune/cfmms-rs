@@ -61,6 +61,8 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
             );
 
             //Get all of the pools from the dex
+            progress_bar.set_message(format!("Getting all pools from: {}", dex.factory_address()));
+
             let mut pools = dex
                 .get_all_pools(
                     request_throttle.clone(),
@@ -76,6 +78,13 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
                     .progress_chars("##-"),
             );
 
+            //Get all of the pool data and sync the pool
+            progress_bar.set_message(format!(
+                "Getting all pool data for: {}",
+                dex.factory_address()
+            ));
+            progress_bar.set_length(pools.len() as u64);
+
             dex.get_all_pool_data(
                 &mut pools,
                 request_throttle.clone(),
@@ -83,30 +92,6 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
                 middleware.clone(),
             )
             .await?;
-
-            progress_bar.reset();
-            progress_bar.set_style(
-                ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7} Pairs")
-                    .expect("Error when setting progress bar style")
-                    .progress_chars("##-"),
-            );
-
-            //TODO: sync reserves
-            progress_bar.set_length(pools.len() as u64);
-            progress_bar.set_message(format!(
-                "Syncing reserves for pools from: {}",
-                dex.factory_address()
-            ));
-
-            for pool in pools.iter_mut() {
-                let request_throttle = request_throttle.clone();
-                request_throttle
-                    .lock()
-                    .expect("Error when acquiring request throttle mutex lock")
-                    .increment_or_sleep(1);
-
-                pool.sync_pool(middleware.clone()).await?;
-            }
 
             Ok::<_, CFMMError<M>>(pools)
         }));

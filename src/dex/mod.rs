@@ -114,6 +114,7 @@ impl Dex {
         }
     }
 
+    //Gets all pool data and sync reserves
     pub async fn get_all_pool_data<M: Middleware>(
         &self,
         pools: &mut [Pool],
@@ -129,7 +130,7 @@ impl Dex {
                     request_throttle
                         .lock()
                         .expect("Error when acquiring request throttle mutex lock")
-                        .increment_or_sleep(4);
+                        .increment_or_sleep(1);
 
                     batch_requests::uniswap_v2::get_pool_data_batch_request(
                         pools,
@@ -137,7 +138,7 @@ impl Dex {
                     )
                     .await?;
 
-                    progress_bar.inc(step as u64);
+                    progress_bar.inc(1);
                 }
             }
 
@@ -312,10 +313,6 @@ impl Dex {
 
         //Initialize the progress bar message
         progress_bar.set_length(current_block - from_block);
-        progress_bar.set_message(format!(
-            "Getting all pools from: {}",
-            self.factory_address()
-        ));
 
         //Init a new vec to keep track of tasks
         let mut handles = vec![];

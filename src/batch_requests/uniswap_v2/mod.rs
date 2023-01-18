@@ -26,7 +26,7 @@ pub async fn get_pool_data_batch_request<M: Middleware>(
     middleware: Arc<M>,
 ) -> Result<(), CFMMError<M>> {
     let mut target_addresses = vec![];
-    for pool in pools {
+    for pool in pools.iter() {
         target_addresses.push(Token::Address(pool.address()));
     }
 
@@ -37,31 +37,36 @@ pub async fn get_pool_data_batch_request<M: Middleware>(
 
     let return_data: Bytes = deployer.call_raw().await?;
 
+    let mut pool_idx = 0;
     //Chunk the return data, populate the pools,
+    for data in return_data.chunks(160) {
+        let tokens = ethers::abi::decode(
+            &vec![
+                ParamType::Address,   // token a
+                ParamType::Uint(8),   // token a decimals
+                ParamType::Address,   // token b
+                ParamType::Uint(8),   // token b decimals
+                ParamType::Uint(112), // reserve 0
+                ParamType::Uint(112), // reserve 1
+            ],
+            data,
+        )?;
 
-    // let populated_pools = vec![];
+        //Update the pool data
+        if let Pool::UniswapV2(uniswap_v2_pool) = pools.get_mut(pool_idx).unwrap() {
+            uniswap_v2_pool.token_a = tokens[0].to_owned().into_address().unwrap();
+            uniswap_v2_pool.token_a_decimals =
+                tokens[1].to_owned().into_uint().unwrap().as_u32() as u8;
+            uniswap_v2_pool.token_b = tokens[2].to_owned().into_address().unwrap();
+            uniswap_v2_pool.token_b_decimals =
+                tokens[3].to_owned().into_uint().unwrap().as_u32() as u8;
+            uniswap_v2_pool.reserve_0 = tokens[3].to_owned().into_uint().unwrap().as_u128();
+            uniswap_v2_pool.reserve_1 = tokens[4].to_owned().into_uint().unwrap().as_u128();
+        }
 
-    // for data in return_data.chunks(160) {
-    //     let tokens = ethers::abi::decode(
-    //         &vec![
-    //             ParamType::Address,   // token a
-    //             ParamType::Uint(8),   // token a decimals
-    //             ParamType::Address,   // token b
-    //             ParamType::Uint(8),   // token b decimals
-    //             ParamType::Uint(112), // reserve 0
-    //             ParamType::Uint(112), // reserve 1
-    //         ],
-    //         data,
-    //     )?;
+        pool_idx += 1;
+    }
 
-    //     let [token_a, token_a_decimals, token_b, token_b_decimals, reserve_0, reserve_1] =
-    //         &tokens[0..5];
-
-    //     let pool = UniswapV2Pool::default()
-
-    // Ok(())
-
-    // }
     Ok(())
 }
 
