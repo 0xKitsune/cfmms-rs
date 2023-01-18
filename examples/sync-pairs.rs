@@ -36,7 +36,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         // ),
     ];
     //Sync pairs
-    sync::sync_pairs(dexes, provider, false).await?;
+    sync::sync_pairs(dexes, provider, None).await?;
 
     Ok(())
 }

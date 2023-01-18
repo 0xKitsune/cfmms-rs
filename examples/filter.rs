@@ -28,7 +28,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     ];
 
     //Sync pools
-    let pools = sync::sync_pairs_with_throttle(dexes.clone(), provider.clone(), 10, false).await?;
+    let pools = sync::sync_pairs_with_throttle(dexes.clone(), provider.clone(), 10, None).await?;
 
     //Create a list of blacklisted tokens
     let blacklisted_tokens =

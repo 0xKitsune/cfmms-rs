@@ -48,7 +48,7 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
 
     //For each dex supplied, get all pair created events and get reserve values
     for dex in dexes.clone() {
-        let async_provider = middleware.clone();
+        let middleware = middleware.clone();
         let request_throttle = request_throttle.clone();
         let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
 
@@ -62,7 +62,11 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
 
             //Get all of the pools from the dex
             let mut pools = dex
-                .get_all_pools(request_throttle, progress_bar, middleware)
+                .get_all_pools(
+                    request_throttle.clone(),
+                    progress_bar.clone(),
+                    middleware.clone(),
+                )
                 .await?;
 
             progress_bar.reset();
@@ -72,12 +76,11 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
                     .progress_chars("##-"),
             );
 
-            //TODO: get all pool data
             dex.get_all_pool_data(
-                pools,
+                &mut pools,
                 request_throttle.clone(),
                 progress_bar.clone(),
-                async_provider.clone(),
+                middleware.clone(),
             )
             .await?;
 
@@ -102,7 +105,7 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
                     .expect("Error when acquiring request throttle mutex lock")
                     .increment_or_sleep(1);
 
-                pool.sync_pool(async_provider.clone()).await?;
+                pool.sync_pool(middleware.clone()).await?;
             }
 
             Ok::<_, CFMMError<M>>(pools)

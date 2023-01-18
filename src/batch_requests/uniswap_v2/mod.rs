@@ -7,7 +7,10 @@ use ethers::{
     types::{Bytes, H160, U256},
 };
 
-use crate::{error::CFMMError, pool::Pool};
+use crate::{
+    error::CFMMError,
+    pool::{Pool, UniswapV2Pool},
+};
 
 abigen!(
     GetUniswapV2PairsBatchRequest,
@@ -19,7 +22,7 @@ abigen!(
 );
 
 pub async fn get_pool_data_batch_request<M: Middleware>(
-    pools: &[Pool],
+    pools: &mut [Pool],
     middleware: Arc<M>,
 ) -> Result<(), CFMMError<M>> {
     let mut target_addresses = vec![];
@@ -36,26 +39,29 @@ pub async fn get_pool_data_batch_request<M: Middleware>(
 
     //Chunk the return data, populate the pools,
 
-    let populated_pools = vec![];
-    for data in return_data.chunks(160) {
-        let tokens = ethers::abi::decode(
-            &vec![
-                ParamType::Address,   // token a
-                ParamType::Uint(8),   // token a decimals
-                ParamType::Address,   // token b
-                ParamType::Uint(8),   // token b decimals
-                ParamType::Uint(112), // reserve 0
-                ParamType::Uint(112), // reserve 1
-            ],
-            data,
-        )?;
+    // let populated_pools = vec![];
 
-        let [token_a, token_a_decimals, token_b, token_b_decimals, reserve_0, reserve_1] =
-            &tokens[0..5];
+    // for data in return_data.chunks(160) {
+    //     let tokens = ethers::abi::decode(
+    //         &vec![
+    //             ParamType::Address,   // token a
+    //             ParamType::Uint(8),   // token a decimals
+    //             ParamType::Address,   // token b
+    //             ParamType::Uint(8),   // token b decimals
+    //             ParamType::Uint(112), // reserve 0
+    //             ParamType::Uint(112), // reserve 1
+    //         ],
+    //         data,
+    //     )?;
 
-        let pool = pools[pool_idx];
-    }
+    //     let [token_a, token_a_decimals, token_b, token_b_decimals, reserve_0, reserve_1] =
+    //         &tokens[0..5];
 
+    //     let pool = UniswapV2Pool::default()
+
+    // Ok(())
+
+    // }
     Ok(())
 }
 
