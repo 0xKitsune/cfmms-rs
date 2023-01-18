@@ -116,10 +116,10 @@ impl Dex {
 
     pub async fn get_all_pool_data<M: Middleware>(
         &self,
-        mut pools: Vec<Pool>,
-        middleware: Arc<M>,
+        pools: &mut [Pool],
         request_throttle: Arc<Mutex<RequestThrottle>>,
         progress_bar: ProgressBar,
+        middleware: Arc<M>,
     ) -> Result<(), CFMMError<M>> {
         match self {
             Dex::UniswapV2(_) => {
