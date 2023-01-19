@@ -37,21 +37,57 @@ contract GetUniswapV2PoolDataBatchRequest {
     constructor(address[] memory pools) {
         PoolData[] memory allPoolData = new PoolData[](pools.length);
 
-        for (uint256 i = 0; i < pools.length; ) {
+        for (uint256 i = 0; i < pools.length; ++i) {
+            address poolAddress = pools[i];
+
+            if (codeSizeIsZero(poolAddress)) continue;
+
             PoolData memory poolData;
 
-            poolData.tokenA = IUniswapV2Pair(pools[i]).token0();
-            poolData.tokenADecimals = IERC20(poolData.tokenA).decimals();
-            poolData.tokenB = IUniswapV2Pair(pools[i]).token1();
-            poolData.tokenBDecimals = IERC20(poolData.tokenB).decimals();
+            try IUniswapV2Pair(poolAddress).token0() returns (address token0) {
+                poolData.tokenA = token0;
+            } catch {
+                continue;
+            }
 
-            (poolData.reserve0, poolData.reserve1, ) = IUniswapV2Pair(pools[i])
-                .getReserves();
+            if (codeSizeIsZero(poolData.tokenA)) continue;
+
+            try IERC20(poolData.tokenA).decimals() returns (
+                uint8 tokenADecimals
+            ) {
+                poolData.tokenADecimals = tokenADecimals;
+            } catch {
+                continue;
+            }
+
+            try IUniswapV2Pair(poolAddress).token1() returns (address token1) {
+                poolData.tokenB = token1;
+            } catch {
+                continue;
+            }
+
+            if (codeSizeIsZero(poolData.tokenB)) continue;
+
+            try IERC20(poolData.tokenB).decimals() returns (
+                uint8 tokenBDecimals
+            ) {
+                poolData.tokenBDecimals = tokenBDecimals;
+            } catch {
+                continue;
+            }
+
+            try IUniswapV2Pair(poolAddress).getReserves() returns (
+                uint112 reserve0,
+                uint112 reserve1,
+                uint32 blockTimestampLast
+            ) {
+                poolData.reserve0 = reserve0;
+                poolData.reserve1 = reserve1;
+            } catch {
+                continue;
+            }
 
             allPoolData[i] = poolData;
-            unchecked {
-                ++i;
-            }
         }
 
         bytes memory returnData = abi.encode(allPoolData);
@@ -60,6 +96,14 @@ contract GetUniswapV2PoolDataBatchRequest {
         assembly {
             mstore(0x00, returnData)
             return(0x00, returnDataLength)
+        }
+    }
+
+    function codeSizeIsZero(address target) internal view returns (bool) {
+        if (target.code.length == 0) {
+            return true;
+        } else {
+            return false;
         }
     }
 }

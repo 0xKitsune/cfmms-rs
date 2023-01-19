@@ -49,13 +49,14 @@ pub async fn get_pool_data_batch_request<M: Middleware>(
 ) -> Result<(), CFMMError<M>> {
     let mut target_addresses = vec![];
     for pool in pools.iter() {
+        println!("addr: {:?}", pool.address());
         target_addresses.push(Token::Address(pool.address()));
     }
 
     let constructor_args = Token::Tuple(vec![Token::Array(target_addresses)]);
 
     let deployer =
-        GetUniswapV2PairsBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
+        GetUniswapV2PoolDataBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
 
     let return_data: Bytes = deployer.call_raw().await?;
 

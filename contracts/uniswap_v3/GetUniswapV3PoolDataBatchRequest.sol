@@ -73,9 +73,16 @@ contract GetUniswapV3PoolDataBatchRequest {
         PoolData[] memory allPoolData = new PoolData[](pools.length);
 
         for (uint256 i = 0; i < pools.length; ) {
-            PoolData memory poolData;
-
             address poolAddress = pools[i];
+
+            if (poolAddress.code.length == 0) {
+                unchecked {
+                    ++i;
+                }
+
+                continue;
+            }
+            PoolData memory poolData;
 
             (uint160 sqrtPriceX96, int24 tick, , , , , ) = IUniswapV3Pool(
                 poolAddress
