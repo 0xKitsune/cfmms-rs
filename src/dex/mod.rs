@@ -124,7 +124,7 @@ impl Dex {
     ) -> Result<(), CFMMError<M>> {
         match self {
             Dex::UniswapV2(_) => {
-                let step = 1;
+                let step = 127; //Max batch size for this call
                 for pools in pools.chunks_mut(step) {
                     request_throttle
                         .lock()
@@ -137,7 +137,7 @@ impl Dex {
                     )
                     .await?;
 
-                    progress_bar.inc(1);
+                    progress_bar.inc(step as u64);
                 }
             }
 

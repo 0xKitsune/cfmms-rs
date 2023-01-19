@@ -26,7 +26,6 @@ interface IERC20 {
  */
 contract GetUniswapV2PoolDataBatchRequest {
     struct PoolData {
-        address poolAddress; //This is for handling the return data
         address tokenA;
         uint8 tokenADecimals;
         address tokenB;
@@ -88,13 +87,16 @@ contract GetUniswapV2PoolDataBatchRequest {
                 continue;
             }
 
-            poolData.poolAddress = poolAddress;
             allPoolData[i] = poolData;
         }
 
+        // insure abi encoding, not needed here but increase reusability for different return types
+        // note: abi.encode add a first 32 bytes word with the address of the original data
         bytes memory _abiEncodedData = abi.encode(allPoolData);
 
         assembly {
+            // Return from the start of the data (discarding the original data address)
+            // up to the end of the memory used
             let dataStart := add(_abiEncodedData, 0x20)
             return(dataStart, sub(msize(), dataStart))
         }
