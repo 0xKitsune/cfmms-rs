@@ -7,7 +7,9 @@ use ethers::{
 };
 use num_bigfloat::BigFloat;
 
-use crate::{abi, error::CFMMError};
+use crate::{abi, batch_requests, error::CFMMError};
+
+use super::Pool;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct UniswapV2Pool {
@@ -50,7 +52,7 @@ impl UniswapV2Pool {
         pair_address: H160,
         middleware: Arc<M>,
     ) -> Result<Self, CFMMError<M>> {
-        let mut pool = UniswapV2Pool {
+        let pool = UniswapV2Pool {
             address: pair_address,
             token_a: H160::zero(),
             token_a_decimals: 0,
@@ -62,20 +64,19 @@ impl UniswapV2Pool {
         };
 
         pool.get_pool_data(middleware.clone()).await?;
-        pool.sync_pool(middleware).await?;
 
         Ok(pool)
     }
 
     pub async fn get_pool_data<M: Middleware>(
-        &mut self,
+        self,
         middleware: Arc<M>,
     ) -> Result<(), CFMMError<M>> {
-        self.token_a = self.get_token_0(self.address, middleware.clone()).await?;
-        self.token_b = self.get_token_1(self.address, middleware.clone()).await?;
-
-        (self.token_a_decimals, self.token_b_decimals) =
-            self.get_token_decimals(middleware).await?;
+        batch_requests::uniswap_v2::get_pool_data_batch_request(
+            &mut [Pool::UniswapV2(self)],
+            middleware.clone(),
+        )
+        .await?;
 
         Ok(())
     }
@@ -86,11 +87,9 @@ impl UniswapV2Pool {
     ) -> Result<(u128, u128), CFMMError<M>> {
         //Initialize a new instance of the Pool
         let v2_pair = abi::IUniswapV2Pair::new(self.address, middleware);
-
         // Make a call to get the reserves
         let (reserve_0, reserve_1, _) = match v2_pair.get_reserves().call().await {
             Ok(result) => result,
-
             Err(contract_error) => return Err(CFMMError::ContractError(contract_error)),
         };
 

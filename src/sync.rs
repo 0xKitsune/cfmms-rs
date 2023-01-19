@@ -1,15 +1,11 @@
-use crate::{batch_requests, checkpoint, dex::DexVariant, error::CFMMError};
+use crate::{checkpoint, error::CFMMError};
 
 use super::dex::Dex;
 use super::pool::Pool;
 use super::throttle::RequestThrottle;
-use ethers::{
-    providers::Middleware,
-    types::{BlockNumber, Filter, ValueOrArray, H160, U64},
-};
+use ethers::providers::Middleware;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use std::{
-    borrow::BorrowMut,
     panic::resume_unwind,
     sync::{Arc, Mutex},
 };
@@ -33,11 +29,6 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
 ) -> Result<Vec<Pool>, CFMMError<M>> {
     //Initialize a new request throttle
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
-
-    let current_block = middleware
-        .get_block_number()
-        .await
-        .map_err(CFMMError::MiddlewareError)?;
 
     //Aggregate the populated pools from each thread
     let mut aggregated_pools: Vec<Pool> = vec![];
@@ -111,7 +102,7 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
         }
     }
 
-    //If
+    //Save a checkpoint if a path is provided
     if save_checkpoint.is_some() {
         let save_checkpoint = save_checkpoint.unwrap();
 

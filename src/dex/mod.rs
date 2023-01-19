@@ -125,7 +125,6 @@ impl Dex {
         match self {
             Dex::UniswapV2(_) => {
                 let step = 400;
-
                 for pools in pools.chunks_mut(step) {
                     request_throttle
                         .lock()
@@ -142,7 +141,23 @@ impl Dex {
                 }
             }
 
-            Dex::UniswapV3(_) => {}
+            Dex::UniswapV3(_) => {
+                let step = 400;
+                for pools in pools.chunks_mut(step) {
+                    request_throttle
+                        .lock()
+                        .expect("Error when acquiring request throttle mutex lock")
+                        .increment_or_sleep(1);
+
+                    batch_requests::uniswap_v3::get_pool_data_batch_request(
+                        pools,
+                        middleware.clone(),
+                    )
+                    .await?;
+
+                    progress_bar.inc(1);
+                }
+            }
         }
 
         //For each pair in the pairs vec, get the pool data

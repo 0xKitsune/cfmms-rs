@@ -7,7 +7,9 @@ use ethers::{
 };
 use num_bigfloat::BigFloat;
 
-use crate::{abi, error::CFMMError};
+use crate::{abi, batch_requests, error::CFMMError};
+
+use super::Pool;
 
 pub const MIN_SQRT_RATIO: U256 = U256([4295128739, 0, 0, 0]);
 pub const MAX_SQRT_RATIO: U256 = U256([6743328256752651558, 17280870778742802505, 4294805859, 0]);
@@ -62,7 +64,7 @@ impl UniswapV3Pool {
         pair_address: H160,
         middleware: Arc<M>,
     ) -> Result<Self, CFMMError<M>> {
-        let mut pool = UniswapV3Pool {
+        let pool = UniswapV3Pool {
             address: pair_address,
             token_a: H160::zero(),
             token_a_decimals: 0,
@@ -78,21 +80,19 @@ impl UniswapV3Pool {
 
         pool.get_pool_data(middleware.clone()).await?;
 
-        pool.sync_pool(middleware).await?;
-
         Ok(pool)
     }
 
     pub async fn get_pool_data<M: Middleware>(
-        &mut self,
+        self,
         middleware: Arc<M>,
     ) -> Result<(), CFMMError<M>> {
-        self.token_a = self.get_token_0(middleware.clone()).await?;
-        self.token_b = self.get_token_1(middleware.clone()).await?;
-        (self.token_a_decimals, self.token_b_decimals) =
-            self.get_token_decimals(middleware.clone()).await?;
-        self.fee = self.get_fee(middleware.clone()).await?;
-        self.tick_spacing = self.get_tick_spacing(middleware.clone()).await?;
+        batch_requests::uniswap_v3::get_pool_data_batch_request(
+            &mut [Pool::UniswapV3(self)],
+            middleware.clone(),
+        )
+        .await?;
+
         Ok(())
     }
 
@@ -193,6 +193,8 @@ impl UniswapV3Pool {
         &mut self,
         middleware: Arc<M>,
     ) -> Result<(), CFMMError<M>> {
+        //TODO: sync pool batched
+
         self.liquidity = self.get_liquidity(middleware.clone()).await?;
 
         let slot_0 = self.get_slot_0(middleware.clone()).await?;
