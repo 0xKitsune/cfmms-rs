@@ -189,19 +189,12 @@ impl UniswapV3Pool {
         Ok(self.get_slot_0(middleware).await?.0)
     }
 
-    pub async fn sync_pool<M: Middleware>(
-        &mut self,
-        middleware: Arc<M>,
-    ) -> Result<(), CFMMError<M>> {
-        //TODO: sync pool batched
-
-        self.liquidity = self.get_liquidity(middleware.clone()).await?;
-
-        let slot_0 = self.get_slot_0(middleware.clone()).await?;
-        self.sqrt_price = slot_0.0;
-        self.tick = slot_0.1;
-
-        self.liquidity_net = self.get_liquidity_net(self.tick, middleware).await?;
+    pub async fn sync_pool<M: Middleware>(self, middleware: Arc<M>) -> Result<(), CFMMError<M>> {
+        batch_requests::uniswap_v3::sync_pools_batch_request(
+            &mut [Pool::UniswapV3(self)],
+            middleware.clone(),
+        )
+        .await?;
 
         Ok(())
     }

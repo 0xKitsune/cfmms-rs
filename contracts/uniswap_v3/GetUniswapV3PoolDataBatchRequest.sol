@@ -77,28 +77,26 @@ contract GetUniswapV3PoolDataBatchRequest {
 
             address poolAddress = pools[i];
 
+            (uint160 sqrtPriceX96, int24 tick, , , , , ) = IUniswapV3Pool(
+                poolAddress
+            ).slot0();
+
+            (, int128 liquidityNet, , , , , , ) = IUniswapV3Pool(poolAddress)
+                .ticks(tick);
+
             poolData.tokenA = IUniswapV3Pool(poolAddress).token0();
             poolData.tokenADecimals = IERC20(poolData.tokenA).decimals();
             poolData.tokenB = IUniswapV3Pool(poolAddress).token1();
             poolData.tokenBDecimals = IERC20(poolData.tokenB).decimals();
             poolData.liquidity = IUniswapV3Pool(poolAddress).liquidity();
-
-            (uint160 sqrtPriceX96, int24 tick, , , , , ) = IUniswapV3Pool(
-                poolAddress
-            ).slot0();
-
             poolData.sqrtPrice = sqrtPriceX96;
-
             poolData.tick = tick;
             poolData.tickSpacing = IUniswapV3Pool(poolAddress).tickSpacing();
             poolData.fee = IUniswapV3Pool(poolAddress).fee();
-
-            (, int128 liquidityNet, , , , , , ) = IUniswapV3Pool(poolAddress)
-                .ticks(tick);
-
             poolData.liquidityNet = liquidityNet;
 
             allPoolData[i] = poolData;
+
             unchecked {
                 ++i;
             }
