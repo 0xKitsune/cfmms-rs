@@ -6,8 +6,6 @@ pragma solidity ^0.8.0;
       deployment bytecode as payload.
  */
 
-pragma solidity ^0.8.0;
-
 interface IUniswapV3Pool {
     function token0() external view returns (address);
 
@@ -72,17 +70,55 @@ contract GetUniswapV3PoolDataBatchRequest {
     constructor(address[] memory pools) {
         PoolData[] memory allPoolData = new PoolData[](pools.length);
 
-        for (uint256 i = 0; i < pools.length; ) {
+        for (uint256 i = 0; i < pools.length; ++i) {
             address poolAddress = pools[i];
 
-            if (poolAddress.code.length == 0) {
-                unchecked {
-                    ++i;
+            if (codeSizeIsZero(poolAddress)) continue;
+
+            PoolData memory poolData;
+
+            //Get tokenA decimals
+            (
+                bool tokenADecimalsSuccess,
+                bytes memory tokenADecimalsData
+            ) = poolData.tokenA.call(abi.encodeWithSignature("decimals()"));
+
+            if (tokenADecimalsSuccess) {
+                uint256 tokenADecimals;
+
+                assembly {
+                    tokenADecimals := mload(add(tokenADecimalsData, 20))
                 }
 
+                if (tokenADecimals == 0) {
+                    continue;
+                } else {
+                    poolData.tokenADecimals = uint8(tokenADecimals);
+                }
+            } else {
                 continue;
             }
-            PoolData memory poolData;
+
+            //Get tokenB decimals
+            (
+                bool tokenBDecimalsSuccess,
+                bytes memory tokenBDecimalsData
+            ) = poolData.tokenB.call(abi.encodeWithSignature("decimals()"));
+
+            if (tokenBDecimalsSuccess) {
+                uint256 tokenBDecimals;
+
+                assembly {
+                    tokenBDecimals := mload(add(tokenBDecimalsData, 20))
+                }
+                if (tokenBDecimals == 0) {
+                    continue;
+                } else {
+                    poolData.tokenBDecimals = uint8(tokenBDecimals);
+                }
+            } else {
+                continue;
+            }
 
             (uint160 sqrtPriceX96, int24 tick, , , , , ) = IUniswapV3Pool(
                 poolAddress
@@ -91,30 +127,34 @@ contract GetUniswapV3PoolDataBatchRequest {
             (, int128 liquidityNet, , , , , , ) = IUniswapV3Pool(poolAddress)
                 .ticks(tick);
 
-            poolData.tokenA = IUniswapV3Pool(poolAddress).token0();
-            poolData.tokenADecimals = IERC20(poolData.tokenA).decimals();
-            poolData.tokenB = IUniswapV3Pool(poolAddress).token1();
-            poolData.tokenBDecimals = IERC20(poolData.tokenB).decimals();
             poolData.liquidity = IUniswapV3Pool(poolAddress).liquidity();
-            poolData.sqrtPrice = sqrtPriceX96;
-            poolData.tick = tick;
             poolData.tickSpacing = IUniswapV3Pool(poolAddress).tickSpacing();
             poolData.fee = IUniswapV3Pool(poolAddress).fee();
+            poolData.tokenA = IUniswapV3Pool(poolAddress).token0();
+            poolData.tokenB = IUniswapV3Pool(poolAddress).token1();
+
+            poolData.sqrtPrice = sqrtPriceX96;
+            poolData.tick = tick;
+
             poolData.liquidityNet = liquidityNet;
 
             allPoolData[i] = poolData;
-
-            unchecked {
-                ++i;
-            }
         }
 
-        bytes memory returnData = abi.encode(allPoolData);
-        uint256 returnDataLength = returnData.length;
-
+        bytes memory _abiEncodedData = abi.encode(allPoolData);
         assembly {
-            mstore(0x00, returnData)
-            return(0x00, returnDataLength)
+            // Return from the start of the data (discarding the original data address)
+            // up to the end of the memory used
+            let dataStart := add(_abiEncodedData, 0x20)
+            return(dataStart, sub(msize(), dataStart))
+        }
+    }
+
+    function codeSizeIsZero(address target) internal view returns (bool) {
+        if (target.code.length == 0) {
+            return true;
+        } else {
+            return false;
         }
     }
 }

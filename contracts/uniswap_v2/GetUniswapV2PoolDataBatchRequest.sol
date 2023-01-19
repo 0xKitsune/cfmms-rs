@@ -43,49 +43,58 @@ contract GetUniswapV2PoolDataBatchRequest {
             if (codeSizeIsZero(poolAddress)) continue;
 
             PoolData memory poolData;
+            //Get tokens A and B
+            poolData.tokenA = IUniswapV2Pair(poolAddress).token0();
+            poolData.tokenB = IUniswapV2Pair(poolAddress).token1();
 
-            try IUniswapV2Pair(poolAddress).token0() returns (address token0) {
-                poolData.tokenA = token0;
-            } catch {
+            //Get tokenA decimals
+            (
+                bool tokenADecimalsSuccess,
+                bytes memory tokenADecimalsData
+            ) = poolData.tokenA.call(abi.encodeWithSignature("decimals()"));
+
+            if (tokenADecimalsSuccess) {
+                uint256 tokenADecimals;
+
+                assembly {
+                    tokenADecimals := mload(add(tokenADecimalsData, 20))
+                }
+
+                if (tokenADecimals == 0) {
+                    continue;
+                } else {
+                    poolData.tokenADecimals = uint8(tokenADecimals);
+                }
+            } else {
                 continue;
             }
 
-            if (codeSizeIsZero(poolData.tokenA)) continue;
+            //Get tokenB decimals
 
-            try IERC20(poolData.tokenA).decimals() returns (
-                uint8 tokenADecimals
-            ) {
-                poolData.tokenADecimals = tokenADecimals;
-            } catch {
+            (
+                bool tokenBDecimalsSuccess,
+                bytes memory tokenBDecimalsData
+            ) = poolData.tokenB.call(abi.encodeWithSignature("decimals()"));
+
+            if (tokenBDecimalsSuccess) {
+                uint256 tokenBDecimals;
+
+                assembly {
+                    tokenBDecimals := mload(add(tokenBDecimalsData, 20))
+                }
+                if (tokenBDecimals == 0) {
+                    continue;
+                } else {
+                    poolData.tokenBDecimals = uint8(tokenBDecimals);
+                }
+            } else {
                 continue;
             }
 
-            try IUniswapV2Pair(poolAddress).token1() returns (address token1) {
-                poolData.tokenB = token1;
-            } catch {
-                continue;
-            }
-
-            if (codeSizeIsZero(poolData.tokenB)) continue;
-
-            try IERC20(poolData.tokenB).decimals() returns (
-                uint8 tokenBDecimals
-            ) {
-                poolData.tokenBDecimals = tokenBDecimals;
-            } catch {
-                continue;
-            }
-
-            try IUniswapV2Pair(poolAddress).getReserves() returns (
-                uint112 reserve0,
-                uint112 reserve1,
-                uint32 blockTimestampLast
-            ) {
-                poolData.reserve0 = reserve0;
-                poolData.reserve1 = reserve1;
-            } catch {
-                continue;
-            }
+            // Get reserves
+            (poolData.reserve0, poolData.reserve1, ) = IUniswapV2Pair(
+                poolAddress
+            ).getReserves();
 
             allPoolData[i] = poolData;
         }

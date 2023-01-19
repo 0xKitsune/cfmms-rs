@@ -124,7 +124,7 @@ impl Dex {
     ) -> Result<(), CFMMError<M>> {
         match self {
             Dex::UniswapV2(_) => {
-                let step = 127; //Max batch size for this call
+                let step = 127; //Max batch size for call
                 for pools in pools.chunks_mut(step) {
                     request_throttle
                         .lock()
@@ -142,7 +142,7 @@ impl Dex {
             }
 
             Dex::UniswapV3(_) => {
-                let step = 400;
+                let step = 76; //Max batch size for call
                 for pools in pools.chunks_mut(step) {
                     request_throttle
                         .lock()
@@ -329,66 +329,40 @@ impl Dex {
         //Initialize the progress bar message
         progress_bar.set_length(current_block - from_block);
 
-        //Init a new vec to keep track of tasks
-        let mut handles = vec![];
-
         //For each block within the range, get all pairs asynchronously
         for from_block in (from_block..=current_block).step_by(step) {
             let request_throttle = request_throttle.clone();
             let provider = middleware.clone();
             let progress_bar = progress_bar.clone();
 
-            //Spawn a new task to get pair created events from the block range
-            handles.push(tokio::spawn(async move {
-                let mut pools = vec![];
+            //Get pair created event logs within the block range
+            let to_block = from_block + step as u64;
 
-                //Get pair created event logs within the block range
-                let to_block = from_block + step as u64;
+            //Update the throttle
+            request_throttle
+                .lock()
+                .expect("Error when acquiring request throttle mutex lock")
+                .increment_or_sleep(1);
 
-                //Update the throttle
-                request_throttle
-                    .lock()
-                    .expect("Error when acquiring request throttle mutex lock")
-                    .increment_or_sleep(1);
+            let logs = provider
+                .get_logs(
+                    &Filter::new()
+                        .topic0(ValueOrArray::Value(self.pool_created_event_signature()))
+                        .address(self.factory_address())
+                        .from_block(BlockNumber::Number(U64([from_block])))
+                        .to_block(BlockNumber::Number(U64([to_block]))),
+                )
+                .await
+                .map_err(CFMMError::MiddlewareError)?;
 
-                let logs = provider
-                    .get_logs(
-                        &Filter::new()
-                            .topic0(ValueOrArray::Value(self.pool_created_event_signature()))
-                            .address(self.factory_address())
-                            .from_block(BlockNumber::Number(U64([from_block])))
-                            .to_block(BlockNumber::Number(U64([to_block]))),
-                    )
-                    .await
-                    .map_err(CFMMError::MiddlewareError)?;
-
-                //For each pair created log, create a new Pair type and add it to the pairs vec
-                for log in logs {
-                    let pool = self.new_empty_pool_from_event(log)?;
-                    pools.push(pool);
-                }
-
-                //Increment the progress bar by the step
-                progress_bar.inc(step as u64);
-
-                Ok::<Vec<Pool>, CFMMError<M>>(pools)
-            }));
-        }
-
-        //Wait for each thread to finish and aggregate the pairs from each Dex into a single aggregated pairs vec
-        for handle in handles {
-            match handle.await {
-                Ok(sync_result) => aggregated_pairs.extend(sync_result?),
-
-                Err(err) => {
-                    {
-                        if err.is_panic() {
-                            // Resume the panic on the main task
-                            resume_unwind(err.into_panic());
-                        }
-                    }
-                }
+            //For each pair created log, create a new Pair type and add it to the pairs vec
+            for log in logs {
+                let pool = self.new_empty_pool_from_event(log)?;
+                aggregated_pairs.push(pool);
             }
+
+            //Increment the progress bar by the step
+            progress_bar.inc(step as u64);
         }
 
         Ok(aggregated_pairs)
