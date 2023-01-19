@@ -15,24 +15,25 @@ contract GetUniswapV2PairsBatchRequest {
         uint256 step,
         address factory
     ) {
+        uint256 distance = step - from;
+
         // There is a max number of pool as a too big returned data times out the rpc
-        address[] memory allPairs = new address[](step);
+        address[] memory allPairs = new address[](distance);
 
         // Query every pool balance
-        for (uint256 i = from; i < step; i++) {
+        for (uint256 i = 0; i < distance; i++) {
             allPairs[i] = IFactory(factory).allPairs(from + i);
         }
 
         // insure abi encoding, not needed here but increase reusability for different return types
         // note: abi.encode add a first 32 bytes word with the address of the original data
-        bytes memory returnData = abi.encode(allPairs);
-        uint256 returnDataLength = returnData.length;
+        bytes memory _abiEncodedData = abi.encode(allPairs);
 
         assembly {
             // Return from the start of the data (discarding the original data address)
             // up to the end of the memory used
-            mstore(0x00, returnData)
-            return(0x00, returnDataLength)
+            let dataStart := add(_abiEncodedData, 0x20)
+            return(dataStart, sub(msize(), dataStart))
         }
     }
 }

@@ -124,7 +124,7 @@ impl Dex {
     ) -> Result<(), CFMMError<M>> {
         match self {
             Dex::UniswapV2(_) => {
-                let step = 10;
+                let step = 1;
                 for pools in pools.chunks_mut(step) {
                     request_throttle
                         .lock()
