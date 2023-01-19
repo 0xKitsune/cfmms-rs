@@ -155,7 +155,7 @@ impl Dex {
                     )
                     .await?;
 
-                    progress_bar.inc(1);
+                    progress_bar.inc(step as u64);
                 }
             }
         }

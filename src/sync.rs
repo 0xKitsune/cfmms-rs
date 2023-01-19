@@ -84,6 +84,9 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
             )
             .await?;
 
+            //Clean empty pools
+            pools = remove_empty_pools(pools);
+
             Ok::<_, CFMMError<M>>(pools)
         }));
     }
@@ -121,4 +124,25 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
 
     //Return the populated aggregated pools vec
     Ok(aggregated_pools)
+}
+
+pub fn remove_empty_pools(pools: Vec<Pool>) -> Vec<Pool> {
+    let mut cleaned_pools = vec![];
+
+    for pool in pools {
+        match pool {
+            Pool::UniswapV2(uniswap_v2_pool) => {
+                if !uniswap_v2_pool.token_a.is_zero() {
+                    cleaned_pools.push(pool)
+                }
+            }
+            Pool::UniswapV3(uniswap_v3_pool) => {
+                if !uniswap_v3_pool.token_a.is_zero() {
+                    cleaned_pools.push(pool)
+                }
+            }
+        }
+    }
+
+    cleaned_pools
 }

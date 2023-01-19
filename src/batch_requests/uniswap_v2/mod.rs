@@ -93,23 +93,28 @@ pub async fn get_pool_data_batch_request<M: Middleware>(
             if let Some(arr) = token.into_array() {
                 for tup in arr {
                     if let Some(pool_data) = tup.into_tuple() {
-                        //Update the pool data
-                        if let Pool::UniswapV2(uniswap_v2_pool) = pools.get_mut(pool_idx).unwrap() {
-                            uniswap_v2_pool.token_a =
-                                pool_data[0].to_owned().into_address().unwrap();
-                            uniswap_v2_pool.token_a_decimals =
-                                pool_data[1].to_owned().into_uint().unwrap().as_u32() as u8;
-                            uniswap_v2_pool.token_b =
-                                pool_data[2].to_owned().into_address().unwrap();
-                            uniswap_v2_pool.token_b_decimals =
-                                pool_data[3].to_owned().into_uint().unwrap().as_u32() as u8;
-                            uniswap_v2_pool.reserve_0 =
-                                pool_data[3].to_owned().into_uint().unwrap().as_u128();
-                            uniswap_v2_pool.reserve_1 =
-                                pool_data[4].to_owned().into_uint().unwrap().as_u128();
-                        }
+                        //If the pool token A is not zero, signaling that the pool data was populated
+                        if !pool_data[0].to_owned().into_address().unwrap().is_zero() {
+                            //Update the pool data
+                            if let Pool::UniswapV2(uniswap_v2_pool) =
+                                pools.get_mut(pool_idx).unwrap()
+                            {
+                                uniswap_v2_pool.token_a =
+                                    pool_data[0].to_owned().into_address().unwrap();
+                                uniswap_v2_pool.token_a_decimals =
+                                    pool_data[1].to_owned().into_uint().unwrap().as_u32() as u8;
+                                uniswap_v2_pool.token_b =
+                                    pool_data[2].to_owned().into_address().unwrap();
+                                uniswap_v2_pool.token_b_decimals =
+                                    pool_data[3].to_owned().into_uint().unwrap().as_u32() as u8;
+                                uniswap_v2_pool.reserve_0 =
+                                    pool_data[3].to_owned().into_uint().unwrap().as_u128();
+                                uniswap_v2_pool.reserve_1 =
+                                    pool_data[4].to_owned().into_uint().unwrap().as_u128();
+                            }
 
-                        pool_idx += 1;
+                            pool_idx += 1;
+                        }
                     }
                 }
             }
