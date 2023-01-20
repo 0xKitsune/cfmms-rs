@@ -28,4 +28,6 @@ where
     PairDoesNotExistInDexes(H160, H160),
     #[error("Error when syncing pool")]
     SyncError(H160),
+    #[error("Error when getting pool data")]
+    PoolDataError(),
 }

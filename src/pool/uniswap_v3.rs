@@ -9,8 +9,6 @@ use num_bigfloat::BigFloat;
 
 use crate::{abi, batch_requests, error::CFMMError};
 
-use super::Pool;
-
 pub const MIN_SQRT_RATIO: U256 = U256([4295128739, 0, 0, 0]);
 pub const MAX_SQRT_RATIO: U256 = U256([6743328256752651558, 17280870778742802505, 4294805859, 0]);
 
@@ -64,7 +62,7 @@ impl UniswapV3Pool {
         pair_address: H160,
         middleware: Arc<M>,
     ) -> Result<Self, CFMMError<M>> {
-        let pool = UniswapV3Pool {
+        let mut pool = UniswapV3Pool {
             address: pair_address,
             token_a: H160::zero(),
             token_a_decimals: 0,
@@ -80,20 +78,33 @@ impl UniswapV3Pool {
 
         pool.get_pool_data(middleware.clone()).await?;
 
+        if !pool.data_is_populated() {
+            return Err(CFMMError::PoolDataError());
+        }
+
         Ok(pool)
     }
 
     pub async fn get_pool_data<M: Middleware>(
-        self,
+        &mut self,
         middleware: Arc<M>,
     ) -> Result<(), CFMMError<M>> {
-        batch_requests::uniswap_v3::get_pool_data_batch_request(
-            &mut [Pool::UniswapV3(self)],
-            middleware.clone(),
-        )
-        .await?;
+        batch_requests::uniswap_v3::get_v3_pool_data_batch_request(self, middleware.clone())
+            .await?;
 
         Ok(())
+    }
+
+    pub fn data_is_populated(&self) -> bool {
+        if self.token_a.is_zero()
+            || self.token_b.is_zero()
+            || self.liquidity == 0
+            || self.sqrt_price.is_zero()
+        {
+            false
+        } else {
+            true
+        }
     }
 
     pub async fn get_tick_word<M: Middleware>(
@@ -678,8 +689,6 @@ mod test {
         .await
         .unwrap();
 
-        println!("pool: {:?}", pool);
-
         let quoter = IQuoter::new(
             H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6").unwrap(),
             middleware.clone(),
@@ -780,5 +789,80 @@ mod test {
         assert_eq!(amount_out_2, expected_amount_out_2);
         assert_eq!(amount_out_3, expected_amount_out_3);
         assert_eq!(amount_out_4, expected_amount_out_4);
+    }
+
+    #[tokio::test]
+    async fn test_get_new_from_address() {
+        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
+            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let pool = UniswapV3Pool::new_from_address(
+            H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            middleware.clone(),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            pool.address,
+            H160::from_str("0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640").unwrap()
+        );
+        assert_eq!(
+            pool.token_a,
+            H160::from_str("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48").unwrap()
+        );
+        assert_eq!(pool.token_a_decimals, 6);
+        assert_eq!(
+            pool.token_b,
+            H160::from_str("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2").unwrap()
+        );
+        assert_eq!(pool.token_b_decimals, 18);
+        assert_eq!(pool.fee, 500);
+        assert!(pool.tick != 0);
+        assert_eq!(pool.tick_spacing, 10);
+    }
+
+    #[tokio::test]
+    async fn test_get_pool_data() {
+        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
+            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let mut pool = UniswapV3Pool::default();
+        pool.address = H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap();
+        pool.get_pool_data(middleware).await.unwrap();
+
+        assert_eq!(
+            pool.address,
+            H160::from_str("0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640").unwrap()
+        );
+        assert_eq!(
+            pool.token_a,
+            H160::from_str("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48").unwrap()
+        );
+        assert_eq!(pool.token_a_decimals, 6);
+        assert_eq!(
+            pool.token_b,
+            H160::from_str("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2").unwrap()
+        );
+        assert_eq!(pool.token_b_decimals, 18);
+        assert_eq!(pool.fee, 500);
+        assert!(pool.tick != 0);
+        assert_eq!(pool.tick_spacing, 10);
+    }
+
+    #[tokio::test]
+    async fn test_sync_pool() {
+        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
+            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let mut pool = UniswapV3Pool::default();
+        pool.address = H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap();
+
+        pool.sync_pool(middleware).await.unwrap();
+
+        //TODO: need to assert values
     }
 }

@@ -52,7 +52,7 @@ impl UniswapV2Pool {
         pair_address: H160,
         middleware: Arc<M>,
     ) -> Result<Self, CFMMError<M>> {
-        let pool = UniswapV2Pool {
+        let mut pool = UniswapV2Pool {
             address: pair_address,
             token_a: H160::zero(),
             token_a_decimals: 0,
@@ -65,20 +65,33 @@ impl UniswapV2Pool {
 
         pool.get_pool_data(middleware.clone()).await?;
 
+        if !pool.data_is_populated() {
+            return Err(CFMMError::PoolDataError());
+        }
+
         Ok(pool)
     }
 
     pub async fn get_pool_data<M: Middleware>(
-        self,
+        &mut self,
         middleware: Arc<M>,
     ) -> Result<(), CFMMError<M>> {
-        batch_requests::uniswap_v2::get_pool_data_batch_request(
-            &mut [Pool::UniswapV2(self)],
-            middleware.clone(),
-        )
-        .await?;
+        batch_requests::uniswap_v2::get_v2_pool_data_batch_request(self, middleware.clone())
+            .await?;
 
         Ok(())
+    }
+
+    pub fn data_is_populated(&self) -> bool {
+        if self.token_a.is_zero()
+            || self.token_b.is_zero()
+            || self.reserve_0 == 0
+            || self.reserve_1 == 0
+        {
+            false
+        } else {
+            true
+        }
     }
 
     pub async fn get_reserves<M: Middleware>(
