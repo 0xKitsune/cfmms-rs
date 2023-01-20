@@ -377,6 +377,11 @@ impl UniswapV3Pool {
             liquidity: self.liquidity, //Current available liquidity in the tick range
         };
 
+        let block_number = middleware
+            .get_block_number()
+            .await
+            .map_err(CFMMError::MiddlewareError)?;
+
         while current_state.amount_specified_remaining != I256::zero()
             && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96
         {
@@ -386,14 +391,30 @@ impl UniswapV3Pool {
                 ..Default::default()
             };
 
+            let compressed =
+                if current_state.tick < 0 && current_state.tick % self.tick_spacing != 0 {
+                    (current_state.tick / self.tick_spacing) - 1
+                } else {
+                    current_state.tick / self.tick_spacing
+                };
+
+            let (word_pos, bit_pos) = uniswap_v3_math::tick_bit_map::position(compressed);
+
+            //TODO: in the future, create a batch call to get this and liquidity net within the same call
+            let word: U256 = abi::IUniswapV3Pool::new(self.address, middleware.clone())
+                .tick_bitmap(word_pos)
+                .block(block_number)
+                .call()
+                .await?;
+
             //Get the next initialized tick within one word of the current tick
             (step.tick_next, step.initialized) =
                 uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
-                    current_state.tick,
                     self.tick_spacing,
                     zero_for_one,
-                    self.address,
-                    middleware.clone(),
+                    compressed,
+                    bit_pos,
+                    word,
                 )
                 .await?;
 
@@ -506,6 +527,11 @@ impl UniswapV3Pool {
 
         let mut liquidity_net = self.liquidity_net;
 
+        let block_number = middleware
+            .get_block_number()
+            .await
+            .map_err(CFMMError::MiddlewareError)?;
+
         while current_state.amount_specified_remaining > I256::zero() {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
             let mut step = StepComputations {
@@ -513,14 +539,30 @@ impl UniswapV3Pool {
                 ..Default::default()
             };
 
+            let compressed =
+                if current_state.tick < 0 && current_state.tick % self.tick_spacing != 0 {
+                    (current_state.tick / self.tick_spacing) - 1
+                } else {
+                    current_state.tick / self.tick_spacing
+                };
+
+            let (word_pos, bit_pos) = uniswap_v3_math::tick_bit_map::position(compressed);
+
+            //TODO: in the future, create a batch call to get this and liquidity net within the same call
+            let word: U256 = abi::IUniswapV3Pool::new(self.address, middleware.clone())
+                .tick_bitmap(word_pos)
+                .block(block_number)
+                .call()
+                .await?;
+
             //Get the next initialized tick within one word of the current tick
             (step.tick_next, step.initialized) =
                 uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
-                    current_state.tick,
                     self.tick_spacing,
                     zero_for_one,
-                    self.address,
-                    middleware.clone(),
+                    compressed,
+                    bit_pos,
+                    word,
                 )
                 .await?;
 
@@ -664,7 +706,6 @@ pub struct Tick {
 mod test {
     #[allow(unused)]
     use super::UniswapV3Pool;
-    use ethers::providers::Middleware;
     #[allow(unused)]
     use ethers::{
         prelude::abigen,
@@ -702,14 +743,13 @@ mod test {
             middleware.clone(),
         );
 
-        let current_block = middleware.get_block_number().await.unwrap();
-
         let amount_in = U256::from_dec_str("100000000").unwrap(); // 100 USDC
         let amount_in_1 = U256::from_dec_str("10000000000").unwrap(); // 10000 USDC
         let amount_in_2 = U256::from_dec_str("10000000000000").unwrap(); // 1000000 USDC
         let amount_in_3 = U256::from_dec_str("1000000000000000").unwrap(); // 100000000 USDC
-        let amount_in_4 = U256::from_dec_str("1000000000000000000").unwrap(); // 100000000000 USDC
+        let amount_in_4 = U256::from_dec_str("100000000000000000").unwrap(); // 10000000000 USDC
 
+        let current_block = middleware.get_block_number().await.unwrap();
         let amount_out = pool
             .simulate_swap(pool.token_a, amount_in, middleware.clone())
             .await
@@ -728,6 +768,7 @@ mod test {
             .await
             .unwrap();
 
+        let current_block = middleware.get_block_number().await.unwrap();
         let amount_out_1 = pool
             .simulate_swap(pool.token_a, amount_in_1, middleware.clone())
             .await
@@ -746,6 +787,7 @@ mod test {
             .await
             .unwrap();
 
+        let current_block = middleware.get_block_number().await.unwrap();
         let amount_out_2 = pool
             .simulate_swap(pool.token_a, amount_in_2, middleware.clone())
             .await
@@ -764,6 +806,7 @@ mod test {
             .await
             .unwrap();
 
+        let current_block = middleware.get_block_number().await.unwrap();
         let amount_out_3 = pool
             .simulate_swap(pool.token_a, amount_in_3, middleware.clone())
             .await
@@ -781,6 +824,7 @@ mod test {
             .await
             .unwrap();
 
+        let current_block = middleware.get_block_number().await.unwrap();
         let amount_out_4 = pool
             .simulate_swap(pool.token_a, amount_in_4, middleware.clone())
             .await
