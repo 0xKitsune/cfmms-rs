@@ -96,15 +96,10 @@ impl UniswapV3Pool {
     }
 
     pub fn data_is_populated(&self) -> bool {
-        if self.token_a.is_zero()
+        !(self.token_a.is_zero()
             || self.token_b.is_zero()
             || self.liquidity == 0
-            || self.sqrt_price.is_zero()
-        {
-            false
-        } else {
-            true
-        }
+            || self.sqrt_price.is_zero())
     }
 
     pub async fn get_tick_word<M: Middleware>(
@@ -829,8 +824,11 @@ mod test {
             .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
-        let mut pool = UniswapV3Pool::default();
-        pool.address = H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap();
+        let mut pool = UniswapV3Pool {
+            address: H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            ..Default::default()
+        };
+
         pool.get_pool_data(middleware).await.unwrap();
 
         assert_eq!(
@@ -858,8 +856,10 @@ mod test {
             .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
-        let mut pool = UniswapV3Pool::default();
-        pool.address = H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap();
+        let mut pool = UniswapV3Pool {
+            address: H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            ..Default::default()
+        };
 
         pool.sync_pool(middleware).await.unwrap();
 

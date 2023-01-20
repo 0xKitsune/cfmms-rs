@@ -9,7 +9,7 @@ use num_bigfloat::BigFloat;
 
 use crate::{abi, batch_requests, error::CFMMError};
 
-use super::Pool;
+
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct UniswapV2Pool {
@@ -83,15 +83,9 @@ impl UniswapV2Pool {
     }
 
     pub fn data_is_populated(&self) -> bool {
-        if self.token_a.is_zero()
+        !(self.token_a.is_zero()
             || self.token_b.is_zero()
-            || self.reserve_0 == 0
-            || self.reserve_1 == 0
-        {
-            false
-        } else {
-            true
-        }
+            || self.reserve_0 == 0 || self.reserve_1 == 0)
     }
 
     pub async fn get_reserves<M: Middleware>(
