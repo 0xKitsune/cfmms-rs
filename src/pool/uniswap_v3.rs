@@ -696,8 +696,8 @@ mod test {
 
         let amount_in = U256::from_dec_str("100000000").unwrap();
         let amount_in_1 = U256::from_dec_str("10000000000").unwrap();
-        let amount_in_2 = U256::from_dec_str("10000000000").unwrap();
-        let amount_in_3 = U256::from_dec_str("100000000000").unwrap();
+        let amount_in_2 = U256::from_dec_str("100000000000").unwrap();
+        let amount_in_3 = U256::from_dec_str("1000000000000").unwrap();
         let amount_in_4 = U256::from_dec_str("10000000000000").unwrap();
 
         let amount_out = pool
