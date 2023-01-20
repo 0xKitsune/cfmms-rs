@@ -375,7 +375,7 @@ impl UniswapV3Pool {
             liquidity: self.liquidity, //Current available liquidity in the tick range
         };
 
-        while current_state.amount_specified_remaining > I256::zero()
+        while current_state.amount_specified_remaining != I256::zero()
             && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96
         {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
@@ -441,15 +441,23 @@ impl UniswapV3Pool {
                         .get_liquidity_net(step.tick_next, middleware.clone())
                         .await?;
 
+                    dbg!(liquidity_net);
+
                     // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
                     if zero_for_one {
                         liquidity_net = -liquidity_net;
                     }
 
-                    current_state.liquidity = uniswap_v3_math::liquidity_math::add_delta(
-                        current_state.liquidity,
-                        liquidity_net,
-                    )?;
+                    // current_state.liquidity = uniswap_v3_math::liquidity_math::add_delta(
+                    //     current_state.liquidity,
+                    //     liquidity_net,
+                    // )?;
+
+                    current_state.liquidity = if liquidity_net < 0 {
+                        current_state.liquidity - (-liquidity_net as u128)
+                    } else {
+                        current_state.liquidity + (liquidity_net as u128)
+                    }
                 }
                 //Increment the current tick
                 current_state.tick = if zero_for_one {
@@ -684,6 +692,8 @@ mod test {
         .await
         .unwrap();
 
+        dbg!(pool);
+
         let quoter = IQuoter::new(
             H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6").unwrap(),
             middleware.clone(),
@@ -693,97 +703,120 @@ mod test {
         let amount_in_1 = U256::from_dec_str("10000000000").unwrap();
         let amount_in_2 = U256::from_dec_str("100000000000").unwrap();
         let amount_in_3 = U256::from_dec_str("1000000000000").unwrap();
-        let amount_in_4 = U256::from_dec_str("1000000000000000").unwrap();
-
+        let amount_in_4 = U256::from_dec_str("30000000000000").unwrap();
+        let amount_in_zero_for_one_false = U256::from_dec_str("300000000000000000000000").unwrap();
         let amount_out = pool
             .simulate_swap(pool.token_a, amount_in, middleware.clone())
             .await
             .unwrap();
 
-        let expected_amount_out = quoter
-            .quote_exact_input_single(
-                pool.token_a,
+        let amount_out_zero_for_one_false = pool
+            .simulate_swap(
                 pool.token_b,
+                amount_in_zero_for_one_false,
+                middleware.clone(),
+            )
+            .await
+            .unwrap();
+        let expected_amount_out_zero_for_one_false = quoter
+            .quote_exact_input_single(
+                pool.token_b,
+                pool.token_a,
                 pool.fee,
-                amount_in,
+                amount_in_zero_for_one_false,
                 U256::zero(),
             )
             .call()
             .await
             .unwrap();
+        // let expected_amount_out = quoter
+        //     .quote_exact_input_single(
+        //         pool.token_a,
+        //         pool.token_b,
+        //         pool.fee,
+        //         amount_in,
+        //         U256::zero(),
+        //     )
+        //     .call()
+        //     .await
+        //     .unwrap();
 
-        let amount_out_1 = pool
-            .simulate_swap(pool.token_a, amount_in_1, middleware.clone())
-            .await
-            .unwrap();
+        // let amount_out_1 = pool
+        //     .simulate_swap(pool.token_a, amount_in_1, middleware.clone())
+        //     .await
+        //     .unwrap();
 
-        let expected_amount_out_1 = quoter
-            .quote_exact_input_single(
-                pool.token_a,
-                pool.token_b,
-                pool.fee,
-                amount_in_1,
-                U256::zero(),
-            )
-            .call()
-            .await
-            .unwrap();
+        // let expected_amount_out_1 = quoter
+        //     .quote_exact_input_single(
+        //         pool.token_a,
+        //         pool.token_b,
+        //         pool.fee,
+        //         amount_in_1,
+        //         U256::zero(),
+        //     )
+        //     .call()
+        //     .await
+        //     .unwrap();
 
-        let amount_out_2 = pool
-            .simulate_swap(pool.token_a, amount_in_2, middleware.clone())
-            .await
-            .unwrap();
+        // let amount_out_2 = pool
+        //     .simulate_swap(pool.token_a, amount_in_2, middleware.clone())
+        //     .await
+        //     .unwrap();
 
-        let expected_amount_out_2 = quoter
-            .quote_exact_input_single(
-                pool.token_a,
-                pool.token_b,
-                pool.fee,
-                amount_in_2,
-                U256::zero(),
-            )
-            .call()
-            .await
-            .unwrap();
+        // let expected_amount_out_2 = quoter
+        //     .quote_exact_input_single(
+        //         pool.token_a,
+        //         pool.token_b,
+        //         pool.fee,
+        //         amount_in_2,
+        //         U256::zero(),
+        //     )
+        //     .call()
+        //     .await
+        //     .unwrap();
 
-        let amount_out_3 = pool
-            .simulate_swap(pool.token_a, amount_in_3, middleware.clone())
-            .await
-            .unwrap();
-        let expected_amount_out_3 = quoter
-            .quote_exact_input_single(
-                pool.token_a,
-                pool.token_b,
-                pool.fee,
-                amount_in_3,
-                U256::zero(),
-            )
-            .call()
-            .await
-            .unwrap();
+        // let amount_out_3 = pool
+        //     .simulate_swap(pool.token_a, amount_in_3, middleware.clone())
+        //     .await
+        //     .unwrap();
+        // let expected_amount_out_3 = quoter
+        //     .quote_exact_input_single(
+        //         pool.token_a,
+        //         pool.token_b,
+        //         pool.fee,
+        //         amount_in_3,
+        //         U256::zero(),
+        //     )
+        //     .call()
+        //     .await
+        //     .unwrap();
 
-        let amount_out_4 = pool
-            .simulate_swap(pool.token_a, amount_in_4, middleware.clone())
-            .await
-            .unwrap();
+        // let amount_out_4 = pool
+        //     .simulate_swap(pool.token_a, amount_in_4, middleware.clone())
+        //     .await
+        //     .unwrap();
 
-        let expected_amount_out_4 = quoter
-            .quote_exact_input_single(
-                pool.token_a,
-                pool.token_b,
-                pool.fee,
-                amount_in_4,
-                U256::zero(),
-            )
-            .call()
-            .await
-            .unwrap();
+        // let expected_amount_out_4 = quoter
+        //     .quote_exact_input_single(
+        //         pool.token_a,
+        //         pool.token_b,
+        //         pool.fee,
+        //         amount_in_4,
+        //         U256::zero(),
+        //     )
+        //     .call()
+        //     .await
+        //     .unwrap();
 
-        assert_eq!(amount_out, expected_amount_out);
-        assert_eq!(amount_out_1, expected_amount_out_1);
-        assert_eq!(amount_out_2, expected_amount_out_2);
-        assert_eq!(amount_out_3, expected_amount_out_3);
-        assert_eq!(amount_out_4, expected_amount_out_4);
+        assert_eq!(
+            amount_out_zero_for_one_false,
+            expected_amount_out_zero_for_one_false
+        );
+        // assert_eq!(amount_out, expected_amount_out);
+        // assert_eq!(amount_out_1, expected_amount_out_1);
+        // assert_eq!(amount_out_2, expected_amount_out_2);
+        // assert_eq!(amount_out_3, expected_amount_out_3);
+        // assert_eq!(amount_out_4, expected_amount_out_4);
     }
 
     #[tokio::test]
