@@ -9,7 +9,7 @@ use std::{
 
 use ethers::{
     providers::Middleware,
-    types::{BlockNumber, H160, U256},
+    types::{H160, U256},
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use serde_json::{Map, Value};
@@ -38,7 +38,7 @@ pub async fn sync_pairs_from_checkpoint_with_throttle<M: 'static + Middleware>(
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
     //Initialize multi progress bar
     let multi_progress_bar = MultiProgress::new();
-    let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
+    let _progress_bar = multi_progress_bar.add(ProgressBar::new(0));
 
     //Read in checkpoint
     let (dexes, mut pools) = deconstruct_checkpoint(path_to_checkpoint);

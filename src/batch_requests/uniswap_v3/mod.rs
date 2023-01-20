@@ -35,7 +35,7 @@ pub async fn get_pool_data_batch_request<M: Middleware>(
     let return_data: Bytes = deployer.call_raw().await?;
 
     let return_data_tokens = ethers::abi::decode(
-        &vec![ParamType::Array(Box::new(ParamType::Tuple(vec![
+        &[ParamType::Array(Box::new(ParamType::Tuple(vec![
             ParamType::Address,   // token a
             ParamType::Uint(8),   // token a decimals
             ParamType::Address,   // token b
@@ -114,7 +114,7 @@ pub async fn sync_v3_pool_batch_request<M: Middleware>(
         SyncUniswapV3PoolBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
     let return_data: Bytes = deployer.call_raw().await?;
     let return_data_tokens = ethers::abi::decode(
-        &vec![ParamType::Tuple(vec![
+        &[ParamType::Tuple(vec![
             ParamType::Uint(128), // liquidity
             ParamType::Uint(160), // sqrtPrice
             ParamType::Int(24),   // tick

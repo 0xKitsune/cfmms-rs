@@ -33,20 +33,17 @@ pub async fn get_pairs_batch_request<M: Middleware>(
     let return_data: Bytes = deployer.call_raw().await?;
 
     let return_data_tokens = ethers::abi::decode(
-        &vec![ParamType::Array(Box::new(ParamType::Address))],
+        &[ParamType::Array(Box::new(ParamType::Address))],
         &return_data,
     )?;
 
     for token_array in return_data_tokens {
         if let Some(arr) = token_array.into_array() {
             for token in arr {
-                match token.into_address() {
-                    Some(addr) => {
-                        if !addr.is_zero() {
-                            pairs.push(addr);
-                        }
+                if let Some(addr) = token.into_address() {
+                    if !addr.is_zero() {
+                        pairs.push(addr);
                     }
-                    _ => {}
                 }
             }
         }
@@ -71,7 +68,7 @@ pub async fn get_pool_data_batch_request<M: Middleware>(
 
     let return_data: Bytes = deployer.call_raw().await?;
     let return_data_tokens = ethers::abi::decode(
-        &vec![ParamType::Array(Box::new(ParamType::Tuple(vec![
+        &[ParamType::Array(Box::new(ParamType::Tuple(vec![
             ParamType::Address,   // token a
             ParamType::Uint(8),   // token a decimals
             ParamType::Address,   // token b

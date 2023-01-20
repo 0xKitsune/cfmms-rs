@@ -7,7 +7,6 @@ use ethers::{
 
 use cfmms::{
     dex::{Dex, DexVariant},
-    pool::{Pool, UniswapV3Pool},
     sync,
 };
 

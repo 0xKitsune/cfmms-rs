@@ -1,8 +1,5 @@
 use std::{
-    panic::resume_unwind,
     sync::{Arc, Mutex},
-    thread::sleep,
-    time::Duration,
 };
 
 use ethers::{

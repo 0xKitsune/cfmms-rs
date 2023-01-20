@@ -5,11 +5,10 @@ use std::{
 
 use ethers::{
     abi::ParamType,
-    prelude::k256::elliptic_curve::consts::U64,
     providers::Middleware,
     types::{BlockNumber, Log, ValueOrArray, H160, H256, U256},
 };
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{ProgressBar};
 
 use crate::{
     error::CFMMError,
@@ -17,7 +16,7 @@ use crate::{
     throttle::RequestThrottle,
 };
 
-use super::{Dex, DexVariant};
+use super::{DexVariant};
 
 #[derive(Debug, Clone, Copy)]
 pub struct UniswapV3Dex {

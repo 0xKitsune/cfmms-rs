@@ -1,15 +1,11 @@
-use std::{
-    sync::{Arc, Mutex},
-    thread,
-    time::Duration,
-};
+use std::sync::{Arc, Mutex};
 
 use ethers::{
     abi::ParamType,
     providers::Middleware,
     types::{BlockNumber, Log, H160, H256, U256},
 };
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::ProgressBar;
 
 use crate::{
     abi, batch_requests,
@@ -126,8 +122,11 @@ impl UniswapV2Dex {
 
         //Create new empty pools for each pair
         for addr in pairs {
-            let mut pool = UniswapV2Pool::default();
-            pool.address = addr;
+            let pool = UniswapV2Pool {
+                address: addr,
+                ..Default::default()
+            };
+
             pools.push(Pool::UniswapV2(pool));
         }
 
