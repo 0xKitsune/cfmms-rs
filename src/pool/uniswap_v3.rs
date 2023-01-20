@@ -707,6 +707,8 @@ mod test {
     #[allow(unused)]
     use super::UniswapV3Pool;
     #[allow(unused)]
+    use ethers::providers::Middleware;
+    #[allow(unused)]
     use ethers::{
         prelude::abigen,
         providers::{Http, Provider},
