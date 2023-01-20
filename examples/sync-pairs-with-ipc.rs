@@ -13,8 +13,7 @@ use std::error::Error;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     //Add ipc endpoint here:
-    let ipc_endpoint = "";
-
+    let ipc_endpoint = "~/.ethereum/geth.ipc";
     let provider: Arc<Provider<Ipc>> = Arc::new(
         Provider::connect_ipc(ipc_endpoint)
             .await?
