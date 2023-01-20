@@ -678,6 +678,8 @@ mod test {
         .await
         .unwrap();
 
+        println!("pool: {:?}", pool);
+
         let quoter = IQuoter::new(
             H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6").unwrap(),
             middleware.clone(),
