@@ -8,7 +8,7 @@ use ethers::{
     providers::Middleware,
     types::{BlockNumber, Log, ValueOrArray, H160, H256, U256},
 };
-use indicatif::{ProgressBar};
+use indicatif::ProgressBar;
 
 use crate::{
     error::CFMMError,
@@ -16,7 +16,7 @@ use crate::{
     throttle::RequestThrottle,
 };
 
-use super::{DexVariant};
+use super::DexVariant;
 
 #[derive(Debug, Clone, Copy)]
 pub struct UniswapV3Dex {
