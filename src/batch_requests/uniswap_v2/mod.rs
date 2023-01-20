@@ -1,16 +1,12 @@
-use std::{io::Read, sync::Arc, thread::sleep, time::Duration};
-
 use ethers::{
-    abi::{Param, ParamType, Token},
-    prelude::{abigen, ContractError},
+    abi::{ParamType, Token},
+    prelude::abigen,
     providers::Middleware,
     types::{Bytes, H160, U256},
 };
+use std::sync::Arc;
 
-use crate::{
-    error::CFMMError,
-    pool::{Pool, UniswapV2Pool},
-};
+use crate::{error::CFMMError, pool::Pool};
 
 abigen!(
     GetUniswapV2PairsBatchRequest,
@@ -84,38 +80,35 @@ pub async fn get_pool_data_batch_request<M: Middleware>(
             ParamType::Uint(112), // reserve 1
         ])))],
         &return_data,
-    );
+    )?;
 
     let mut pool_idx = 0;
 
     for tokens in return_data_tokens {
-        for token in tokens {
-            if let Some(arr) = token.into_array() {
-                for tup in arr {
-                    if let Some(pool_data) = tup.into_tuple() {
-                        //If the pool token A is not zero, signaling that the pool data was populated
-                        if !pool_data[0].to_owned().into_address().unwrap().is_zero() {
-                            //Update the pool data
-                            if let Pool::UniswapV2(uniswap_v2_pool) =
-                                pools.get_mut(pool_idx).unwrap()
-                            {
-                                uniswap_v2_pool.token_a =
-                                    pool_data[0].to_owned().into_address().unwrap();
-                                uniswap_v2_pool.token_a_decimals =
-                                    pool_data[1].to_owned().into_uint().unwrap().as_u32() as u8;
-                                uniswap_v2_pool.token_b =
-                                    pool_data[2].to_owned().into_address().unwrap();
-                                uniswap_v2_pool.token_b_decimals =
-                                    pool_data[3].to_owned().into_uint().unwrap().as_u32() as u8;
-                                uniswap_v2_pool.reserve_0 =
-                                    pool_data[3].to_owned().into_uint().unwrap().as_u128();
-                                uniswap_v2_pool.reserve_1 =
-                                    pool_data[4].to_owned().into_uint().unwrap().as_u128();
-                            }
+        if let Some(tokens_arr) = tokens.into_array() {
+            for tup in tokens_arr {
+                if let Some(pool_data) = tup.into_tuple() {
+                    //If the pool token A is not zero, signaling that the pool data was populated
+                    if !pool_data[0].to_owned().into_address().unwrap().is_zero() {
+                        //Update the pool data
+                        if let Pool::UniswapV2(uniswap_v2_pool) = pools.get_mut(pool_idx).unwrap() {
+                            uniswap_v2_pool.token_a =
+                                pool_data[0].to_owned().into_address().unwrap();
+                            uniswap_v2_pool.token_a_decimals =
+                                pool_data[1].to_owned().into_uint().unwrap().as_u32() as u8;
+                            uniswap_v2_pool.token_b =
+                                pool_data[2].to_owned().into_address().unwrap();
+                            uniswap_v2_pool.token_b_decimals =
+                                pool_data[3].to_owned().into_uint().unwrap().as_u32() as u8;
+                            uniswap_v2_pool.reserve_0 =
+                                pool_data[4].to_owned().into_uint().unwrap().as_u128();
+                            uniswap_v2_pool.reserve_1 =
+                                pool_data[5].to_owned().into_uint().unwrap().as_u128();
 
-                            pool_idx += 1;
+                            uniswap_v2_pool.fee = 300;
                         }
                     }
+                    pool_idx += 1;
                 }
             }
         }

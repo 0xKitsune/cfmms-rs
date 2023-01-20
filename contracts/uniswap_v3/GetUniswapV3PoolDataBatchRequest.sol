@@ -77,6 +77,9 @@ contract GetUniswapV3PoolDataBatchRequest {
 
             PoolData memory poolData;
 
+            poolData.tokenA = IUniswapV3Pool(poolAddress).token0();
+            poolData.tokenB = IUniswapV3Pool(poolAddress).token1();
+
             //Get tokenA decimals
             (
                 bool tokenADecimalsSuccess,
@@ -86,20 +89,21 @@ contract GetUniswapV3PoolDataBatchRequest {
             if (tokenADecimalsSuccess) {
                 uint256 tokenADecimals;
 
-                assembly {
-                    tokenADecimals := mload(add(tokenADecimalsData, 20))
-                }
+                if (tokenADecimalsData.length == 32) {
+                    (tokenADecimals) = abi.decode(tokenADecimalsData, (uint8));
 
-                if (tokenADecimals == 0) {
-                    continue;
+                    if (tokenADecimals == 0) {
+                        continue;
+                    } else {
+                        poolData.tokenADecimals = uint8(tokenADecimals);
+                    }
                 } else {
-                    poolData.tokenADecimals = uint8(tokenADecimals);
+                    continue;
                 }
             } else {
                 continue;
             }
 
-            //Get tokenB decimals
             (
                 bool tokenBDecimalsSuccess,
                 bytes memory tokenBDecimalsData
@@ -107,14 +111,16 @@ contract GetUniswapV3PoolDataBatchRequest {
 
             if (tokenBDecimalsSuccess) {
                 uint256 tokenBDecimals;
+                if (tokenBDecimalsData.length == 32) {
+                    (tokenBDecimals) = abi.decode(tokenBDecimalsData, (uint8));
 
-                assembly {
-                    tokenBDecimals := mload(add(tokenBDecimalsData, 20))
-                }
-                if (tokenBDecimals == 0) {
-                    continue;
+                    if (tokenBDecimals == 0) {
+                        continue;
+                    } else {
+                        poolData.tokenBDecimals = uint8(tokenBDecimals);
+                    }
                 } else {
-                    poolData.tokenBDecimals = uint8(tokenBDecimals);
+                    continue;
                 }
             } else {
                 continue;
@@ -130,8 +136,6 @@ contract GetUniswapV3PoolDataBatchRequest {
             poolData.liquidity = IUniswapV3Pool(poolAddress).liquidity();
             poolData.tickSpacing = IUniswapV3Pool(poolAddress).tickSpacing();
             poolData.fee = IUniswapV3Pool(poolAddress).fee();
-            poolData.tokenA = IUniswapV3Pool(poolAddress).token0();
-            poolData.tokenB = IUniswapV3Pool(poolAddress).token1();
 
             poolData.sqrtPrice = sqrtPriceX96;
             poolData.tick = tick;

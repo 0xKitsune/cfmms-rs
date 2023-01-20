@@ -56,19 +56,20 @@ contract GetUniswapV2PoolDataBatchRequest {
             if (tokenADecimalsSuccess) {
                 uint256 tokenADecimals;
 
-                assembly {
-                    tokenADecimals := mload(add(tokenADecimalsData, 20))
-                }
+                if (tokenADecimalsData.length == 32) {
+                    (tokenADecimals) = abi.decode(tokenADecimalsData, (uint8));
 
-                if (tokenADecimals == 0) {
-                    continue;
+                    if (tokenADecimals == 0) {
+                        continue;
+                    } else {
+                        poolData.tokenADecimals = uint8(tokenADecimals);
+                    }
                 } else {
-                    poolData.tokenADecimals = uint8(tokenADecimals);
+                    continue;
                 }
             } else {
                 continue;
             }
-
             //Get tokenB decimals
 
             (
@@ -79,13 +80,16 @@ contract GetUniswapV2PoolDataBatchRequest {
             if (tokenBDecimalsSuccess) {
                 uint256 tokenBDecimals;
 
-                assembly {
-                    tokenBDecimals := mload(add(tokenBDecimalsData, 20))
-                }
-                if (tokenBDecimals == 0) {
-                    continue;
+                if (tokenBDecimalsData.length == 32) {
+                    (tokenBDecimals) = abi.decode(tokenBDecimalsData, (uint8));
+
+                    if (tokenBDecimals == 0) {
+                        continue;
+                    } else {
+                        poolData.tokenBDecimals = uint8(tokenBDecimals);
+                    }
                 } else {
-                    poolData.tokenBDecimals = uint8(tokenBDecimals);
+                    continue;
                 }
             } else {
                 continue;

@@ -66,16 +66,9 @@ contract SyncUniswapV3PoolBatchRequest {
     constructor(address[] memory pools) {
         PoolData[] memory allPoolData = new PoolData[](pools.length);
 
-        for (uint256 i = 0; i < pools.length; ) {
+        for (uint256 i = 0; i < pools.length; ++i) {
             address poolAddress = pools[i];
-
-            if (poolAddress.code.length == 0) {
-                unchecked {
-                    ++i;
-                }
-
-                continue;
-            }
+            if (codeSizeIsZero(poolAddress)) continue;
 
             PoolData memory poolData;
 
@@ -92,17 +85,23 @@ contract SyncUniswapV3PoolBatchRequest {
             poolData.liquidityNet = liquidityNet;
 
             allPoolData[i] = poolData;
-            unchecked {
-                ++i;
-            }
         }
 
-        bytes memory returnData = abi.encode(allPoolData);
-        uint256 returnDataLength = returnData.length;
+        bytes memory _abiEncodedData = abi.encode(allPoolData);
 
         assembly {
-            mstore(0x00, returnData)
-            return(0x00, returnDataLength)
+            // Return from the start of the data (discarding the original data address)
+            // up to the end of the memory used
+            let dataStart := add(_abiEncodedData, 0x20)
+            return(dataStart, sub(msize(), dataStart))
+        }
+    }
+
+    function codeSizeIsZero(address target) internal view returns (bool) {
+        if (target.code.length == 0) {
+            return true;
+        } else {
+            return false;
         }
     }
 }

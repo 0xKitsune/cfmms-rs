@@ -25,8 +25,6 @@ use crate::{
 pub async fn sync_pairs_from_checkpoint<M: 'static + Middleware>(
     path_to_checkpoint: String,
     middleware: Arc<M>,
-    update_checkpoint: bool,
-    checkpoint_file_name: String,
 ) -> Result<(Vec<Dex>, Vec<Pool>), CFMMError<M>> {
     sync_pairs_from_checkpoint_with_throttle(path_to_checkpoint, middleware, 0).await
 }
@@ -44,6 +42,8 @@ pub async fn sync_pairs_from_checkpoint_with_throttle<M: 'static + Middleware>(
 
     //Read in checkpoint
     let (dexes, mut pools) = deconstruct_checkpoint(path_to_checkpoint);
+
+    //TODO: set progress bar length and style
 
     //Update reserves for all pools
     for pool in pools.iter_mut() {

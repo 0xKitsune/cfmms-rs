@@ -26,4 +26,6 @@ where
     UniswapV3MathError(#[from] UniswapV3MathError),
     #[error("Pair for token_a/token_b does not exist in provided dexes")]
     PairDoesNotExistInDexes(H160, H160),
+    #[error("Error when syncing pool")]
+    SyncError(H160),
 }
