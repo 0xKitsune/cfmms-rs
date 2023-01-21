@@ -1,14 +1,17 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use ethers::{
     abi::ParamType,
     providers::Middleware,
-    types::{BlockNumber, Log, H160, H256},
+    types::{BlockNumber, Log, H160, H256, U256},
 };
+use indicatif::ProgressBar;
 
 use crate::{
+    abi, batch_requests,
     error::CFMMError,
     pool::{Pool, UniswapV2Pool},
+    throttle::RequestThrottle,
 };
 
 use super::DexVariant;
@@ -70,5 +73,63 @@ impl UniswapV2Dex {
             reserve_1: 0,
             fee: 300,
         }))
+    }
+
+    pub async fn get_all_pairs_via_batched_calls<M: 'static + Middleware>(
+        self,
+        middleware: Arc<M>,
+        request_throttle: Arc<Mutex<RequestThrottle>>,
+        progress_bar: ProgressBar,
+    ) -> Result<Vec<Pool>, CFMMError<M>> {
+        let factory = abi::IUniswapV2Factory::new(self.factory_address, middleware.clone());
+
+        let pairs_length: U256 = factory.all_pairs_length().call().await?;
+        //Initialize the progress bar message
+        progress_bar.set_length(pairs_length.as_u64());
+
+        let mut pairs = vec![];
+        let step = 766; //max batch size for this call until codesize is too large
+        let mut idx_from = U256::zero();
+        let mut idx_to = U256::from(step);
+        for _ in (0..pairs_length.as_u128()).step_by(step) {
+            request_throttle
+                .lock()
+                .expect("Could not acquire mutex")
+                .increment_or_sleep(1);
+
+            pairs.append(
+                &mut batch_requests::uniswap_v2::get_pairs_batch_request(
+                    self.factory_address,
+                    idx_from,
+                    idx_to,
+                    middleware.clone(),
+                )
+                .await?,
+            );
+
+            idx_from = idx_to;
+
+            if idx_to + step > pairs_length {
+                idx_to = pairs_length - 1
+            } else {
+                idx_to = idx_to + step;
+            }
+
+            progress_bar.inc(step as u64);
+        }
+
+        let mut pools = vec![];
+
+        //Create new empty pools for each pair
+        for addr in pairs {
+            let pool = UniswapV2Pool {
+                address: addr,
+                ..Default::default()
+            };
+
+            pools.push(Pool::UniswapV2(pool));
+        }
+
+        Ok(pools)
     }
 }

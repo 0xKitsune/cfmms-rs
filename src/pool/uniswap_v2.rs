@@ -7,7 +7,7 @@ use ethers::{
 };
 use num_bigfloat::BigFloat;
 
-use crate::{abi, error::CFMMError};
+use crate::{abi, batch_requests, error::CFMMError};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct UniswapV2Pool {
@@ -62,7 +62,10 @@ impl UniswapV2Pool {
         };
 
         pool.get_pool_data(middleware.clone()).await?;
-        pool.sync_pool(middleware).await?;
+
+        if !pool.data_is_populated() {
+            return Err(CFMMError::PoolDataError());
+        }
 
         Ok(pool)
     }
@@ -71,13 +74,17 @@ impl UniswapV2Pool {
         &mut self,
         middleware: Arc<M>,
     ) -> Result<(), CFMMError<M>> {
-        self.token_a = self.get_token_0(self.address, middleware.clone()).await?;
-        self.token_b = self.get_token_1(self.address, middleware.clone()).await?;
-
-        (self.token_a_decimals, self.token_b_decimals) =
-            self.get_token_decimals(middleware).await?;
+        batch_requests::uniswap_v2::get_v2_pool_data_batch_request(self, middleware.clone())
+            .await?;
 
         Ok(())
+    }
+
+    pub fn data_is_populated(&self) -> bool {
+        !(self.token_a.is_zero()
+            || self.token_b.is_zero()
+            || self.reserve_0 == 0
+            || self.reserve_1 == 0)
     }
 
     pub async fn get_reserves<M: Middleware>(
@@ -86,11 +93,9 @@ impl UniswapV2Pool {
     ) -> Result<(u128, u128), CFMMError<M>> {
         //Initialize a new instance of the Pool
         let v2_pair = abi::IUniswapV2Pair::new(self.address, middleware);
-
         // Make a call to get the reserves
         let (reserve_0, reserve_1, _) = match v2_pair.get_reserves().call().await {
             Ok(result) => result,
-
             Err(contract_error) => return Err(CFMMError::ContractError(contract_error)),
         };
 

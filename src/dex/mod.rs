@@ -1,14 +1,16 @@
-use std::{sync::Arc};
+use std::sync::{Arc, Mutex};
 
 use ethers::{
     providers::Middleware,
-    types::{BlockNumber, Log, H160, H256},
+    types::{BlockNumber, Filter, Log, ValueOrArray, H160, H256, U64},
 };
+use indicatif::ProgressBar;
 
 use crate::{
-    abi,
+    abi, batch_requests,
     error::CFMMError,
     pool::{Pool, UniswapV2Pool, UniswapV3Pool},
+    throttle::RequestThrottle,
 };
 
 use self::{uniswap_v2::UniswapV2Dex, uniswap_v3::UniswapV3Dex};
@@ -78,6 +80,85 @@ impl Dex {
                 Ok(uniswap_v3_dex.new_pool_from_event(log, middleware).await?)
             }
         }
+    }
+
+    pub async fn get_all_pools<M: 'static + Middleware>(
+        &self,
+        request_throttle: Arc<Mutex<RequestThrottle>>,
+        progress_bar: ProgressBar,
+        middleware: Arc<M>,
+    ) -> Result<Vec<Pool>, CFMMError<M>> {
+        match self {
+            Dex::UniswapV2(uniswap_v2_dex) => {
+                uniswap_v2_dex
+                    .get_all_pairs_via_batched_calls(middleware, request_throttle, progress_bar)
+                    .await
+            }
+            Dex::UniswapV3(_) => {
+                let current_block = middleware
+                    .get_block_number()
+                    .await
+                    .map_err(CFMMError::MiddlewareError)?;
+
+                self.get_all_pools_from_logs(
+                    middleware,
+                    current_block.into(),
+                    request_throttle,
+                    progress_bar,
+                )
+                .await
+            }
+        }
+    }
+
+    //Gets all pool data and sync reserves
+    pub async fn get_all_pool_data<M: Middleware>(
+        &self,
+        pools: &mut [Pool],
+        request_throttle: Arc<Mutex<RequestThrottle>>,
+        progress_bar: ProgressBar,
+        middleware: Arc<M>,
+    ) -> Result<(), CFMMError<M>> {
+        match self {
+            Dex::UniswapV2(_) => {
+                let step = 127; //Max batch size for call
+                for pools in pools.chunks_mut(step) {
+                    request_throttle
+                        .lock()
+                        .expect("Error when acquiring request throttle mutex lock")
+                        .increment_or_sleep(1);
+
+                    batch_requests::uniswap_v2::get_pool_data_batch_request(
+                        pools,
+                        middleware.clone(),
+                    )
+                    .await?;
+
+                    progress_bar.inc(step as u64);
+                }
+            }
+
+            Dex::UniswapV3(_) => {
+                let step = 76; //Max batch size for call
+                for pools in pools.chunks_mut(step) {
+                    request_throttle
+                        .lock()
+                        .expect("Error when acquiring request throttle mutex lock")
+                        .increment_or_sleep(1);
+
+                    batch_requests::uniswap_v3::get_pool_data_batch_request(
+                        pools,
+                        middleware.clone(),
+                    )
+                    .await?;
+
+                    progress_bar.inc(step as u64);
+                }
+            }
+        }
+
+        //For each pair in the pairs vec, get the pool data
+        Ok(())
     }
 
     pub fn new_empty_pool_from_event<M: Middleware>(&self, log: Log) -> Result<Pool, CFMMError<M>> {
@@ -217,6 +298,71 @@ impl Dex {
                 }
             }
         }
+    }
+
+    //Function to get all pair created events for a given Dex factory address and sync pool data
+    pub async fn get_all_pools_from_logs<M: 'static + Middleware>(
+        self,
+        middleware: Arc<M>,
+        current_block: BlockNumber,
+        request_throttle: Arc<Mutex<RequestThrottle>>,
+        progress_bar: ProgressBar,
+    ) -> Result<Vec<Pool>, CFMMError<M>> {
+        //Define the step for searching a range of blocks for pair created events
+        let step = 100000;
+        //Unwrap can be used here because the creation block was verified within `Dex::new()`
+        let from_block = self
+            .creation_block()
+            .as_number()
+            .expect("Error using converting creation block as number")
+            .as_u64();
+        let current_block = current_block
+            .as_number()
+            .expect("Error using converting current block as number")
+            .as_u64();
+
+        let mut aggregated_pairs: Vec<Pool> = vec![];
+
+        //Initialize the progress bar message
+        progress_bar.set_length(current_block - from_block);
+
+        //For each block within the range, get all pairs asynchronously
+        for from_block in (from_block..=current_block).step_by(step) {
+            let request_throttle = request_throttle.clone();
+            let provider = middleware.clone();
+            let progress_bar = progress_bar.clone();
+
+            //Get pair created event logs within the block range
+            let to_block = from_block + step as u64;
+
+            //Update the throttle
+            request_throttle
+                .lock()
+                .expect("Error when acquiring request throttle mutex lock")
+                .increment_or_sleep(1);
+
+            let logs = provider
+                .get_logs(
+                    &Filter::new()
+                        .topic0(ValueOrArray::Value(self.pool_created_event_signature()))
+                        .address(self.factory_address())
+                        .from_block(BlockNumber::Number(U64([from_block])))
+                        .to_block(BlockNumber::Number(U64([to_block]))),
+                )
+                .await
+                .map_err(CFMMError::MiddlewareError)?;
+
+            //For each pair created log, create a new Pair type and add it to the pairs vec
+            for log in logs {
+                let pool = self.new_empty_pool_from_event(log)?;
+                aggregated_pairs.push(pool);
+            }
+
+            //Increment the progress bar by the step
+            progress_bar.inc(step as u64);
+        }
+
+        Ok(aggregated_pairs)
     }
 }
 

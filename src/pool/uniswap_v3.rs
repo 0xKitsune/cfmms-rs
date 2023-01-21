@@ -3,11 +3,11 @@ use std::{ops::Add, sync::Arc};
 use ethers::{
     abi::{decode, ethabi::Bytes, ParamType, Token},
     providers::Middleware,
-    types::{Log, H160, I256, U256},
+    types::{Log, H160, I256, U256, U64},
 };
 use num_bigfloat::BigFloat;
 
-use crate::{abi, error::CFMMError};
+use crate::{abi, batch_requests, error::CFMMError};
 
 pub const MIN_SQRT_RATIO: U256 = U256([4295128739, 0, 0, 0]);
 pub const MAX_SQRT_RATIO: U256 = U256([6743328256752651558, 17280870778742802505, 4294805859, 0]);
@@ -24,7 +24,6 @@ pub struct UniswapV3Pool {
     pub fee: u32,
     pub tick: i32,
     pub tick_spacing: i32,
-    pub tick_word: U256, //TODO: FIXME: Remove tick word, we do not need to be tracking this in the pool, we are calling the tick word from the pool
     pub liquidity_net: i128,
 }
 
@@ -41,7 +40,6 @@ impl UniswapV3Pool {
         sqrt_price: U256,
         tick: i32,
         tick_spacing: i32,
-        tick_word: U256,
         liquidity_net: i128,
     ) -> UniswapV3Pool {
         UniswapV3Pool {
@@ -55,7 +53,6 @@ impl UniswapV3Pool {
             sqrt_price,
             tick,
             tick_spacing,
-            tick_word,
             liquidity_net,
         }
     }
@@ -75,14 +72,15 @@ impl UniswapV3Pool {
             sqrt_price: U256::zero(),
             tick: 0,
             tick_spacing: 0,
-            tick_word: U256::zero(),
             fee: 0,
             liquidity_net: 0,
         };
 
         pool.get_pool_data(middleware.clone()).await?;
 
-        pool.sync_pool(middleware).await?;
+        if !pool.data_is_populated() {
+            return Err(CFMMError::PoolDataError());
+        }
 
         Ok(pool)
     }
@@ -91,13 +89,17 @@ impl UniswapV3Pool {
         &mut self,
         middleware: Arc<M>,
     ) -> Result<(), CFMMError<M>> {
-        self.token_a = self.get_token_0(middleware.clone()).await?;
-        self.token_b = self.get_token_1(middleware.clone()).await?;
-        (self.token_a_decimals, self.token_b_decimals) =
-            self.get_token_decimals(middleware.clone()).await?;
-        self.fee = self.get_fee(middleware.clone()).await?;
-        self.tick_spacing = self.get_tick_spacing(middleware.clone()).await?;
+        batch_requests::uniswap_v3::get_v3_pool_data_batch_request(self, middleware.clone())
+            .await?;
+
         Ok(())
+    }
+
+    pub fn data_is_populated(&self) -> bool {
+        !(self.token_a.is_zero()
+            || self.token_b.is_zero()
+            || self.liquidity == 0
+            || self.sqrt_price.is_zero())
     }
 
     pub async fn get_tick_word<M: Middleware>(
@@ -197,15 +199,7 @@ impl UniswapV3Pool {
         &mut self,
         middleware: Arc<M>,
     ) -> Result<(), CFMMError<M>> {
-        self.liquidity = self.get_liquidity(middleware.clone()).await?;
-
-        let slot_0 = self.get_slot_0(middleware.clone()).await?;
-        self.sqrt_price = slot_0.0;
-        self.tick = slot_0.1;
-
-        self.tick_word = self.get_tick_word(self.tick, middleware.clone()).await?;
-        self.liquidity_net = self.get_liquidity_net(self.tick, middleware).await?;
-
+        batch_requests::uniswap_v3::sync_v3_pool_batch_request(self, middleware.clone()).await?;
         Ok(())
     }
 
@@ -216,7 +210,6 @@ impl UniswapV3Pool {
     ) -> Result<(), CFMMError<M>> {
         (_, _, self.sqrt_price, self.liquidity, self.tick) = self.decode_swap_log(swap_log);
 
-        self.tick_word = self.get_tick_word(self.tick, middleware.clone()).await?;
         self.liquidity_net = self.get_liquidity_net(self.tick, middleware).await?;
 
         Ok(())
@@ -363,6 +356,8 @@ impl UniswapV3Pool {
         amount_in: U256,
         middleware: Arc<M>,
     ) -> Result<U256, CFMMError<M>> {
+        //TODO:  revert with as if amount specified is 0
+
         //Initialize zero_for_one to true if token_in is token_a
         let zero_for_one = token_in == self.token_a;
 
@@ -373,6 +368,13 @@ impl UniswapV3Pool {
             MAX_SQRT_RATIO - 1
         };
 
+        let block_number = middleware
+            .get_block_number()
+            .await
+            .map_err(CFMMError::MiddlewareError)?;
+
+        let compressed = self.calculate_compressed(self.tick);
+
         //Initialize a mutable state state struct to hold the dynamic simulated state of the pool
         let mut current_state = CurrentState {
             sqrt_price_x_96: self.sqrt_price, //Active price on the pool
@@ -380,9 +382,18 @@ impl UniswapV3Pool {
             amount_specified_remaining: I256::from_raw(amount_in), //Amount of token_in that has not been swapped
             tick: self.tick,                                       //Current i24 tick of the pool
             liquidity: self.liquidity, //Current available liquidity in the tick range
+            word_pos: self.calculate_word_pos_bit_pos(compressed).0,
         };
 
-        while current_state.amount_specified_remaining > I256::zero()
+        let mut word = self
+            .get_word(
+                current_state.word_pos,
+                Some(block_number),
+                middleware.clone(),
+            )
+            .await?;
+
+        while current_state.amount_specified_remaining != I256::zero()
             && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96
         {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
@@ -391,14 +402,28 @@ impl UniswapV3Pool {
                 ..Default::default()
             };
 
+            let compressed = self.calculate_compressed(current_state.tick);
+            let (word_pos, bit_pos) = self.calculate_word_pos_bit_pos(compressed);
+
+            if word_pos != current_state.word_pos {
+                current_state.word_pos = word_pos;
+                word = self
+                    .get_word(
+                        current_state.word_pos,
+                        Some(block_number),
+                        middleware.clone(),
+                    )
+                    .await?;
+            }
+
             //Get the next initialized tick within one word of the current tick
             (step.tick_next, step.initialized) =
                 uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
-                    current_state.tick,
                     self.tick_spacing,
                     zero_for_one,
-                    self.address,
-                    middleware.clone(),
+                    compressed,
+                    bit_pos,
+                    word,
                 )
                 .await?;
 
@@ -437,8 +462,13 @@ impl UniswapV3Pool {
             )?;
 
             //Decrement the amount remaining to be swapped and amount received from the step
-            current_state.amount_specified_remaining -=
-                I256::from_raw(step.amount_in.add(step.fee_amount));
+            current_state.amount_specified_remaining = current_state
+                .amount_specified_remaining
+                .overflowing_sub(I256::from_raw(
+                    step.amount_in.overflowing_add(step.fee_amount).0,
+                ))
+                .0;
+
             current_state.amount_calculated -= I256::from_raw(step.amount_out);
 
             //If the price moved all the way to the next price, recompute the liquidity change for the next iteration
@@ -453,10 +483,11 @@ impl UniswapV3Pool {
                         liquidity_net = -liquidity_net;
                     }
 
-                    current_state.liquidity = uniswap_v3_math::liquidity_math::add_delta(
-                        current_state.liquidity,
-                        liquidity_net,
-                    )?;
+                    current_state.liquidity = if liquidity_net < 0 {
+                        current_state.liquidity - (-liquidity_net as u128)
+                    } else {
+                        current_state.liquidity + (liquidity_net as u128)
+                    }
                 }
                 //Increment the current tick
                 current_state.tick = if zero_for_one {
@@ -476,6 +507,40 @@ impl UniswapV3Pool {
         Ok((-current_state.amount_calculated).into_raw())
     }
 
+    pub async fn get_word<M: Middleware>(
+        &self,
+        word_pos: i16,
+        block_number: Option<U64>,
+        middleware: Arc<M>,
+    ) -> Result<U256, CFMMError<M>> {
+        if block_number.is_some() {
+            //TODO: in the future, create a batch call to get this and liquidity net within the same call
+            Ok(abi::IUniswapV3Pool::new(self.address, middleware.clone())
+                .tick_bitmap(word_pos)
+                .block(block_number.unwrap())
+                .call()
+                .await?)
+        } else {
+            //TODO: in the future, create a batch call to get this and liquidity net within the same call
+            Ok(abi::IUniswapV3Pool::new(self.address, middleware.clone())
+                .tick_bitmap(word_pos)
+                .call()
+                .await?)
+        }
+    }
+
+    pub fn calculate_compressed(&self, tick: i32) -> i32 {
+        if tick < 0 && tick % self.tick_spacing != 0 {
+            (tick / self.tick_spacing) - 1
+        } else {
+            tick / self.tick_spacing
+        }
+    }
+
+    pub fn calculate_word_pos_bit_pos(&self, compressed: i32) -> (i16, u8) {
+        uniswap_v3_math::tick_bit_map::position(compressed)
+    }
+
     pub async fn simulate_swap_mut<M: Middleware>(
         &mut self,
         token_in: H160,
@@ -492,6 +557,13 @@ impl UniswapV3Pool {
             MAX_SQRT_RATIO - 1
         };
 
+        let block_number = middleware
+            .get_block_number()
+            .await
+            .map_err(CFMMError::MiddlewareError)?;
+
+        let compressed = self.calculate_compressed(self.tick);
+
         //Initialize a mutable state state struct to hold the dynamic simulated state of the pool
         let mut current_state = CurrentState {
             sqrt_price_x_96: self.sqrt_price, //Active price on the pool
@@ -499,25 +571,50 @@ impl UniswapV3Pool {
             amount_specified_remaining: I256::from_raw(amount_in), //Amount of token_in that has not been swapped
             tick: self.tick,                                       //Current i24 tick of the pool
             liquidity: self.liquidity, //Current available liquidity in the tick range
+            word_pos: self.calculate_word_pos_bit_pos(compressed).0,
         };
+
+        let mut word = self
+            .get_word(
+                current_state.word_pos,
+                Some(block_number),
+                middleware.clone(),
+            )
+            .await?;
 
         let mut liquidity_net = self.liquidity_net;
 
-        while current_state.amount_specified_remaining > I256::zero() {
+        while current_state.amount_specified_remaining != I256::zero()
+            && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96
+        {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
             let mut step = StepComputations {
                 sqrt_price_start_x_96: current_state.sqrt_price_x_96, //Set the sqrt_price_start_x_96 to the current sqrt_price_x_96
                 ..Default::default()
             };
 
+            let compressed = self.calculate_compressed(current_state.tick);
+            let (word_pos, bit_pos) = self.calculate_word_pos_bit_pos(compressed);
+
+            if word_pos != current_state.word_pos {
+                current_state.word_pos = word_pos;
+                word = self
+                    .get_word(
+                        current_state.word_pos,
+                        Some(block_number),
+                        middleware.clone(),
+                    )
+                    .await?;
+            }
+
             //Get the next initialized tick within one word of the current tick
             (step.tick_next, step.initialized) =
                 uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
-                    current_state.tick,
                     self.tick_spacing,
                     zero_for_one,
-                    self.address,
-                    middleware.clone(),
+                    compressed,
+                    bit_pos,
+                    word,
                 )
                 .await?;
 
@@ -631,6 +728,7 @@ pub struct CurrentState {
     sqrt_price_x_96: U256,
     tick: i32,
     liquidity: u128,
+    word_pos: i16,
 }
 
 #[derive(Default)]
@@ -661,6 +759,8 @@ pub struct Tick {
 mod test {
     #[allow(unused)]
     use super::UniswapV3Pool;
+    #[allow(unused)]
+    use ethers::providers::Middleware;
     #[allow(unused)]
     use ethers::{
         prelude::abigen,
@@ -696,12 +796,12 @@ mod test {
             middleware.clone(),
         );
 
-        let amount_in = U256::from_dec_str("100000000").unwrap();
-        let amount_in_1 = U256::from_dec_str("10000000000").unwrap();
-        let amount_in_2 = U256::from_dec_str("10000000000").unwrap();
-        let amount_in_3 = U256::from_dec_str("100000000000").unwrap();
-        let amount_in_4 = U256::from_dec_str("10000000000000").unwrap();
+        let amount_in = U256::from_dec_str("100000000").unwrap(); // 100 USDC
+        let amount_in_1 = U256::from_dec_str("10000000000").unwrap(); // 10_000 USDC
+        let amount_in_2 = U256::from_dec_str("10000000000000").unwrap(); // 10_000_000 USDC
+        let amount_in_3 = U256::from_dec_str("100000000000000").unwrap(); // 100_000_000 USDC
 
+        let current_block = middleware.get_block_number().await.unwrap();
         let amount_out = pool
             .simulate_swap(pool.token_a, amount_in, middleware.clone())
             .await
@@ -715,10 +815,12 @@ mod test {
                 amount_in,
                 U256::zero(),
             )
+            .block(current_block)
             .call()
             .await
             .unwrap();
 
+        let current_block = middleware.get_block_number().await.unwrap();
         let amount_out_1 = pool
             .simulate_swap(pool.token_a, amount_in_1, middleware.clone())
             .await
@@ -732,10 +834,12 @@ mod test {
                 amount_in_1,
                 U256::zero(),
             )
+            .block(current_block)
             .call()
             .await
             .unwrap();
 
+        let current_block = middleware.get_block_number().await.unwrap();
         let amount_out_2 = pool
             .simulate_swap(pool.token_a, amount_in_2, middleware.clone())
             .await
@@ -749,10 +853,12 @@ mod test {
                 amount_in_2,
                 U256::zero(),
             )
+            .block(current_block)
             .call()
             .await
             .unwrap();
 
+        let current_block = middleware.get_block_number().await.unwrap();
         let amount_out_3 = pool
             .simulate_swap(pool.token_a, amount_in_3, middleware.clone())
             .await
@@ -765,23 +871,7 @@ mod test {
                 amount_in_3,
                 U256::zero(),
             )
-            .call()
-            .await
-            .unwrap();
-
-        let amount_out_4 = pool
-            .simulate_swap(pool.token_a, amount_in_4, middleware.clone())
-            .await
-            .unwrap();
-
-        let expected_amount_out_4 = quoter
-            .quote_exact_input_single(
-                pool.token_a,
-                pool.token_b,
-                pool.fee,
-                amount_in_4,
-                U256::zero(),
-            )
+            .block(current_block)
             .call()
             .await
             .unwrap();
@@ -790,6 +880,85 @@ mod test {
         assert_eq!(amount_out_1, expected_amount_out_1);
         assert_eq!(amount_out_2, expected_amount_out_2);
         assert_eq!(amount_out_3, expected_amount_out_3);
-        assert_eq!(amount_out_4, expected_amount_out_4);
+    }
+
+    #[tokio::test]
+    async fn test_get_new_from_address() {
+        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
+            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let pool = UniswapV3Pool::new_from_address(
+            H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            middleware.clone(),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            pool.address,
+            H160::from_str("0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640").unwrap()
+        );
+        assert_eq!(
+            pool.token_a,
+            H160::from_str("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48").unwrap()
+        );
+        assert_eq!(pool.token_a_decimals, 6);
+        assert_eq!(
+            pool.token_b,
+            H160::from_str("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2").unwrap()
+        );
+        assert_eq!(pool.token_b_decimals, 18);
+        assert_eq!(pool.fee, 500);
+        assert!(pool.tick != 0);
+        assert_eq!(pool.tick_spacing, 10);
+    }
+
+    #[tokio::test]
+    async fn test_get_pool_data() {
+        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
+            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let mut pool = UniswapV3Pool {
+            address: H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            ..Default::default()
+        };
+
+        pool.get_pool_data(middleware).await.unwrap();
+
+        assert_eq!(
+            pool.address,
+            H160::from_str("0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640").unwrap()
+        );
+        assert_eq!(
+            pool.token_a,
+            H160::from_str("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48").unwrap()
+        );
+        assert_eq!(pool.token_a_decimals, 6);
+        assert_eq!(
+            pool.token_b,
+            H160::from_str("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2").unwrap()
+        );
+        assert_eq!(pool.token_b_decimals, 18);
+        assert_eq!(pool.fee, 500);
+        assert!(pool.tick != 0);
+        assert_eq!(pool.tick_spacing, 10);
+    }
+
+    #[tokio::test]
+    async fn test_sync_pool() {
+        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
+            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let mut pool = UniswapV3Pool {
+            address: H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            ..Default::default()
+        };
+
+        pool.sync_pool(middleware).await.unwrap();
+
+        //TODO: need to assert values
     }
 }
