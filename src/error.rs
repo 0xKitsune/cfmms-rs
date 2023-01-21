@@ -1,5 +1,5 @@
 use ethers::prelude::{AbiError, ContractError};
-use ethers::providers::Middleware;
+use ethers::providers::{Middleware, ProviderError};
 use ethers::types::H160;
 use thiserror::Error;
 use tokio::task::JoinError;
@@ -12,6 +12,8 @@ where
 {
     #[error("Middleware error")]
     MiddlewareError(<M as Middleware>::Error),
+    #[error("Provider error")]
+    ProviderError(#[from] ProviderError),
     #[error("Contract error")]
     ContractError(#[from] ContractError<M>),
     #[error("ABI Codec error")]
@@ -26,4 +28,8 @@ where
     PairDoesNotExistInDexes(H160, H160),
     #[error("Could not initialize new pool from event log")]
     UnrecognizedPoolCreatedEventLog,
+    #[error("Error when syncing pool")]
+    SyncError(H160),
+    #[error("Error when getting pool data")]
+    PoolDataError,
 }
