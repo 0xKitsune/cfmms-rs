@@ -369,7 +369,7 @@ impl UniswapV3Pool {
         let price = BigFloat::from_u128(
             ((self.sqrt_price.overflowing_mul(self.sqrt_price).0) >> 128).as_u128(),
         )
-        .div(&BigFloat::from(2_u64.pow(64)))
+        .div(&BigFloat::from(2_u128.pow(64)))
         .mul(&BigFloat::from(2_u64.pow(
             (self.token_a_decimals as i8 - self.token_b_decimals as i8) as u32,
         )));
