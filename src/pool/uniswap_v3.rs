@@ -378,9 +378,8 @@ impl UniswapV3Pool {
             ((self.sqrt_price.overflowing_mul(self.sqrt_price).0) >> 128).as_u128(),
         )
         .div(&BigFloat::from(2_u128.pow(64)))
-        .mul(&BigFloat::from(2_u64.pow(
-            (self.token_a_decimals as i8 - self.token_b_decimals as i8) as u32,
-        )));
+        .mul(&BigFloat::from(10_u128.pow(self.token_a_decimals.into())))
+        .div(&BigFloat::from(10_u128.pow(self.token_b_decimals.into())));
 
         if self.token_a == base_token {
             price.to_f64()
