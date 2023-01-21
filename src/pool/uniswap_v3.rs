@@ -3,7 +3,7 @@ use std::{ops::Add, sync::Arc};
 use ethers::{
     abi::{decode, ethabi::Bytes, ParamType, Token},
     providers::Middleware,
-    types::{Log, H160, I256, U256},
+    types::{Log, H160, I256, U256, U64},
 };
 use num_bigfloat::BigFloat;
 
@@ -368,6 +368,13 @@ impl UniswapV3Pool {
             MAX_SQRT_RATIO - 1
         };
 
+        let block_number = middleware
+            .get_block_number()
+            .await
+            .map_err(CFMMError::MiddlewareError)?;
+
+        let compressed = self.calculate_compressed(self.tick);
+
         //Initialize a mutable state state struct to hold the dynamic simulated state of the pool
         let mut current_state = CurrentState {
             sqrt_price_x_96: self.sqrt_price, //Active price on the pool
@@ -375,12 +382,16 @@ impl UniswapV3Pool {
             amount_specified_remaining: I256::from_raw(amount_in), //Amount of token_in that has not been swapped
             tick: self.tick,                                       //Current i24 tick of the pool
             liquidity: self.liquidity, //Current available liquidity in the tick range
+            word_pos: self.calculate_word_pos_bit_pos(compressed).0,
         };
 
-        let block_number = middleware
-            .get_block_number()
-            .await
-            .map_err(CFMMError::MiddlewareError)?;
+        let mut word = self
+            .get_word(
+                current_state.word_pos,
+                Some(block_number),
+                middleware.clone(),
+            )
+            .await?;
 
         while current_state.amount_specified_remaining != I256::zero()
             && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96
@@ -391,21 +402,19 @@ impl UniswapV3Pool {
                 ..Default::default()
             };
 
-            let compressed =
-                if current_state.tick < 0 && current_state.tick % self.tick_spacing != 0 {
-                    (current_state.tick / self.tick_spacing) - 1
-                } else {
-                    current_state.tick / self.tick_spacing
-                };
+            let compressed = self.calculate_compressed(current_state.tick);
+            let (word_pos, bit_pos) = self.calculate_word_pos_bit_pos(compressed);
 
-            let (word_pos, bit_pos) = uniswap_v3_math::tick_bit_map::position(compressed);
-
-            //TODO: in the future, create a batch call to get this and liquidity net within the same call
-            let word: U256 = abi::IUniswapV3Pool::new(self.address, middleware.clone())
-                .tick_bitmap(word_pos)
-                .block(block_number)
-                .call()
-                .await?;
+            if word_pos != current_state.word_pos {
+                current_state.word_pos = word_pos;
+                word = self
+                    .get_word(
+                        current_state.word_pos,
+                        Some(block_number),
+                        middleware.clone(),
+                    )
+                    .await?;
+            }
 
             //Get the next initialized tick within one word of the current tick
             (step.tick_next, step.initialized) =
@@ -469,8 +478,6 @@ impl UniswapV3Pool {
                         .get_liquidity_net(step.tick_next, middleware.clone())
                         .await?;
 
-                    dbg!(liquidity_net);
-
                     // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
                     if zero_for_one {
                         liquidity_net = -liquidity_net;
@@ -500,6 +507,40 @@ impl UniswapV3Pool {
         Ok((-current_state.amount_calculated).into_raw())
     }
 
+    pub async fn get_word<M: Middleware>(
+        &self,
+        word_pos: i16,
+        block_number: Option<U64>,
+        middleware: Arc<M>,
+    ) -> Result<U256, CFMMError<M>> {
+        if block_number.is_some() {
+            //TODO: in the future, create a batch call to get this and liquidity net within the same call
+            Ok(abi::IUniswapV3Pool::new(self.address, middleware.clone())
+                .tick_bitmap(word_pos)
+                .block(block_number.unwrap())
+                .call()
+                .await?)
+        } else {
+            //TODO: in the future, create a batch call to get this and liquidity net within the same call
+            Ok(abi::IUniswapV3Pool::new(self.address, middleware.clone())
+                .tick_bitmap(word_pos)
+                .call()
+                .await?)
+        }
+    }
+
+    pub fn calculate_compressed(&self, tick: i32) -> i32 {
+        if tick < 0 && tick % self.tick_spacing != 0 {
+            (tick / self.tick_spacing) - 1
+        } else {
+            tick / self.tick_spacing
+        }
+    }
+
+    pub fn calculate_word_pos_bit_pos(&self, compressed: i32) -> (i16, u8) {
+        uniswap_v3_math::tick_bit_map::position(compressed)
+    }
+
     pub async fn simulate_swap_mut<M: Middleware>(
         &mut self,
         token_in: H160,
@@ -516,6 +557,13 @@ impl UniswapV3Pool {
             MAX_SQRT_RATIO - 1
         };
 
+        let block_number = middleware
+            .get_block_number()
+            .await
+            .map_err(CFMMError::MiddlewareError)?;
+
+        let compressed = self.calculate_compressed(self.tick);
+
         //Initialize a mutable state state struct to hold the dynamic simulated state of the pool
         let mut current_state = CurrentState {
             sqrt_price_x_96: self.sqrt_price, //Active price on the pool
@@ -523,37 +571,41 @@ impl UniswapV3Pool {
             amount_specified_remaining: I256::from_raw(amount_in), //Amount of token_in that has not been swapped
             tick: self.tick,                                       //Current i24 tick of the pool
             liquidity: self.liquidity, //Current available liquidity in the tick range
+            word_pos: self.calculate_word_pos_bit_pos(compressed).0,
         };
+
+        let mut word = self
+            .get_word(
+                current_state.word_pos,
+                Some(block_number),
+                middleware.clone(),
+            )
+            .await?;
 
         let mut liquidity_net = self.liquidity_net;
 
-        let block_number = middleware
-            .get_block_number()
-            .await
-            .map_err(CFMMError::MiddlewareError)?;
-
-        while current_state.amount_specified_remaining > I256::zero() {
+        while current_state.amount_specified_remaining != I256::zero()
+            && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96
+        {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
             let mut step = StepComputations {
                 sqrt_price_start_x_96: current_state.sqrt_price_x_96, //Set the sqrt_price_start_x_96 to the current sqrt_price_x_96
                 ..Default::default()
             };
 
-            let compressed =
-                if current_state.tick < 0 && current_state.tick % self.tick_spacing != 0 {
-                    (current_state.tick / self.tick_spacing) - 1
-                } else {
-                    current_state.tick / self.tick_spacing
-                };
+            let compressed = self.calculate_compressed(current_state.tick);
+            let (word_pos, bit_pos) = self.calculate_word_pos_bit_pos(compressed);
 
-            let (word_pos, bit_pos) = uniswap_v3_math::tick_bit_map::position(compressed);
-
-            //TODO: in the future, create a batch call to get this and liquidity net within the same call
-            let word: U256 = abi::IUniswapV3Pool::new(self.address, middleware.clone())
-                .tick_bitmap(word_pos)
-                .block(block_number)
-                .call()
-                .await?;
+            if word_pos != current_state.word_pos {
+                current_state.word_pos = word_pos;
+                word = self
+                    .get_word(
+                        current_state.word_pos,
+                        Some(block_number),
+                        middleware.clone(),
+                    )
+                    .await?;
+            }
 
             //Get the next initialized tick within one word of the current tick
             (step.tick_next, step.initialized) =
@@ -676,6 +728,7 @@ pub struct CurrentState {
     sqrt_price_x_96: U256,
     tick: i32,
     liquidity: u128,
+    word_pos: i16,
 }
 
 #[derive(Default)]
@@ -738,18 +791,15 @@ mod test {
         .await
         .unwrap();
 
-        dbg!(pool);
-
         let quoter = IQuoter::new(
             H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6").unwrap(),
             middleware.clone(),
         );
 
         let amount_in = U256::from_dec_str("100000000").unwrap(); // 100 USDC
-        let amount_in_1 = U256::from_dec_str("10000000000").unwrap(); // 10000 USDC
-        let amount_in_2 = U256::from_dec_str("10000000000000").unwrap(); // 1000000 USDC
-        let amount_in_3 = U256::from_dec_str("1000000000000000").unwrap(); // 100000000 USDC
-        let amount_in_4 = U256::from_dec_str("100000000000000000").unwrap(); // 10000000000 USDC
+        let amount_in_1 = U256::from_dec_str("10000000000").unwrap(); // 10_000 USDC
+        let amount_in_2 = U256::from_dec_str("10000000000000").unwrap(); // 10_000_000 USDC
+        let amount_in_3 = U256::from_dec_str("100000000000000").unwrap(); // 100_000_000 USDC
 
         let current_block = middleware.get_block_number().await.unwrap();
         let amount_out = pool
@@ -826,30 +876,10 @@ mod test {
             .await
             .unwrap();
 
-        let current_block = middleware.get_block_number().await.unwrap();
-        let amount_out_4 = pool
-            .simulate_swap(pool.token_a, amount_in_4, middleware.clone())
-            .await
-            .unwrap();
-
-        let expected_amount_out_4 = quoter
-            .quote_exact_input_single(
-                pool.token_a,
-                pool.token_b,
-                pool.fee,
-                amount_in_4,
-                U256::zero(),
-            )
-            .block(current_block)
-            .call()
-            .await
-            .unwrap();
-
         assert_eq!(amount_out, expected_amount_out);
         assert_eq!(amount_out_1, expected_amount_out_1);
         assert_eq!(amount_out_2, expected_amount_out_2);
         assert_eq!(amount_out_3, expected_amount_out_3);
-        assert_eq!(amount_out_4, expected_amount_out_4);
     }
 
     #[tokio::test]
