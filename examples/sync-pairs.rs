@@ -13,10 +13,12 @@ use cfmms::{
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     //Add rpc endpoint here:
-    let rpc_endpoint = "";
+    let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
+        .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
     let dexes = vec![
+        //UniswapV2
         (Dex::new(
             H160::from_str("0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f").unwrap(),
             DexVariant::UniswapV2,
@@ -35,8 +37,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
             12369621,
         ),
     ];
+
     //Sync pairs
-    sync::sync_pairs(dexes, provider, false).await?;
+    sync::sync_pairs(dexes, provider, None).await?;
 
     Ok(())
 }
