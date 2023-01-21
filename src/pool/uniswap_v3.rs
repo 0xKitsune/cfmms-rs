@@ -996,4 +996,21 @@ mod test {
 
         //TODO: need to assert values
     }
+
+    #[tokio::test]
+    async fn test_calculate_price() {
+        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
+            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let pool = UniswapV3Pool::new_from_address(
+            H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            middleware,
+        )
+        .await
+        .unwrap();
+
+        pool.calculate_price(pool.token_a);
+        pool.calculate_price(pool.token_b);
+    }
 }
