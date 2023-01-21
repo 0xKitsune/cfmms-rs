@@ -9,7 +9,7 @@ use indicatif::ProgressBar;
 use crate::{
     abi, batch_requests,
     error::CFMMError,
-    pool::{self, Pool, UniswapV2Pool, UniswapV3Pool},
+    pool::{Pool, UniswapV2Pool, UniswapV3Pool},
     throttle::RequestThrottle,
 };
 
@@ -65,7 +65,7 @@ impl Dex {
         log: Log,
         middleware: Arc<M>,
     ) -> Result<Pool, CFMMError<M>> {
-        pool::Pool::new_from_event_log(log, middleware).await
+        Pool::new_from_event_log(log, middleware).await
     }
 
     pub async fn get_all_pools<M: 'static + Middleware>(
