@@ -21,12 +21,5 @@ Sync pairs simulate swaps, and interact with constant function market makers on 
 
 ## Running Examples
 
-To run any of the examples, supply your node endpoint to the endpoint variable in each example file. For example in `sync-pairs.rs`:
-
-```rust
-    //Add rpc endpoint here:
-    let rpc_endpoint = "";
-```
-
-Once you have supplied a node endpoint, you can simply run `cargo run --example <example_name>`.
+To run any of the examples, first set a local environment variable called `ETHEREUM_MAINNET_ENDPOINT`. Then you can simply run `cargo run --example <example_name>`.
 
