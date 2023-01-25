@@ -70,6 +70,7 @@ pub async fn get_pool_data_batch_request<M: Middleware>(
         GetUniswapV2PoolDataBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
 
     let return_data: Bytes = deployer.call_raw().await?;
+
     let return_data_tokens = ethers::abi::decode(
         &[ParamType::Array(Box::new(ParamType::Tuple(vec![
             ParamType::Address,   // token a
