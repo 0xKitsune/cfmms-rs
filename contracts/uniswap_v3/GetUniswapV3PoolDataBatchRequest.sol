@@ -97,7 +97,7 @@ contract GetUniswapV3PoolDataBatchRequest {
                     if (tokenADecimals == 0 || tokenADecimals > 255) {
                         continue;
                     } else {
-                        poolData.tokenBDecimals = uint8(tokenADecimals);
+                        poolData.tokenADecimals = uint8(tokenADecimals);
                     }
                 } else {
                     continue;
