@@ -77,7 +77,6 @@ contract GetUniswapV2PoolDataBatchRequest {
             } else {
                 continue;
             }
-
             //Get tokenB decimals
 
             (
