@@ -385,9 +385,9 @@ impl UniswapV3Pool {
         };
 
         if self.token_a == base_token {
-            price.to_f64() 
+            price.to_f64()
         } else {
-            1.0 / price.to_f64() 
+            1.0 / price.to_f64()
         }
     }
 
@@ -802,13 +802,12 @@ pub struct Tick {
 }
 
 mod test {
-    
 
     #[allow(unused)]
     use super::UniswapV3Pool;
     #[allow(unused)]
     use ethers::providers::Middleware;
-    
+
     #[allow(unused)]
     use ethers::{
         prelude::abigen,
@@ -1012,7 +1011,8 @@ mod test {
 
     #[tokio::test]
     async fn test_calculate_price() {
-        let rpc_endpoint = "https://eth-mainnet.g.alchemy.com/v2/n7DSu4QTrnPaK5zWGA71oUQniLzvfJKP";
+        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
+            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
 
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
@@ -1035,7 +1035,7 @@ mod test {
 
         let float_price_b = pool.calculate_price(pool.token_b);
 
-        assert_eq!(float_price_a,0.0006081387089824173);
-        assert_eq!(float_price_b,1644.3616977996253);
+        assert_eq!(float_price_a, 0.0006081387089824173);
+        assert_eq!(float_price_b, 1644.3616977996253);
     }
 }
