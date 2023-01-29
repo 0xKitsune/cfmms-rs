@@ -803,7 +803,7 @@ pub struct Tick {
 
 mod test {
 
-    use crate::abi::IUniswapV3Pool;
+    
 
     #[allow(unused)]
     use super::UniswapV3Pool;
