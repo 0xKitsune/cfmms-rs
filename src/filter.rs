@@ -169,11 +169,11 @@ pub async fn filter_pools_below_usd_threshold_with_throttle<M: Middleware>(
             Ok(weth_value_in_pool) => weth_value_in_pool * usd_price_per_weth,
             Err(pair_sync_error) => match pair_sync_error {
                 CFMMError::PairDoesNotExistInDexes(token_a, token_b) => {
-                    println!("Pair does not exist in dexes: {:?} {:?}", token_a, token_b);
+                    println!("Pair does not exist in dexes: {token_a:?} {token_b:?}");
                     0.0
                 }
                 CFMMError::ContractError(contract_error) => {
-                    println!("Contract Error: {:?}", contract_error);
+                    println!("Contract Error: {contract_error:?}");
 
                     0.0
                 }
