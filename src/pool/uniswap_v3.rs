@@ -365,6 +365,14 @@ impl UniswapV3Pool {
         )
     }
 
+    // Calculate a human readable price from sqrt_ratio_x96.
+    //
+    // @dev sqrt_ratio_x96 = _token_a_price.pow(-2) * 2.pow(96)
+    // @dev _token_a_price = (token_b_amount * 10.pow(token_b_decimals)) / (1 * 10.pow(token_a_decimals))
+    //
+    // @param { H160 } base_token
+    // @returns { f64 } token_b_amount (swap through 1 token_a)
+    //
     pub fn calculate_price(&self, base_token: H160) -> f64 {
         let price = if self.token_b_decimals > self.token_a_decimals {
             BigFloat::from_u128(
