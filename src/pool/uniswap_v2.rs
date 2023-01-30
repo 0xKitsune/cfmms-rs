@@ -314,9 +314,12 @@ impl UniswapV2Pool {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
+    use std::{str::FromStr, sync::Arc};
 
-    use ethers::types::{H160, U256};
+    use ethers::{
+        providers::{Http, Provider},
+        types::{H160, U256},
+    };
 
     use super::UniswapV2Pool;
 
@@ -330,5 +333,65 @@ mod tests {
             H160::from_str("0x41c36f504BE664982e7519480409Caf36EE4f008").unwrap(),
             vec![],
         );
+    }
+
+    #[tokio::test]
+    async fn test_get_new_from_address() {
+        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
+            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let pool = UniswapV2Pool::new_from_address(
+            H160::from_str("0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc").unwrap(),
+            middleware.clone(),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            pool.address,
+            H160::from_str("0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc").unwrap()
+        );
+        assert_eq!(
+            pool.token_a,
+            H160::from_str("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48").unwrap()
+        );
+        assert_eq!(pool.token_a_decimals, 6);
+        assert_eq!(
+            pool.token_b,
+            H160::from_str("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2").unwrap()
+        );
+        assert_eq!(pool.token_b_decimals, 18);
+        assert_eq!(pool.fee, 300);
+    }
+
+    #[tokio::test]
+    async fn test_get_pool_data() {
+        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
+            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let mut pool = UniswapV2Pool {
+            address: H160::from_str("0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc").unwrap(),
+            ..Default::default()
+        };
+
+        pool.get_pool_data(middleware).await.unwrap();
+
+        assert_eq!(
+            pool.address,
+            H160::from_str("0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc").unwrap()
+        );
+        assert_eq!(
+            pool.token_a,
+            H160::from_str("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48").unwrap()
+        );
+        assert_eq!(pool.token_a_decimals, 6);
+        assert_eq!(
+            pool.token_b,
+            H160::from_str("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2").unwrap()
+        );
+        assert_eq!(pool.token_b_decimals, 18);
+        assert_eq!(pool.fee, 300);
     }
 }

@@ -374,12 +374,23 @@ impl UniswapV3Pool {
     // @returns { f64 } token_b_amount (swap through 1 token_a)
     //
     pub fn calculate_price(&self, base_token: H160) -> f64 {
-        let price = BigFloat::from_u128(
-            ((self.sqrt_price.overflowing_mul(self.sqrt_price).0) >> 128).as_u128(),
-        )
-        .div(&BigFloat::from(2_u128.pow(64)))
-        .mul(&BigFloat::from(10_u128.pow(self.token_a_decimals.into())))
-        .div(&BigFloat::from(10_u128.pow(self.token_b_decimals.into())));
+        let price = if self.token_b_decimals > self.token_a_decimals {
+            BigFloat::from_u128(
+                ((self.sqrt_price.overflowing_mul(self.sqrt_price).0) >> 128).as_u128(),
+            )
+            .div(&BigFloat::from(2_u128.pow(64)))
+            .div(&BigFloat::from(
+                10_u64.pow((self.token_b_decimals as i8 - self.token_a_decimals as i8) as u32),
+            ))
+        } else {
+            BigFloat::from_u128(
+                ((self.sqrt_price.overflowing_mul(self.sqrt_price).0) >> 128).as_u128(),
+            )
+            .div(&BigFloat::from(2_u128.pow(64)))
+            .mul(&BigFloat::from(
+                10_u64.pow((self.token_a_decimals as i8 - self.token_b_decimals as i8) as u32),
+            ))
+        };
 
         if self.token_a == base_token {
             price.to_f64()
@@ -800,9 +811,13 @@ pub struct Tick {
 
 mod test {
     #[allow(unused)]
+    use crate::abi::IUniswapV3Pool;
+
+    #[allow(unused)]
     use super::UniswapV3Pool;
     #[allow(unused)]
     use ethers::providers::Middleware;
+
     #[allow(unused)]
     use ethers::{
         prelude::abigen,
@@ -1008,16 +1023,29 @@ mod test {
     async fn test_calculate_price() {
         let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
             .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
-        let pool = UniswapV3Pool::new_from_address(
-            H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
-            middleware,
-        )
-        .await
-        .unwrap();
+        let mut pool = UniswapV3Pool {
+            address: H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            ..Default::default()
+        };
 
-        pool.calculate_price(pool.token_a);
-        pool.calculate_price(pool.token_b);
+        pool.get_pool_data(middleware.clone()).await.unwrap();
+
+        let block_pool = IUniswapV3Pool::new(
+            H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            middleware.clone(),
+        );
+
+        let sqrt_price = block_pool.slot_0().block(16515398).call().await.unwrap().0;
+        pool.sqrt_price = sqrt_price;
+
+        let float_price_a = pool.calculate_price(pool.token_a);
+
+        let float_price_b = pool.calculate_price(pool.token_b);
+
+        assert_eq!(float_price_a, 0.0006081387089824173);
+        assert_eq!(float_price_b, 1644.3616977996253);
     }
 }

@@ -30,7 +30,6 @@ pub async fn get_pool_data_batch_request<M: Middleware>(
     }
 
     let constructor_args = Token::Tuple(vec![Token::Array(target_addresses)]);
-
     let deployer =
         GetUniswapV3PoolDataBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
 

@@ -406,6 +406,6 @@ mod tests {
             .await
             .expect("Could not get all pools for pair");
 
-        println!("Pools: {:?}", pools);
+        println!("Pools: {pools:?}");
     }
 }

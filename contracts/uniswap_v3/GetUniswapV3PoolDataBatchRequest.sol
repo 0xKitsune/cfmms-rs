@@ -1,11 +1,6 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-/**
- @dev This contract is not meant to be deployed. Instead, use a static call with the
-      deployment bytecode as payload.
- */
-
 interface IUniswapV3Pool {
     function token0() external view returns (address);
 
@@ -80,6 +75,10 @@ contract GetUniswapV3PoolDataBatchRequest {
             poolData.tokenA = IUniswapV3Pool(poolAddress).token0();
             poolData.tokenB = IUniswapV3Pool(poolAddress).token1();
 
+            //Check that tokenA and tokenB do not have codesize of 0
+            if (codeSizeIsZero(poolData.tokenA)) continue;
+            if (codeSizeIsZero(poolData.tokenB)) continue;
+
             //Get tokenA decimals
             (
                 bool tokenADecimalsSuccess,
@@ -90,9 +89,12 @@ contract GetUniswapV3PoolDataBatchRequest {
                 uint256 tokenADecimals;
 
                 if (tokenADecimalsData.length == 32) {
-                    (tokenADecimals) = abi.decode(tokenADecimalsData, (uint8));
+                    (tokenADecimals) = abi.decode(
+                        tokenADecimalsData,
+                        (uint256)
+                    );
 
-                    if (tokenADecimals == 0) {
+                    if (tokenADecimals == 0 || tokenADecimals > 255) {
                         continue;
                     } else {
                         poolData.tokenADecimals = uint8(tokenADecimals);
@@ -112,9 +114,12 @@ contract GetUniswapV3PoolDataBatchRequest {
             if (tokenBDecimalsSuccess) {
                 uint256 tokenBDecimals;
                 if (tokenBDecimalsData.length == 32) {
-                    (tokenBDecimals) = abi.decode(tokenBDecimalsData, (uint8));
+                    (tokenBDecimals) = abi.decode(
+                        tokenBDecimalsData,
+                        (uint256)
+                    );
 
-                    if (tokenBDecimals == 0) {
+                    if (tokenBDecimals == 0 || tokenBDecimals > 255) {
                         continue;
                     } else {
                         poolData.tokenBDecimals = uint8(tokenBDecimals);

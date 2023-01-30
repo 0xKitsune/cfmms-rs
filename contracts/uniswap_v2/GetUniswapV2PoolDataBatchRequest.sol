@@ -47,6 +47,10 @@ contract GetUniswapV2PoolDataBatchRequest {
             poolData.tokenA = IUniswapV2Pair(poolAddress).token0();
             poolData.tokenB = IUniswapV2Pair(poolAddress).token1();
 
+            //Check that tokenA and tokenB do not have codesize of 0
+            if (codeSizeIsZero(poolData.tokenA)) continue;
+            if (codeSizeIsZero(poolData.tokenB)) continue;
+
             //Get tokenA decimals
             (
                 bool tokenADecimalsSuccess,
@@ -57,9 +61,12 @@ contract GetUniswapV2PoolDataBatchRequest {
                 uint256 tokenADecimals;
 
                 if (tokenADecimalsData.length == 32) {
-                    (tokenADecimals) = abi.decode(tokenADecimalsData, (uint8));
+                    (tokenADecimals) = abi.decode(
+                        tokenADecimalsData,
+                        (uint256)
+                    );
 
-                    if (tokenADecimals == 0) {
+                    if (tokenADecimals == 0 || tokenADecimals > 255) {
                         continue;
                     } else {
                         poolData.tokenADecimals = uint8(tokenADecimals);
@@ -81,9 +88,12 @@ contract GetUniswapV2PoolDataBatchRequest {
                 uint256 tokenBDecimals;
 
                 if (tokenBDecimalsData.length == 32) {
-                    (tokenBDecimals) = abi.decode(tokenBDecimalsData, (uint8));
+                    (tokenBDecimals) = abi.decode(
+                        tokenBDecimalsData,
+                        (uint256)
+                    );
 
-                    if (tokenBDecimals == 0) {
+                    if (tokenBDecimals == 0 || tokenBDecimals > 255) {
                         continue;
                     } else {
                         poolData.tokenBDecimals = uint8(tokenBDecimals);
