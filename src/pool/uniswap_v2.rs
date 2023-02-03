@@ -8,7 +8,7 @@ use ethers::{
 
 use crate::{abi, batch_requests, error::CFMMError};
 
-use super::fpm;
+use super::fixed_point_math;
 
 pub const SYNC_EVENT_SIGNATURE: H256 = H256([
     28, 65, 30, 154, 150, 224, 113, 36, 28, 47, 33, 247, 114, 107, 23, 174, 137, 227, 202, 180,
@@ -196,7 +196,7 @@ impl UniswapV2Pool {
 
     //Calculates base/quote, meaning the price of base token per quote (ie. exchange rate is X base per 1 quote)
     pub fn calculate_price(&self, base_token: H160) -> f64 {
-        fpm::q64_to_f64(self.calculate_price_64_x_64(base_token))
+        fixed_point_math::q64_to_f64(self.calculate_price_64_x_64(base_token))
     }
 
     pub fn calculate_price_64_x_64(&self, base_token: H160) -> u128 {
@@ -207,14 +207,14 @@ impl UniswapV2Pool {
 
         if base_token == self.token_a {
             if decimal_shift >= 0 {
-                fpm::div_uu(r_1, r_0) * 10u128.pow(decimal_shift as u32)
+                fixed_point_math::div_uu(r_1, r_0) * 10u128.pow(decimal_shift as u32)
             } else {
-                fpm::div_uu(r_1, r_0) / 10u128.pow(decimal_shift.unsigned_abs() as u32)
+                fixed_point_math::div_uu(r_1, r_0) / 10u128.pow(decimal_shift.unsigned_abs() as u32)
             }
         } else if decimal_shift >= 0 {
-            fpm::div_uu(r_0, r_1) / 10u128.pow(decimal_shift as u32)
+            fixed_point_math::div_uu(r_0, r_1) / 10u128.pow(decimal_shift as u32)
         } else {
-            fpm::div_uu(r_0, r_1) * 10u128.pow(decimal_shift.unsigned_abs() as u32)
+            fixed_point_math::div_uu(r_0, r_1) * 10u128.pow(decimal_shift.unsigned_abs() as u32)
         }
     }
 

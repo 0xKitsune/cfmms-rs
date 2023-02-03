@@ -10,7 +10,7 @@ use crate::{
     error::CFMMError,
 };
 
-pub mod fpm;
+pub mod fixed_point_math;
 pub mod uniswap_v2;
 pub mod uniswap_v3;
 pub use uniswap_v2::UniswapV2Pool;

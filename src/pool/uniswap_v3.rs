@@ -8,7 +8,7 @@ use ethers::{
 use num_bigfloat::BigFloat;
 use uniswap_v3_math::sqrt_price_math::Q96;
 
-use super::fpm;
+use super::fixed_point_math;
 
 use crate::{abi, batch_requests, error::CFMMError};
 
@@ -384,7 +384,7 @@ impl UniswapV3Pool {
     // @returns { f64 } token_b_amount (swap through 1 token_a)
     //
     pub fn calculate_price(&self, base_token: H160) -> f64 {
-        fpm::q64_to_f64(self.calculate_price_64_x_64(base_token))
+        fixed_point_math::q64_to_f64(self.calculate_price_64_x_64(base_token))
     }
 
     pub fn calculate_price_64_x_64(&self, base_token: H160) -> u128 {
