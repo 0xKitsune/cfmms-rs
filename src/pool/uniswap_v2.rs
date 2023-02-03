@@ -6,7 +6,6 @@ use ethers::{
     types::{Log, H160, H256, U256},
 };
 
-
 use crate::{abi, batch_requests, error::CFMMError};
 
 use super::fpm;
@@ -208,16 +207,15 @@ impl UniswapV2Pool {
 
         if base_token == self.token_a {
             if decimal_shift >= 0 {
-                fpm::div_uu(r_1, r_0)*10u128.pow(decimal_shift as u32)
-            }else {
-                fpm::div_uu(r_1, r_0)/10u128.pow(decimal_shift.abs() as u32)
+                fpm::div_uu(r_1, r_0) * 10u128.pow(decimal_shift as u32)
+            } else {
+                fpm::div_uu(r_1, r_0) / 10u128.pow(decimal_shift.abs() as u32)
             }
-            
         } else {
             if decimal_shift >= 0 {
-                fpm::div_uu(r_0, r_1)/10u128.pow(decimal_shift as u32)
-            }else {
-                fpm::div_uu(r_0, r_1)*10u128.pow(decimal_shift.abs() as u32)
+                fpm::div_uu(r_0, r_1) / 10u128.pow(decimal_shift as u32)
+            } else {
+                fpm::div_uu(r_0, r_1) * 10u128.pow(decimal_shift.abs() as u32)
             }
         }
     }
@@ -427,7 +425,6 @@ mod tests {
 
         pool.get_pool_data(middleware.clone()).await.unwrap();
 
-        
         pool.reserve_0 = 47092140895915;
         pool.reserve_1 = 28396598565590008529300;
 

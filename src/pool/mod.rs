@@ -1,7 +1,4 @@
-use std::{
-    cmp::Ordering,
-    sync::Arc,
-};
+use std::{cmp::Ordering, sync::Arc};
 
 use ethers::{
     providers::Middleware,

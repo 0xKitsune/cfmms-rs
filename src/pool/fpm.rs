@@ -3,11 +3,7 @@ use std::{
     str::FromStr,
 };
 
-use ethers::{
-    types::{U256},
-};
-
-
+use ethers::types::U256;
 
 //TODO: FIXME: handle errors gracefully and convert u256 fromstr to const values
 pub fn div_uu(x: U256, y: U256) -> u128 {
