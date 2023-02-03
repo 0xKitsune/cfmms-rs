@@ -209,14 +209,12 @@ impl UniswapV2Pool {
             if decimal_shift >= 0 {
                 fpm::div_uu(r_1, r_0) * 10u128.pow(decimal_shift as u32)
             } else {
-                fpm::div_uu(r_1, r_0) / 10u128.pow(decimal_shift.abs() as u32)
+                fpm::div_uu(r_1, r_0) / 10u128.pow(decimal_shift.unsigned_abs() as u32)
             }
+        } else if decimal_shift >= 0 {
+            fpm::div_uu(r_0, r_1) / 10u128.pow(decimal_shift as u32)
         } else {
-            if decimal_shift >= 0 {
-                fpm::div_uu(r_0, r_1) / 10u128.pow(decimal_shift as u32)
-            } else {
-                fpm::div_uu(r_0, r_1) * 10u128.pow(decimal_shift.abs() as u32)
-            }
+            fpm::div_uu(r_0, r_1) * 10u128.pow(decimal_shift.unsigned_abs() as u32)
         }
     }
 
