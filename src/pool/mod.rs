@@ -1,4 +1,9 @@
-use std::{cmp::Ordering, sync::Arc};
+use std::{
+    cmp::Ordering,
+    ops::{BitAnd, Div, Shl, Shr, ShrAssign},
+    str::FromStr,
+    sync::Arc,
+};
 
 use ethers::{
     providers::Middleware,
@@ -10,6 +15,7 @@ use crate::{
     error::CFMMError,
 };
 
+pub mod fpm;
 pub mod uniswap_v2;
 pub mod uniswap_v3;
 pub use uniswap_v2::UniswapV2Pool;
@@ -98,6 +104,13 @@ impl Pool {
         match self {
             Pool::UniswapV2(pool) => pool.calculate_price(base_token),
             Pool::UniswapV3(pool) => pool.calculate_price(base_token),
+        }
+    }
+
+    pub fn calculate_price_64_x_64(&self, base_token: H160) -> u128 {
+        match self {
+            Pool::UniswapV2(pool) => pool.calculate_price_64_x_64(base_token),
+            Pool::UniswapV3(pool) => pool.calculate_price_64_x_64(base_token),
         }
     }
 
