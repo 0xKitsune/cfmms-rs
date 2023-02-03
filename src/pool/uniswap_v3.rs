@@ -1,4 +1,4 @@
-use std::{ops::Add, str::FromStr, sync::Arc};
+use std::{ops::Add, sync::Arc};
 
 use ethers::{
     abi::{decode, ethabi::Bytes, ParamType, Token},
@@ -127,7 +127,7 @@ impl UniswapV3Pool {
     }
 
     pub fn fee(&self) -> u32 {
-        return self.fee;
+        self.fee
     }
 
     pub async fn get_pool_data<M: Middleware>(
@@ -399,7 +399,7 @@ impl UniswapV3Pool {
         let price_x_64 = if base_token == self.token_a {
             ((price_squared_x_96 / Q96).overflowing_mul(Q128).0 / Q96) >> 64
         } else {
-            Q224 / (price_squared_x_96 / Q96) >> 64
+            (Q224 / (price_squared_x_96 / Q96)) >> 64
         };
 
         price_x_64.as_u128()
@@ -1050,8 +1050,8 @@ mod test {
 
         let price_b_64_x = pool.calculate_price_64_x_64(pool.token_b);
 
-        assert_eq!(11218179125914784 as u128, price_a_64_x);
-        assert_eq!(30333119403920214119581 as u128, price_b_64_x);
+        assert_eq!(11218179125914784_u128, price_a_64_x);
+        assert_eq!(30333119403920214119581_u128, price_b_64_x);
     }
 
     #[tokio::test]
@@ -1081,7 +1081,7 @@ mod test {
         let float_price_b = pool.calculate_price(pool.token_b);
         dbg!(pool);
 
-        println!("Price A: {}", float_price_a);
-        println!("Price B: {}", float_price_b);
+        println!("Price A: {float_price_a}");
+        println!("Price B: {float_price_b}");
     }
 }

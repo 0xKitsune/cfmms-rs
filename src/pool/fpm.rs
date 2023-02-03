@@ -1,19 +1,13 @@
 use std::{
-    cmp::Ordering,
     ops::{BitAnd, Div, Shl, Shr, ShrAssign},
     str::FromStr,
-    sync::Arc,
 };
 
 use ethers::{
-    providers::Middleware,
-    types::{Log, H160, U256},
+    types::{U256},
 };
 
-use crate::{
-    dex::{self, DexVariant},
-    error::CFMMError,
-};
+
 
 //TODO: FIXME: handle errors gracefully and convert u256 fromstr to const values
 pub fn div_uu(x: U256, y: U256) -> u128 {
@@ -104,12 +98,12 @@ pub fn div_uu(x: U256, y: U256) -> u128 {
 
 //Converts a Q64 fixed point to a Q16 fixed point -> f64
 pub fn q64_to_f64(x: u128) -> f64 {
-    let decimals = ((x & 0xFFFFFFFFFFFFFFFF as u128) >> 48) as u32;
+    let decimals = ((x & 0xFFFFFFFFFFFFFFFF_u128) >> 48) as u32;
     let integers = ((x >> 64) & 0xFFFF) as u32;
 
     ((integers << 16) + decimals) as f64 / 2_f64.powf(16.0)
 }
 
-pub fn f64_to_q64(x: u128) -> f64 {
+pub fn f64_to_q64(_x: u128) -> f64 {
     0.0
 }

@@ -5,7 +5,7 @@ use ethers::{
     providers::Middleware,
     types::{Log, H160, H256, U256},
 };
-use num_bigfloat::BigFloat;
+
 
 use crate::{abi, batch_requests, error::CFMMError};
 
@@ -104,7 +104,7 @@ impl UniswapV2Pool {
     }
 
     pub fn fee(&self) -> u32 {
-        return self.fee;
+        self.fee
     }
 
     pub async fn get_pool_data<M: Middleware>(
