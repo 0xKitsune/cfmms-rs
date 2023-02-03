@@ -8,7 +8,7 @@ use ethers::types::U256;
 //TODO: FIXME: handle errors gracefully and convert u256 fromstr to const values
 pub fn div_uu(x: U256, y: U256) -> u128 {
     if !y.is_zero() {
-        let mut answer = U256::zero();
+        let mut answer;
 
         if x <= U256::from_str("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF").unwrap() {
             answer = x.shl(64).div(y);
