@@ -101,6 +101,10 @@ impl UniswapV2Pool {
         })
     }
 
+    pub fn fee(&self) -> u32 {
+        return self.fee;
+    }
+
     pub async fn get_pool_data<M: Middleware>(
         &mut self,
         middleware: Arc<M>,

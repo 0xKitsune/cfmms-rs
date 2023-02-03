@@ -39,6 +39,13 @@ impl Pool {
         }
     }
 
+    pub fn fee(&self) -> u32 {
+        match self {
+            Pool::UniswapV2(pool) => pool.fee(),
+            Pool::UniswapV3(pool) => pool.fee(),
+        }
+    }
+
     //Creates a new pool with all pool data populated from the pair address.
     pub async fn new_from_event_log<M: Middleware>(
         log: Log,
