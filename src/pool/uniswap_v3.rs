@@ -1028,7 +1028,7 @@ mod test {
     #[tokio::test]
     async fn test_calculate_price_64_x_64() {
         let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
-        .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
         let mut pool = UniswapV3Pool {

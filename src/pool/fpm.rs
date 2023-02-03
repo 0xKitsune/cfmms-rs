@@ -110,8 +110,6 @@ pub fn q64_to_f64(x: u128) -> f64 {
     ((integers << 16) + decimals) as f64 / 2_f64.powf(16.0)
 }
 
-
 pub fn f64_to_q64(x: u128) -> f64 {
- 0.0
+    0.0
 }
-
