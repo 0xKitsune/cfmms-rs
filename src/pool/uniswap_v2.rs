@@ -9,7 +9,7 @@ use num_bigfloat::BigFloat;
 
 use crate::{abi, batch_requests, error::CFMMError};
 
-use super::fpm::div_uu;
+use super::fpm;
 
 pub const SYNC_EVENT_SIGNATURE: H256 = H256([
     28, 65, 30, 154, 150, 224, 113, 36, 28, 47, 33, 247, 114, 107, 23, 174, 137, 227, 202, 180,
@@ -197,16 +197,7 @@ impl UniswapV2Pool {
 
     //Calculates base/quote, meaning the price of base token per quote (ie. exchange rate is X base per 1 quote)
     pub fn calculate_price(&self, base_token: H160) -> f64 {
-        let reserve_0 = BigFloat::from(self.reserve_0)
-            / BigFloat::from(10_u128.pow(self.token_a_decimals.into()));
-        let reserve_1 = BigFloat::from(self.reserve_1)
-            / BigFloat::from(10_u128.pow(self.token_b_decimals.into()));
-
-        if base_token == self.token_a {
-            (reserve_0 / reserve_1).to_f64()
-        } else {
-            (reserve_1 / reserve_0).to_f64()
-        }
+        fpm::q64_to_f64(self.calculate_price_64_x_64(base_token))
     }
 
     pub fn calculate_price_64_x_64(&self, base_token: H160) -> u128 {
@@ -214,9 +205,9 @@ impl UniswapV2Pool {
         let r_1 = U256::from(self.reserve_1);
 
         if base_token == self.token_a {
-            div_uu(r_0, r_1)
+            fpm::div_uu(r_0, r_1)
         } else {
-            div_uu(r_1, r_0)
+            fpm::div_uu(r_1, r_0)
         }
     }
 

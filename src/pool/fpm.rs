@@ -101,3 +101,17 @@ pub fn div_uu(x: U256, y: U256) -> u128 {
         panic!("bad")
     }
 }
+
+//Converts a Q64 fixed point to a Q16 fixed point -> f64
+pub fn q64_to_f64(x: u128) -> f64 {
+    let decimals = ((x & 0xFFFFFFFFFFFFFFFF as u128) >> 48) as u32;
+    let integers = ((x >> 64) & 0xFFFF) as u32;
+
+    ((integers << 16) + decimals) as f64 / 2_f64.powf(16.0)
+}
+
+
+pub fn f64_to_q64(x: u128) -> f64 {
+ 0.0
+}
+
