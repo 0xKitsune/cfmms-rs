@@ -17,6 +17,9 @@ pub const SWAP_EVENT_SIGNATURE: H256 = H256([
     235, 100, 254, 216, 0, 78, 17, 95, 188, 202, 103,
 ]);
 
+pub const Q128: U256 = U256([0, 0, 1, 0]);
+pub const Q224: U256 = U256([0, 0, 0, 4294967296]);
+
 #[derive(Clone, Copy, Debug, Default)]
 pub struct UniswapV3Pool {
     pub address: H160,
@@ -413,18 +416,14 @@ impl UniswapV3Pool {
             self.sqrt_price.pow(U256::from(2))*U256::from(10_u128.pow(decimal_shift as u32))
         };
 
-        let price_squared_shift_q_96 = if base_token == self.token_a {
-            price_squared_x_96 / Q96
-        } else {
-            Q96*U256::from_str("0xffffffffffffffffffffffffffffffff").unwrap() / (price_squared_x_96 / Q96)
-        };
 
         let price_x_64 = if base_token == self.token_a {
-            (price_squared_shift_q_96 * U256::from_str("0xffffffffffffffffffffffffffffffff").unwrap() / Q96) >> 64
-        } else {
-            price_squared_shift_q_96 >> 64
+            ((price_squared_x_96 / Q96).overflowing_mul(Q128).0 / Q96) >> 64
+        } else {    
+            Q224 / (price_squared_x_96 / Q96) >> 64 
         };
-        
+
+
         price_x_64.as_u128()
     }
 
@@ -1046,6 +1045,35 @@ mod test {
         pool.sync_pool(middleware).await.unwrap();
 
         //TODO: need to assert values
+    }
+
+    #[tokio::test]
+    async fn test_calculate_price_64_x_64() {
+        let rpc_endpoint = "https://eth-mainnet.g.alchemy.com/v2/n7DSu4QTrnPaK5zWGA71oUQniLzvfJKP";
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let mut pool = UniswapV3Pool {
+            address: H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            ..Default::default()
+        };
+
+        pool.get_pool_data(middleware.clone()).await.unwrap();
+
+        let block_pool = IUniswapV3Pool::new(
+            H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            middleware.clone(),
+        );
+
+        let sqrt_price = block_pool.slot_0().block(16515398).call().await.unwrap().0;
+        pool.sqrt_price = sqrt_price;
+
+        let price_a_64_x = pool.calculate_price_64_x_64(pool.token_a);
+
+        let price_b_64_x = pool.calculate_price_64_x_64(pool.token_b);
+
+        assert_eq!(11218179125914784 as u128, price_a_64_x);
+        assert_eq!(30333119403920214119581 as u128, price_b_64_x);
+        
     }
 
     #[tokio::test]
