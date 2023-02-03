@@ -16,7 +16,7 @@ use crate::{
 };
 
 //TODO: FIXME: handle errors gracefully and convert u256 fromstr to const values
-fn div_uu(x: U256, y: U256) -> u128 {
+pub fn div_uu(x: U256, y: U256) -> u128 {
     if !y.is_zero() {
         let mut answer = U256::zero();
 

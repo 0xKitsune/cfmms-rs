@@ -1,4 +1,4 @@
-use std::{ops::Add, sync::Arc};
+use std::{ops::Add, sync::Arc, str::FromStr};
 
 use ethers::{
     abi::{decode, ethabi::Bytes, ParamType, Token},
@@ -6,6 +6,7 @@ use ethers::{
     types::{Log, H160, H256, I256, U256, U64},
 };
 use num_bigfloat::BigFloat;
+use uniswap_v3_math::sqrt_price_math::Q96;
 
 use crate::{abi, batch_requests, error::CFMMError};
 
@@ -401,6 +402,30 @@ impl UniswapV3Pool {
         } else {
             1.0 / price.to_f64()
         }
+    }
+
+    pub fn calculate_price_64_x_64(&self, base_token: H160) -> u128 {
+        let decimal_shift = self.token_a_decimals as i8 - self.token_b_decimals as i8;
+
+        let price_squared_x_96 = if decimal_shift < 0 {
+            self.sqrt_price.pow(U256::from(2)) / 10_u128.pow((-decimal_shift) as u32)
+        } else {
+            self.sqrt_price.pow(U256::from(2))*U256::from(10_u128.pow(decimal_shift as u32))
+        };
+
+        let price_squared_shift_q_96 = if base_token == self.token_a {
+            price_squared_x_96 / Q96
+        } else {
+            Q96*U256::from_str("0xffffffffffffffffffffffffffffffff").unwrap() / (price_squared_x_96 / Q96)
+        };
+
+        let price_x_64 = if base_token == self.token_a {
+            (price_squared_shift_q_96 * U256::from_str("0xffffffffffffffffffffffffffffffff").unwrap() / Q96) >> 64
+        } else {
+            price_squared_shift_q_96 >> 64
+        };
+        
+        price_x_64.as_u128()
     }
 
     pub fn address(&self) -> H160 {

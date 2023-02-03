@@ -9,6 +9,8 @@ use num_bigfloat::BigFloat;
 
 use crate::{abi, batch_requests, error::CFMMError};
 
+use super::fpm::div_uu;
+
 pub const SYNC_EVENT_SIGNATURE: H256 = H256([
     28, 65, 30, 154, 150, 224, 113, 36, 28, 47, 33, 247, 114, 107, 23, 174, 137, 227, 202, 180,
     199, 139, 229, 14, 6, 43, 3, 169, 255, 251, 186, 209,
@@ -204,6 +206,17 @@ impl UniswapV2Pool {
             (reserve_0 / reserve_1).to_f64()
         } else {
             (reserve_1 / reserve_0).to_f64()
+        }
+    }
+
+    pub fn calculate_price_64_x_64(&self, base_token: H160) -> u128 {
+        let r_0 = U256::from(self.reserve_0);
+        let r_1 = U256::from(self.reserve_1);
+
+        if base_token == self.token_a {
+            div_uu(r_0, r_1)
+        } else {
+            div_uu(r_1, r_0)
         }
     }
 
