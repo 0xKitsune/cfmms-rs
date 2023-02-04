@@ -10,10 +10,13 @@ use crate::{
     error::CFMMError,
 };
 
+pub mod fixed_point_math;
 pub mod uniswap_v2;
 pub mod uniswap_v3;
 pub use uniswap_v2::UniswapV2Pool;
 pub use uniswap_v3::UniswapV3Pool;
+
+use self::fixed_point_math::FixedPointMathError;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Pool {
@@ -36,6 +39,13 @@ impl Pool {
             DexVariant::UniswapV3 => Ok(Pool::UniswapV3(
                 UniswapV3Pool::new_from_address(pair_address, middleware).await?,
             )),
+        }
+    }
+
+    pub fn fee(&self) -> u32 {
+        match self {
+            Pool::UniswapV2(pool) => pool.fee(),
+            Pool::UniswapV3(pool) => pool.fee(),
         }
     }
 
@@ -87,10 +97,17 @@ impl Pool {
     }
 
     //Get price of base token per pair token
-    pub fn calculate_price(&self, base_token: H160) -> f64 {
+    pub fn calculate_price(&self, base_token: H160) -> Result<f64, FixedPointMathError> {
         match self {
             Pool::UniswapV2(pool) => pool.calculate_price(base_token),
-            Pool::UniswapV3(pool) => pool.calculate_price(base_token),
+            Pool::UniswapV3(pool) => Ok(pool.calculate_price(base_token)),
+        }
+    }
+
+    pub fn calculate_price_64_x_64(&self, base_token: H160) -> Result<u128, FixedPointMathError> {
+        match self {
+            Pool::UniswapV2(pool) => pool.calculate_price_64_x_64(base_token),
+            Pool::UniswapV3(pool) => Ok(pool.calculate_price_64_x_64(base_token)),
         }
     }
 

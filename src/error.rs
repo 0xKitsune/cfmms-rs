@@ -5,6 +5,8 @@ use thiserror::Error;
 use tokio::task::JoinError;
 use uniswap_v3_math::error::UniswapV3MathError;
 
+use crate::pool::fixed_point_math::FixedPointMathError;
+
 #[derive(Error, Debug)]
 pub enum CFMMError<M>
 where
@@ -32,4 +34,6 @@ where
     SyncError(H160),
     #[error("Error when getting pool data")]
     PoolDataError,
+    #[error("Fixed point math error")]
+    FixedPointMathError(#[from] FixedPointMathError),
 }

@@ -147,7 +147,7 @@ pub async fn filter_pools_below_usd_threshold_with_throttle<M: Middleware>(
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
 
     //Get price of weth in USD
-    let usd_price_per_weth = usd_weth_pool.calculate_price(usd_address);
+    let usd_price_per_weth = usd_weth_pool.calculate_price(usd_address)?;
 
     //Initialize a Hashmap to keep track of token/weth prices already found to avoid unnecessary calls to the node
     let token_weth_prices: Arc<Mutex<HashMap<H160, f64>>> = Arc::new(Mutex::new(HashMap::new()));
@@ -297,7 +297,7 @@ async fn get_price_of_token_per_weth<M: Middleware>(
 
     let token_price_per_weth = token_weth_pool.calculate_price(token_address);
 
-    Ok(token_price_per_weth)
+    Ok(token_price_per_weth?)
 }
 
 //Gets the best token to weth pairing from the dexes provided
