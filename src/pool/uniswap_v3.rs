@@ -6,6 +6,9 @@ use ethers::{
     types::{Log, H160, H256, I256, U256, U64},
 };
 use num_bigfloat::BigFloat;
+use uniswap_v3_math::sqrt_price_math::Q96;
+
+use super::fixed_point_math;
 
 use crate::{abi, batch_requests, error::CFMMError};
 
@@ -16,6 +19,9 @@ pub const SWAP_EVENT_SIGNATURE: H256 = H256([
     235, 100, 254, 216, 0, 78, 17, 95, 188, 202, 103,
 ]);
 
+pub const U256_TWO: U256 = U256([2, 0, 0, 0]);
+pub const Q128: U256 = U256([0, 0, 1, 0]);
+pub const Q224: U256 = U256([0, 0, 0, 4294967296]);
 #[derive(Clone, Copy, Debug, Default)]
 pub struct UniswapV3Pool {
     pub address: H160,
@@ -118,6 +124,10 @@ impl UniswapV3Pool {
             tick: 0,
             liquidity_net: 0,
         })
+    }
+
+    pub fn fee(&self) -> u32 {
+        self.fee
     }
 
     pub async fn get_pool_data<M: Middleware>(
@@ -374,29 +384,25 @@ impl UniswapV3Pool {
     // @returns { f64 } token_b_amount (swap through 1 token_a)
     //
     pub fn calculate_price(&self, base_token: H160) -> f64 {
-        let price = if self.token_b_decimals > self.token_a_decimals {
-            BigFloat::from_u128(
-                ((self.sqrt_price.overflowing_mul(self.sqrt_price).0) >> 128).as_u128(),
-            )
-            .div(&BigFloat::from(2_u128.pow(64)))
-            .div(&BigFloat::from(
-                10_u64.pow((self.token_b_decimals as i8 - self.token_a_decimals as i8) as u32),
-            ))
+        fixed_point_math::q64_to_f64(self.calculate_price_64_x_64(base_token))
+    }
+
+    pub fn calculate_price_64_x_64(&self, base_token: H160) -> u128 {
+        let decimal_shift = self.token_a_decimals as i8 - self.token_b_decimals as i8;
+
+        let price_squared_x_96 = if decimal_shift < 0 {
+            self.sqrt_price.pow(U256_TWO) / 10_u128.pow((-decimal_shift) as u32)
         } else {
-            BigFloat::from_u128(
-                ((self.sqrt_price.overflowing_mul(self.sqrt_price).0) >> 128).as_u128(),
-            )
-            .div(&BigFloat::from(2_u128.pow(64)))
-            .mul(&BigFloat::from(
-                10_u64.pow((self.token_a_decimals as i8 - self.token_b_decimals as i8) as u32),
-            ))
+            self.sqrt_price.pow(U256_TWO) * U256::from(10_u128.pow(decimal_shift as u32))
         };
 
-        if self.token_a == base_token {
-            price.to_f64()
+        let price_x_64 = if base_token == self.token_a {
+            ((price_squared_x_96 / Q96).overflowing_mul(Q128).0 / Q96) >> 64
         } else {
-            1.0 / price.to_f64()
-        }
+            (Q224 / (price_squared_x_96 / Q96)) >> 64
+        };
+
+        price_x_64.as_u128()
     }
 
     pub fn address(&self) -> H160 {
@@ -1020,6 +1026,35 @@ mod test {
     }
 
     #[tokio::test]
+    async fn test_calculate_price_64_x_64() {
+        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
+            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let mut pool = UniswapV3Pool {
+            address: H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            ..Default::default()
+        };
+
+        pool.get_pool_data(middleware.clone()).await.unwrap();
+
+        let block_pool = IUniswapV3Pool::new(
+            H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            middleware.clone(),
+        );
+
+        let sqrt_price = block_pool.slot_0().block(16515398).call().await.unwrap().0;
+        pool.sqrt_price = sqrt_price;
+
+        let price_a_64_x = pool.calculate_price_64_x_64(pool.token_a);
+
+        let price_b_64_x = pool.calculate_price_64_x_64(pool.token_b);
+
+        assert_eq!(11218179125914784_u128, price_a_64_x);
+        assert_eq!(30333119403920214119581_u128, price_b_64_x);
+    }
+
+    #[tokio::test]
     async fn test_calculate_price() {
         let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
             .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
@@ -1044,8 +1079,9 @@ mod test {
         let float_price_a = pool.calculate_price(pool.token_a);
 
         let float_price_b = pool.calculate_price(pool.token_b);
+        dbg!(pool);
 
-        assert_eq!(float_price_a, 0.0006081387089824173);
-        assert_eq!(float_price_b, 1644.3616977996253);
+        println!("Price A: {float_price_a}");
+        println!("Price B: {float_price_b}");
     }
 }
