@@ -8,7 +8,7 @@ use ethers::{
 
 use crate::{abi, batch_requests, error::CFMMError};
 
-use super::fixed_point_math;
+use super::fixed_point_math::{self, FixedPointMathError};
 
 pub const SYNC_EVENT_SIGNATURE: H256 = H256([
     28, 65, 30, 154, 150, 224, 113, 36, 28, 47, 33, 247, 114, 107, 23, 174, 137, 227, 202, 180,
@@ -195,11 +195,13 @@ impl UniswapV2Pool {
     }
 
     //Calculates base/quote, meaning the price of base token per quote (ie. exchange rate is X base per 1 quote)
-    pub fn calculate_price(&self, base_token: H160) -> f64 {
-        fixed_point_math::q64_to_f64(self.calculate_price_64_x_64(base_token))
+    pub fn calculate_price(&self, base_token: H160) -> Result<f64, FixedPointMathError> {
+        Ok(fixed_point_math::q64_to_f64(
+            self.calculate_price_64_x_64(base_token)?,
+        ))
     }
 
-    pub fn calculate_price_64_x_64(&self, base_token: H160) -> u128 {
+    pub fn calculate_price_64_x_64(&self, base_token: H160) -> Result<u128, FixedPointMathError> {
         let decimal_shift = self.token_a_decimals as i8 - self.token_b_decimals as i8;
 
         let r_0 = U256::from(self.reserve_0);
@@ -207,14 +209,16 @@ impl UniswapV2Pool {
 
         if base_token == self.token_a {
             if decimal_shift >= 0 {
-                fixed_point_math::div_uu(r_1, r_0) * 10u128.pow(decimal_shift as u32)
+                Ok(fixed_point_math::div_uu(r_1, r_0)? * 10u128.pow(decimal_shift as u32))
             } else {
-                fixed_point_math::div_uu(r_1, r_0) / 10u128.pow(decimal_shift.unsigned_abs() as u32)
+                Ok(fixed_point_math::div_uu(r_1, r_0)?
+                    / 10u128.pow(decimal_shift.unsigned_abs() as u32))
             }
         } else if decimal_shift >= 0 {
-            fixed_point_math::div_uu(r_0, r_1) / 10u128.pow(decimal_shift as u32)
+            Ok(fixed_point_math::div_uu(r_0, r_1)? / 10u128.pow(decimal_shift as u32))
         } else {
-            fixed_point_math::div_uu(r_0, r_1) * 10u128.pow(decimal_shift.unsigned_abs() as u32)
+            Ok(fixed_point_math::div_uu(r_0, r_1)?
+                * 10u128.pow(decimal_shift.unsigned_abs() as u32))
         }
     }
 
@@ -426,9 +430,9 @@ mod tests {
         pool.reserve_0 = 47092140895915;
         pool.reserve_1 = 28396598565590008529300;
 
-        let price_a_64_x = pool.calculate_price_64_x_64(pool.token_a);
+        let price_a_64_x = pool.calculate_price_64_x_64(pool.token_a).unwrap();
 
-        let price_b_64_x = pool.calculate_price_64_x_64(pool.token_b);
+        let price_b_64_x = pool.calculate_price_64_x_64(pool.token_b).unwrap();
 
         assert_eq!(30591574867000000000000, price_b_64_x);
         assert_eq!(11123401407064628, price_a_64_x);
