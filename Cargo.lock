@@ -1403,9 +1403,9 @@ dependencies = [
 
 [[package]]
 name = "num-bigfloat"
-version = "1.6.1"
+version = "1.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da65fc937a04931ae5f0254d0ff5c1b8f1e520e914741493848cafdd386d1ac5"
+checksum = "a56a51331d84e5827f5f875945e505f3c4e54a13fb31153449b1c994c159b883"
 dependencies = [
  "num-traits",
  "rand",
