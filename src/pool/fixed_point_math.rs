@@ -1,6 +1,6 @@
 use ethers::types::U256;
-use std::fmt;
-use thiserror::Error;
+
+use crate::errors::FixedPointMathError;
 
 pub const U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF: U256 = U256([
     18446744073709551615,
@@ -114,21 +114,4 @@ pub fn q64_to_f64(x: u128) -> f64 {
     let integers = ((x >> 64) & 0xFFFF) as u32;
 
     ((integers << 16) + decimals) as f64 / 2_f64.powf(16.0)
-}
-
-pub fn f64_to_q64(_x: u128) -> f64 {
-    0.0
-}
-
-#[derive(Error, Debug)]
-pub enum FixedPointMathError {
-    ShadowOverflow(U256),
-    RoundingError,
-    YIsZero,
-}
-
-impl std::fmt::Display for FixedPointMathError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "")
-    }
 }

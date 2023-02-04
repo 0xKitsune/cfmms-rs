@@ -6,9 +6,12 @@ use ethers::{
     types::{Log, H160, H256, U256},
 };
 
-use crate::{abi, batch_requests, error::CFMMError};
+use crate::{
+    abi, batch_requests,
+    errors::{CFMMError, FixedPointMathError},
+};
 
-use super::fixed_point_math::{self, FixedPointMathError};
+use super::fixed_point_math::{self};
 
 pub const SYNC_EVENT_SIGNATURE: H256 = H256([
     28, 65, 30, 154, 150, 224, 113, 36, 28, 47, 33, 247, 114, 107, 23, 174, 137, 227, 202, 180,

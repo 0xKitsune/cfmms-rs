@@ -7,7 +7,7 @@ use ethers::{
 
 use crate::{
     dex::{self, DexVariant},
-    error::CFMMError,
+    errors::{CFMMError, FixedPointMathError},
 };
 
 pub mod fixed_point_math;
@@ -15,8 +15,6 @@ pub mod uniswap_v2;
 pub mod uniswap_v3;
 pub use uniswap_v2::UniswapV2Pool;
 pub use uniswap_v3::UniswapV3Pool;
-
-use self::fixed_point_math::FixedPointMathError;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Pool {

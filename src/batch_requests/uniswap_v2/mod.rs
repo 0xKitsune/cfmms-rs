@@ -7,7 +7,7 @@ use ethers::{
 use std::sync::Arc;
 
 use crate::{
-    error::CFMMError,
+    errors::CFMMError,
     pool::{Pool, UniswapV2Pool},
 };
 

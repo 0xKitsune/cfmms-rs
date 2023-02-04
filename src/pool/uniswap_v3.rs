@@ -10,7 +10,7 @@ use uniswap_v3_math::sqrt_price_math::Q96;
 
 use super::fixed_point_math;
 
-use crate::{abi, batch_requests, error::CFMMError};
+use crate::{abi, batch_requests, errors::CFMMError};
 
 pub const MIN_SQRT_RATIO: U256 = U256([4295128739, 0, 0, 0]);
 pub const MAX_SQRT_RATIO: U256 = U256([6743328256752651558, 17280870778742802505, 4294805859, 0]);

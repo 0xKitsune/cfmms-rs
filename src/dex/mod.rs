@@ -8,7 +8,7 @@ use indicatif::ProgressBar;
 
 use crate::{
     abi, batch_requests,
-    error::CFMMError,
+    errors::CFMMError,
     pool::{Pool, UniswapV2Pool, UniswapV3Pool},
     throttle::RequestThrottle,
 };

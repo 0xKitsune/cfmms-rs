@@ -1,5 +1,5 @@
 use crate::dex::Dex;
-use crate::error::CFMMError;
+use crate::errors::CFMMError;
 use crate::pool::{Pool, UniswapV2Pool, UniswapV3Pool};
 use crate::throttle::RequestThrottle;
 use async_trait::async_trait;
