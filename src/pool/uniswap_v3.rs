@@ -375,14 +375,6 @@ impl UniswapV3Pool {
         )
     }
 
-    // Calculate a human readable price from sqrt_ratio_x96.
-    //
-    // @dev sqrt_ratio_x96 = _token_a_price.pow(-2) * 2.pow(96)
-    // @dev _token_a_price = (token_b_amount * 10.pow(token_b_decimals)) / (1 * 10.pow(token_a_decimals))
-    //
-    // @param { H160 } base_token
-    // @returns { f64 } token_b_amount (swap through 1 token_a)
-    //
     pub fn calculate_price(&self, base_token: H160) -> f64 {
         fixed_point_math::q64_to_f64(self.calculate_price_64_x_64(base_token))
     }
@@ -860,9 +852,6 @@ mod test {
         );
 
         let amount_in = U256::from_dec_str("100000000").unwrap(); // 100 USDC
-        let amount_in_1 = U256::from_dec_str("10000000000").unwrap(); // 10_000 USDC
-        let amount_in_2 = U256::from_dec_str("10000000000000").unwrap(); // 10_000_000 USDC
-        let amount_in_3 = U256::from_dec_str("100000000000000").unwrap(); // 100_000_000 USDC
 
         let current_block = middleware.get_block_number().await.unwrap();
         let amount_out = pool
@@ -883,6 +872,29 @@ mod test {
             .await
             .unwrap();
 
+        assert_eq!(amount_out, expected_amount_out);
+    }
+
+    #[tokio::test]
+    async fn test_simulate_swap_1() {
+        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
+            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let pool = UniswapV3Pool::new_from_address(
+            H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            middleware.clone(),
+        )
+        .await
+        .unwrap();
+
+        let quoter = IQuoter::new(
+            H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6").unwrap(),
+            middleware.clone(),
+        );
+
+        let amount_in_1 = U256::from_dec_str("10000000000").unwrap(); // 10_000 USDC
+
         let current_block = middleware.get_block_number().await.unwrap();
         let amount_out_1 = pool
             .simulate_swap(pool.token_a, amount_in_1, middleware.clone())
@@ -901,6 +913,29 @@ mod test {
             .call()
             .await
             .unwrap();
+
+        assert_eq!(amount_out_1, expected_amount_out_1);
+    }
+
+    #[tokio::test]
+    async fn test_simulate_swap_2() {
+        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
+            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let pool = UniswapV3Pool::new_from_address(
+            H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            middleware.clone(),
+        )
+        .await
+        .unwrap();
+
+        let quoter = IQuoter::new(
+            H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6").unwrap(),
+            middleware.clone(),
+        );
+
+        let amount_in_2 = U256::from_dec_str("10000000000000").unwrap(); // 10_000_000 USDC
 
         let current_block = middleware.get_block_number().await.unwrap();
         let amount_out_2 = pool
@@ -921,6 +956,29 @@ mod test {
             .await
             .unwrap();
 
+        assert_eq!(amount_out_2, expected_amount_out_2);
+    }
+
+    #[tokio::test]
+    async fn test_simulate_swap_3() {
+        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
+            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let pool = UniswapV3Pool::new_from_address(
+            H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            middleware.clone(),
+        )
+        .await
+        .unwrap();
+
+        let quoter = IQuoter::new(
+            H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6").unwrap(),
+            middleware.clone(),
+        );
+
+        let amount_in_3 = U256::from_dec_str("100000000000000").unwrap(); // 100_000_000 USDC
+
         let current_block = middleware.get_block_number().await.unwrap();
         let amount_out_3 = pool
             .simulate_swap(pool.token_a, amount_in_3, middleware.clone())
@@ -939,9 +997,6 @@ mod test {
             .await
             .unwrap();
 
-        assert_eq!(amount_out, expected_amount_out);
-        assert_eq!(amount_out_1, expected_amount_out_1);
-        assert_eq!(amount_out_2, expected_amount_out_2);
         assert_eq!(amount_out_3, expected_amount_out_3);
     }
 
