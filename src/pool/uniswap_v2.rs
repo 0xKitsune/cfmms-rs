@@ -207,21 +207,23 @@ impl UniswapV2Pool {
     pub fn calculate_price_64_x_64(&self, base_token: H160) -> Result<u128, FixedPointMathError> {
         let decimal_shift = self.token_a_decimals as i8 - self.token_b_decimals as i8;
 
-        let r_0 = U256::from(self.reserve_0);
-        let r_1 = U256::from(self.reserve_1);
+        let (r_0, r_1) = if decimal_shift < 0 {
+            (
+                U256::from(self.reserve_0)
+                    * U256::from(10u128.pow(decimal_shift.unsigned_abs() as u32)),
+                U256::from(self.reserve_1),
+            )
+        } else {
+            (
+                U256::from(self.reserve_0),
+                U256::from(self.reserve_1) * U256::from(10u128.pow(decimal_shift as u32)),
+            )
+        };
 
         if base_token == self.token_a {
-            if decimal_shift >= 0 {
-                Ok(fixed_point_math::div_uu(r_1, r_0)? * 10u128.pow(decimal_shift as u32))
-            } else {
-                Ok(fixed_point_math::div_uu(r_1, r_0)?
-                    / 10u128.pow(decimal_shift.unsigned_abs() as u32))
-            }
-        } else if decimal_shift >= 0 {
-            Ok(fixed_point_math::div_uu(r_0, r_1)? / 10u128.pow(decimal_shift as u32))
+            Ok(fixed_point_math::div_uu(r_1, r_0)?)
         } else {
-            Ok(fixed_point_math::div_uu(r_0, r_1)?
-                * 10u128.pow(decimal_shift.unsigned_abs() as u32))
+            Ok(fixed_point_math::div_uu(r_0, r_1))?
         }
     }
 
@@ -437,7 +439,7 @@ mod tests {
 
         let price_b_64_x = pool.calculate_price_64_x_64(pool.token_b).unwrap();
 
-        assert_eq!(30591574867000000000000, price_b_64_x);
+        assert_eq!(30591574867092394336528, price_b_64_x);
         assert_eq!(11123401407064628, price_a_64_x);
     }
 }
