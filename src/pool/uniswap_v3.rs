@@ -1120,13 +1120,24 @@ mod test {
 
         pool.get_pool_data(middleware.clone()).await.unwrap();
 
-        let block = IUniswapV3Pool::new(
+        let pool_at_block = IUniswapV3Pool::new(
             H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
             middleware.clone(),
         );
 
-        let sqrt_price = block.slot_0().block(16515398).call().await.unwrap().0;
-        let liquidity = block.liquidity().block(16515398).call().await.unwrap();
+        let sqrt_price = pool_at_block
+            .slot_0()
+            .block(16515398)
+            .call()
+            .await
+            .unwrap()
+            .0;
+        let liquidity = pool_at_block
+            .liquidity()
+            .block(16515398)
+            .call()
+            .await
+            .unwrap();
 
         pool.sqrt_price = sqrt_price;
         pool.liquidity = liquidity;
