@@ -346,7 +346,7 @@ impl UniswapV3Pool {
        ==> y = L^2*price
     */
     pub fn calculate_virtual_reserves(&self) -> (u128, u128) {
-        let price:f64 = self.calculate_price(self.token_a); 
+        let price: f64 = self.calculate_price(self.token_a);
 
         let sqrt_price = BigFloat::from_f64(price.sqrt());
         let liquidity = BigFloat::from_u128(self.liquidity);
@@ -1128,13 +1128,10 @@ mod test {
         let sqrt_price = block_pool.slot_0().block(16515398).call().await.unwrap().0;
         pool.sqrt_price = sqrt_price;
 
-        let (r_0, r_1)=pool.calculate_virtual_reserves();
-
-        
+        let (r_0, r_1) = pool.calculate_virtual_reserves();
 
         assert_eq!(1352305901809494370875_u128, r_0);
         assert_eq!(804747469643711555_u128, r_1);
-        
     }
 
     #[tokio::test]
