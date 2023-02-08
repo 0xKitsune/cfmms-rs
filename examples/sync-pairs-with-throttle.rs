@@ -27,6 +27,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     ];
 
     //Sync pairs
-    sync::sync_pairs_with_throttle(dexes, provider, 5, None).await?;
+    sync::sync_pairs_with_throttle(dexes, 100000, provider, 5, None).await?;
     Ok(())
 }
