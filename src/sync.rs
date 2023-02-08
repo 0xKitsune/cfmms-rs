@@ -1,4 +1,4 @@
-use crate::{checkpoint, error::CFMMError};
+use crate::{checkpoint, errors::CFMMError};
 
 use super::dex::Dex;
 use super::pool::Pool;

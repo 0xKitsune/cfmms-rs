@@ -1,6 +1,8 @@
+use std::fmt;
+
 use ethers::prelude::{AbiError, ContractError};
 use ethers::providers::{Middleware, ProviderError};
-use ethers::types::H160;
+use ethers::types::{H160, U256};
 use thiserror::Error;
 use tokio::task::JoinError;
 use uniswap_v3_math::error::UniswapV3MathError;
@@ -32,4 +34,19 @@ where
     SyncError(H160),
     #[error("Error when getting pool data")]
     PoolDataError,
+    #[error("Fixed point math error")]
+    FixedPointMathError(#[from] FixedPointMathError),
+}
+
+#[derive(Error, Debug)]
+pub enum FixedPointMathError {
+    ShadowOverflow(U256),
+    RoundingError,
+    YIsZero,
+}
+
+impl std::fmt::Display for FixedPointMathError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "")
+    }
 }

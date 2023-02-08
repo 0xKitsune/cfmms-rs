@@ -8,7 +8,7 @@ use indicatif::ProgressBar;
 
 use crate::{
     abi, batch_requests,
-    error::CFMMError,
+    errors::CFMMError,
     pool::{Pool, UniswapV2Pool, UniswapV3Pool},
     throttle::RequestThrottle,
 };
@@ -406,6 +406,6 @@ mod tests {
             .await
             .expect("Could not get all pools for pair");
 
-        println!("Pools: {:?}", pools);
+        println!("Pools: {pools:?}");
     }
 }

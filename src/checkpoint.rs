@@ -16,7 +16,7 @@ use serde_json::{Map, Value};
 
 use crate::{
     dex::{Dex, DexVariant},
-    error::CFMMError,
+    errors::CFMMError,
     pool::{Pool, UniswapV2Pool, UniswapV3Pool},
     throttle::RequestThrottle,
 };

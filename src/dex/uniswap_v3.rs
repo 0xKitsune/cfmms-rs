@@ -11,7 +11,7 @@ use ethers::{
 use indicatif::ProgressBar;
 
 use crate::{
-    error::CFMMError,
+    errors::CFMMError,
     pool::{Pool, UniswapV3Pool},
     throttle::RequestThrottle,
 };
