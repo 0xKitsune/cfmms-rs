@@ -1120,18 +1120,21 @@ mod test {
 
         pool.get_pool_data(middleware.clone()).await.unwrap();
 
-        let block_pool = IUniswapV3Pool::new(
+        let block = IUniswapV3Pool::new(
             H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
             middleware.clone(),
         );
 
-        let sqrt_price = block_pool.slot_0().block(16515398).call().await.unwrap().0;
+        let sqrt_price = block.slot_0().block(16515398).call().await.unwrap().0;
+        let liquidity = block.liquidity().block(16515398).call().await.unwrap();
+
         pool.sqrt_price = sqrt_price;
+        pool.liquidity = liquidity;
 
         let (r_0, r_1) = pool.calculate_virtual_reserves();
 
-        assert_eq!(1352305901809494370875_u128, r_0);
-        assert_eq!(804747469643711555_u128, r_1);
+        assert_eq!(1079168215643862690289_u128, r_0);
+        assert_eq!(642205206453104323_u128, r_1);
     }
 
     #[tokio::test]
