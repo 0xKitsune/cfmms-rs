@@ -329,17 +329,16 @@ impl UniswapV3Pool {
 
         Ok(token1)
     }
-
+    /* Legend:
+       sqrt(price) = sqrt(y/x)
+       L = sqrt(x*y)
+       ==> x = L^2/price
+       ==> y = L^2*price
+    */
     pub fn calculate_virtual_reserves(&self) -> (u128, u128) {
-        let price = BigFloat::from_u128(
-            ((self.sqrt_price.overflowing_mul(self.sqrt_price).0) >> 128).as_u128(),
-        )
-        .div(&BigFloat::from(2f64.powf(64.0)))
-        .mul(&BigFloat::from_f64(10f64.powf(
-            (self.token_a_decimals as i8 - self.token_b_decimals as i8) as f64,
-        )));
+        let price:f64 = self.calculate_price(self.token_a); 
 
-        let sqrt_price = price.sqrt();
+        let sqrt_price = BigFloat::from_f64(price.sqrt());
         let liquidity = BigFloat::from_u128(self.liquidity);
 
         //Sqrt price is stored as a Q64.96 so we need to left shift the liquidity by 96 to be represented as Q64.96
