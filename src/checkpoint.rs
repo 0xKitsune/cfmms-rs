@@ -97,6 +97,7 @@ pub async fn generate_checkpoint_with_throttle<M: 'static + Middleware>(
             let mut pools = dex
                 .get_all_pools(
                     request_throttle.clone(),
+                    100000,
                     progress_bar.clone(),
                     async_provider.clone(),
                 )

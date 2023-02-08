@@ -368,10 +368,10 @@ impl UniswapV3Pool {
         (
             reserve_0
                 .to_u128()
-                .expect("Could not convert reserve_0 to uin128"),
+                .expect("Could not convert reserve_0 to uint128"),
             reserve_1
                 .to_u128()
-                .expect("Could not convert reserve_1 to uin128"),
+                .expect("Could not convert reserve_1 to uint128"),
         )
     }
 
