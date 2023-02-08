@@ -71,6 +71,7 @@ impl Dex {
     pub async fn get_all_pools<M: 'static + Middleware>(
         &self,
         request_throttle: Arc<Mutex<RequestThrottle>>,
+        step: usize,
         progress_bar: ProgressBar,
         middleware: Arc<M>,
     ) -> Result<Vec<Pool>, CFMMError<M>> {
@@ -89,6 +90,7 @@ impl Dex {
                 self.get_all_pools_from_logs(
                     middleware,
                     current_block.into(),
+                    step,
                     request_throttle,
                     progress_bar,
                 )
@@ -291,11 +293,10 @@ impl Dex {
         self,
         middleware: Arc<M>,
         current_block: BlockNumber,
+        step: usize,
         request_throttle: Arc<Mutex<RequestThrottle>>,
         progress_bar: ProgressBar,
     ) -> Result<Vec<Pool>, CFMMError<M>> {
-        //Define the step for searching a range of blocks for pair created events
-        let step = 100000;
         //Unwrap can be used here because the creation block was verified within `Dex::new()`
         let from_block = self
             .creation_block()

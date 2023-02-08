@@ -17,12 +17,24 @@ pub async fn sync_pairs<M: 'static + Middleware>(
     save_checkpoint: Option<String>,
 ) -> Result<Vec<Pool>, CFMMError<M>> {
     //Sync pairs with throttle but set the requests per second limit to 0, disabling the throttle.
-    sync_pairs_with_throttle(dexes, middleware, 0, save_checkpoint).await
+    sync_pairs_with_throttle(dexes, 100000, middleware, 0, save_checkpoint).await
+}
+
+//Get all pairs and sync reserve values for each Dex in the `dexes` vec.
+pub async fn sync_pairs_with_step<M: 'static + Middleware>(
+    dexes: Vec<Dex>,
+    step: usize,
+    middleware: Arc<M>,
+    save_checkpoint: Option<String>,
+) -> Result<Vec<Pool>, CFMMError<M>> {
+    //Sync pairs with throttle but set the requests per second limit to 0, disabling the throttle.
+    sync_pairs_with_throttle(dexes, step, middleware, 0, save_checkpoint).await
 }
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
 pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
     dexes: Vec<Dex>,
+    step: usize, //TODO: Add docs on step. Step is the block range used to get all pools from a dex if syncing from event logs
     middleware: Arc<M>,
     requests_per_second_limit: usize,
     save_checkpoint: Option<String>,
@@ -57,6 +69,7 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
             let mut pools = dex
                 .get_all_pools(
                     request_throttle.clone(),
+                    step,
                     progress_bar.clone(),
                     middleware.clone(),
                 )

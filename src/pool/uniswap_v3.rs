@@ -339,17 +339,16 @@ impl UniswapV3Pool {
 
         Ok(token1)
     }
-
+    /* Legend:
+       sqrt(price) = sqrt(y/x)
+       L = sqrt(x*y)
+       ==> x = L^2/price
+       ==> y = L^2*price
+    */
     pub fn calculate_virtual_reserves(&self) -> (u128, u128) {
-        let price = BigFloat::from_u128(
-            ((self.sqrt_price.overflowing_mul(self.sqrt_price).0) >> 128).as_u128(),
-        )
-        .div(&BigFloat::from(2f64.powf(64.0)))
-        .mul(&BigFloat::from_f64(10f64.powf(
-            (self.token_a_decimals as i8 - self.token_b_decimals as i8) as f64,
-        )));
+        let price: f64 = self.calculate_price(self.token_a);
 
-        let sqrt_price = price.sqrt();
+        let sqrt_price = BigFloat::from_f64(price.sqrt());
         let liquidity = BigFloat::from_u128(self.liquidity);
 
         //Sqrt price is stored as a Q64.96 so we need to left shift the liquidity by 96 to be represented as Q64.96
@@ -368,10 +367,10 @@ impl UniswapV3Pool {
         (
             reserve_0
                 .to_u128()
-                .expect("Could not convert reserve_0 to uin128"),
+                .expect("Could not convert reserve_0 to uint128"),
             reserve_1
                 .to_u128()
-                .expect("Could not convert reserve_1 to uin128"),
+                .expect("Could not convert reserve_1 to uint128"),
         )
     }
 
@@ -1107,6 +1106,46 @@ mod test {
 
         assert_eq!(11218179125914784_u128, price_a_64_x);
         assert_eq!(30333119403920214119581_u128, price_b_64_x);
+    }
+    #[tokio::test]
+    async fn test_calculate_virtual_reserves() {
+        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
+            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+
+        let mut pool = UniswapV3Pool {
+            address: H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            ..Default::default()
+        };
+
+        pool.get_pool_data(middleware.clone()).await.unwrap();
+
+        let pool_at_block = IUniswapV3Pool::new(
+            H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+            middleware.clone(),
+        );
+
+        let sqrt_price = pool_at_block
+            .slot_0()
+            .block(16515398)
+            .call()
+            .await
+            .unwrap()
+            .0;
+        let liquidity = pool_at_block
+            .liquidity()
+            .block(16515398)
+            .call()
+            .await
+            .unwrap();
+
+        pool.sqrt_price = sqrt_price;
+        pool.liquidity = liquidity;
+
+        let (r_0, r_1) = pool.calculate_virtual_reserves();
+
+        assert_eq!(1079168215643862690289_u128, r_0);
+        assert_eq!(642205206453104323_u128, r_1);
     }
 
     #[tokio::test]
