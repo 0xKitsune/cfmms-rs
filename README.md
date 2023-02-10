@@ -21,5 +21,13 @@ Sync pairs simulate swaps, and interact with constant function market makers on 
 
 ## Running Examples
 
-To run any of the examples, first set a local environment variable called `ETHEREUM_MAINNET_ENDPOINT`. Then you can simply run `cargo run --example <example_name>`.
+To run any of the example with make `make <example_name>` eg:
+```bash
+make create-new-pool
+```
 
+You can also export your RPC endpoint.
+```bash
+export ETHEREUM_MAINNET_ENDPOINT=https://eth.llamarpc.com
+cargo run --example <example_name>
+```
