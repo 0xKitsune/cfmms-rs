@@ -10,7 +10,10 @@ use uniswap_v3_math::sqrt_price_math::Q96;
 
 use super::fixed_point_math;
 
-use crate::{abi, batch_requests, errors::CFMMError};
+use crate::{
+    abi, batch_requests,
+    errors::{ArithmeticError, CFMMError},
+};
 
 pub const MIN_SQRT_RATIO: U256 = U256([4295128739, 0, 0, 0]);
 pub const MAX_SQRT_RATIO: U256 = U256([6743328256752651558, 17280870778742802505, 4294805859, 0]);
@@ -345,8 +348,8 @@ impl UniswapV3Pool {
        ==> x = L^2/price
        ==> y = L^2*price
     */
-    pub fn calculate_virtual_reserves(&self) -> (u128, u128) {
-        let price: f64 = self.calculate_price(self.token_a);
+    pub fn calculate_virtual_reserves(&self) -> Result<(u128, u128), ArithmeticError> {
+        let price: f64 = self.calculate_price(self.token_a)?;
 
         let sqrt_price = BigFloat::from_f64(price.sqrt());
         let liquidity = BigFloat::from_u128(self.liquidity);
@@ -364,27 +367,34 @@ impl UniswapV3Pool {
             (BigFloat::from(0), BigFloat::from(0))
         };
 
-        (
+        Ok((
             reserve_0
                 .to_u128()
                 .expect("Could not convert reserve_0 to uint128"),
             reserve_1
                 .to_u128()
                 .expect("Could not convert reserve_1 to uint128"),
-        )
+        ))
     }
 
-    pub fn calculate_price(&self, base_token: H160) -> f64 {
-        fixed_point_math::q64_to_f64(self.calculate_price_64_x_64(base_token))
+    pub fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError> {
+        Ok(fixed_point_math::q64_to_f64(
+            self.calculate_price_64_x_64(base_token)?,
+        ))
     }
 
-    pub fn calculate_price_64_x_64(&self, base_token: H160) -> u128 {
+    pub fn calculate_price_64_x_64(&self, base_token: H160) -> Result<u128, ArithmeticError> {
         let decimal_shift = self.token_a_decimals as i8 - self.token_b_decimals as i8;
 
+        let price = self.sqrt_price.overflowing_mul(self.sqrt_price);
+        if price.1 {
+            return Err(ArithmeticError::SqrtPriceOverflow);
+        };
+
         let price_squared_x_96 = if decimal_shift < 0 {
-            self.sqrt_price.pow(U256_TWO) / 10_u128.pow((-decimal_shift) as u32)
+            price.0 / 10_u128.pow((-decimal_shift) as u32)
         } else {
-            self.sqrt_price.pow(U256_TWO) * U256::from(10_u128.pow(decimal_shift as u32))
+            price.0 * U256::from(10_u128.pow(decimal_shift as u32))
         };
 
         let price_x_64 = if base_token == self.token_a {
@@ -393,7 +403,7 @@ impl UniswapV3Pool {
             (Q224 / (price_squared_x_96 / Q96)) >> 64
         };
 
-        price_x_64.as_u128()
+        Ok(price_x_64.as_u128())
     }
 
     pub fn address(&self) -> H160 {
@@ -1100,9 +1110,13 @@ mod test {
         let sqrt_price = block_pool.slot_0().block(16515398).call().await.unwrap().0;
         pool.sqrt_price = sqrt_price;
 
-        let price_a_64_x = pool.calculate_price_64_x_64(pool.token_a);
+        let price_a_64_x = pool
+            .calculate_price_64_x_64(pool.token_a)
+            .expect("Could not calculate price 64 x 64");
 
-        let price_b_64_x = pool.calculate_price_64_x_64(pool.token_b);
+        let price_b_64_x = pool
+            .calculate_price_64_x_64(pool.token_b)
+            .expect("Could not calculate price 64 x 64");
 
         assert_eq!(11218179125914784_u128, price_a_64_x);
         assert_eq!(30333119403920214119581_u128, price_b_64_x);
@@ -1142,7 +1156,9 @@ mod test {
         pool.sqrt_price = sqrt_price;
         pool.liquidity = liquidity;
 
-        let (r_0, r_1) = pool.calculate_virtual_reserves();
+        let (r_0, r_1) = pool
+            .calculate_virtual_reserves()
+            .expect("Could not calculate virtual reserves");
 
         assert_eq!(1079168215643862690289_u128, r_0);
         assert_eq!(642205206453104323_u128, r_1);
@@ -1170,9 +1186,14 @@ mod test {
         let sqrt_price = block_pool.slot_0().block(16515398).call().await.unwrap().0;
         pool.sqrt_price = sqrt_price;
 
-        let float_price_a = pool.calculate_price(pool.token_a);
+        let float_price_a = pool
+            .calculate_price(pool.token_a)
+            .expect("Could not calculate price");
 
-        let float_price_b = pool.calculate_price(pool.token_b);
+        let float_price_b = pool
+            .calculate_price(pool.token_b)
+            .expect("Could not calculate price");
+
         dbg!(pool);
 
         println!("Price A: {float_price_a}");

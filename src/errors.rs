@@ -34,18 +34,19 @@ where
     SyncError(H160),
     #[error("Error when getting pool data")]
     PoolDataError,
-    #[error("Fixed point math error")]
-    FixedPointMathError(#[from] FixedPointMathError),
+    #[error("Arithmetic error")]
+    ArithmeticError(#[from] ArithmeticError),
 }
 
 #[derive(Error, Debug)]
-pub enum FixedPointMathError {
+pub enum ArithmeticError {
     ShadowOverflow(U256),
     RoundingError,
     YIsZero,
+    SqrtPriceOverflow,
 }
 
-impl std::fmt::Display for FixedPointMathError {
+impl std::fmt::Display for ArithmeticError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "")
     }
