@@ -1,4 +1,4 @@
-use std::{error::Error, fs::{File, OpenOptions}, io::{Write, prelude}, str::FromStr, sync::Arc};
+use std::{error::Error, fs::OpenOptions, io::{Write}, str::FromStr, sync::Arc};
 
 use ethers::{
     providers::{Http, Provider},
@@ -10,8 +10,6 @@ use cfmms::{
     sync, pool::Pool,
 };
 
-
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     //Add rpc endpoint here:
@@ -20,6 +18,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
     let dexes = vec![
+        //UniswapV2
+        Dex::new(
+            H160::from_str("0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f").unwrap(),
+            DexVariant::UniswapV2,
+            2638438,
+        ),
+        //Add Sushiswap
+        // Dex::new(
+        //     H160::from_str("0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac").unwrap(),
+        //     DexVariant::UniswapV2,
+        //     10794229,
+        // ),
         //Add UniswapV3
         Dex::new(
             H160::from_str("0x1F98431c8aD98523631AE4a59f267346ea31F984").unwrap(),
@@ -28,11 +38,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         ),
     ];
 
-    //Sync pairs
-    // sync::sync_pairs_with_throttle(dexes, 100000, provider, 5, None).await?;
+    //Sync pairs 
     let pools = sync::sync_pairs_with_throttle(dexes, 100000, provider, 5, None).await?;
-
-    // NEW
+    
+    // CSV file logic
     for pool in &pools {
         match pool {
             Pool::UniswapV2(pool) => {
@@ -57,9 +66,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     }
-
     Ok(())
-
-
 }
 
