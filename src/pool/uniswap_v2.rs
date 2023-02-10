@@ -8,7 +8,7 @@ use ethers::{
 
 use crate::{
     abi, batch_requests,
-    errors::{CFMMError, FixedPointMathError},
+    errors::{ArithmeticError, CFMMError},
 };
 
 use super::fixed_point_math::{self};
@@ -198,13 +198,13 @@ impl UniswapV2Pool {
     }
 
     //Calculates base/quote, meaning the price of base token per quote (ie. exchange rate is X base per 1 quote)
-    pub fn calculate_price(&self, base_token: H160) -> Result<f64, FixedPointMathError> {
+    pub fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError> {
         Ok(fixed_point_math::q64_to_f64(
             self.calculate_price_64_x_64(base_token)?,
         ))
     }
 
-    pub fn calculate_price_64_x_64(&self, base_token: H160) -> Result<u128, FixedPointMathError> {
+    pub fn calculate_price_64_x_64(&self, base_token: H160) -> Result<u128, ArithmeticError> {
         let decimal_shift = self.token_a_decimals as i8 - self.token_b_decimals as i8;
 
         let (r_0, r_1) = if decimal_shift < 0 {

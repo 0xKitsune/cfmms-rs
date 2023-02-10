@@ -7,7 +7,7 @@ use ethers::{
 
 use crate::{
     dex::{self, DexVariant},
-    errors::{CFMMError, FixedPointMathError},
+    errors::{ArithmeticError, CFMMError},
 };
 
 pub mod fixed_point_math;
@@ -95,17 +95,17 @@ impl Pool {
     }
 
     //Get price of base token per pair token
-    pub fn calculate_price(&self, base_token: H160) -> Result<f64, FixedPointMathError> {
+    pub fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError> {
         match self {
             Pool::UniswapV2(pool) => pool.calculate_price(base_token),
-            Pool::UniswapV3(pool) => Ok(pool.calculate_price(base_token)),
+            Pool::UniswapV3(pool) => pool.calculate_price(base_token),
         }
     }
 
-    pub fn calculate_price_64_x_64(&self, base_token: H160) -> Result<u128, FixedPointMathError> {
+    pub fn calculate_price_64_x_64(&self, base_token: H160) -> Result<u128, ArithmeticError> {
         match self {
             Pool::UniswapV2(pool) => pool.calculate_price_64_x_64(base_token),
-            Pool::UniswapV3(pool) => Ok(pool.calculate_price_64_x_64(base_token)),
+            Pool::UniswapV3(pool) => pool.calculate_price_64_x_64(base_token),
         }
     }
 

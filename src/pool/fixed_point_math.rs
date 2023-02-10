@@ -1,6 +1,6 @@
 use ethers::types::U256;
 
-use crate::errors::FixedPointMathError;
+use crate::errors::ArithmeticError;
 
 pub const U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF: U256 = U256([
     18446744073709551615,
@@ -26,7 +26,7 @@ pub const U256_8: U256 = U256([8, 0, 0, 0]);
 pub const U256_4: U256 = U256([4, 0, 0, 0]);
 pub const U256_2: U256 = U256([2, 0, 0, 0]);
 
-pub fn div_uu(x: U256, y: U256) -> Result<u128, FixedPointMathError> {
+pub fn div_uu(x: U256, y: U256) -> Result<u128, ArithmeticError> {
     if !y.is_zero() {
         let mut answer;
 
@@ -70,7 +70,7 @@ pub fn div_uu(x: U256, y: U256) -> Result<u128, FixedPointMathError> {
         }
 
         if answer > U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF {
-            return Err(FixedPointMathError::ShadowOverflow(answer));
+            return Err(ArithmeticError::ShadowOverflow(answer));
         }
 
         let hi = answer * (y >> U256_128);
@@ -93,18 +93,18 @@ pub fn div_uu(x: U256, y: U256) -> Result<u128, FixedPointMathError> {
         xl = xl.overflowing_sub(lo).0;
 
         if xh != hi >> U256_128 {
-            return Err(FixedPointMathError::RoundingError);
+            return Err(ArithmeticError::RoundingError);
         }
 
         answer += xl / y;
 
         if answer > U256_0XFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF {
-            return Err(FixedPointMathError::ShadowOverflow(answer));
+            return Err(ArithmeticError::ShadowOverflow(answer));
         }
 
         Ok(answer.as_u128())
     } else {
-        Err(FixedPointMathError::YIsZero)
+        Err(ArithmeticError::YIsZero)
     }
 }
 
