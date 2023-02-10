@@ -21,7 +21,7 @@ Sync pairs simulate swaps, and interact with constant function market makers on 
 
 ## Running Examples
 
-To run any of the example with make `make <example_name>` eg:
+Run any of the examples with make `make <example_name>` eg:
 ```bash
 make create-new-pool
 ```
