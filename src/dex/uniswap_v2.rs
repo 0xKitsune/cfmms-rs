@@ -82,7 +82,12 @@ impl UniswapV2Dex {
         let mut pairs = vec![];
         let step = 766; //max batch size for this call until codesize is too large
         let mut idx_from = U256::zero();
-        let mut idx_to = U256::from(step);
+        let mut idx_to = if step > pairs_length.as_usize() {
+            pairs_length
+        } else {
+            U256::from(step)
+        };
+
         for _ in (0..pairs_length.as_u128()).step_by(step) {
             request_throttle
                 .lock()
