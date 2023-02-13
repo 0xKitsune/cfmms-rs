@@ -10,6 +10,7 @@ use cfmms::{
     sync, pool::Pool,
 };
 
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     //Add rpc endpoint here:
@@ -19,11 +20,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let dexes = vec![
         //UniswapV2
-        Dex::new(
-            H160::from_str("0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f").unwrap(),
-            DexVariant::UniswapV2,
-            2638438,
-        ),
+        // Dex::new(
+        //     H160::from_str("0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f").unwrap(),
+        //     DexVariant::UniswapV2,
+        //     2638438,
+        // ),
         //Add Sushiswap
         // Dex::new(
         //     H160::from_str("0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac").unwrap(),
@@ -51,18 +52,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     .create(true)
                     .open("UniswapV2Pools.csv")
                     .unwrap();
-                let pool_string = format!("{:?}", pool);
+                // Serialize pool enum to a string (OLD WAY)
+                let pool_string = format!("{:?}", pool); // We convert the pool enum to a string using format! macro
                 writeln!(file, "{}", pool_string).unwrap();
             }
             Pool::UniswapV3(pool) => {
-                let mut file = OpenOptions::new()
+                // this is where the new csv file is written
+                let file = OpenOptions::new()
                     .write(true)
                     .append(true)
                     .create(true)
                     .open("UniswapV3Pools.csv")
                     .unwrap();
-                let pool_string = format!("{:?}", pool);
-                writeln!(file, "{}", pool_string).unwrap();
+                                
+                // add header vector to file
+                let mut wtr = csv::WriterBuilder::new()
+                    .has_headers(false)
+                    .from_writer(file);
+
+                // write pool values to file
+                wtr.serialize(pool)?;
+                wtr.flush()?;
             }
         }
     }
