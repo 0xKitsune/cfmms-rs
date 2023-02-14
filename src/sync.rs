@@ -39,7 +39,7 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
     requests_per_second_limit: usize,
     save_checkpoint: Option<String>,
 ) -> Result<Vec<Pool>, CFMMError<M>> {
-    let block_number = middleware
+    let current_block = middleware
         .get_block_number()
         .await
         .map_err(CFMMError::MiddlewareError)?;
@@ -130,7 +130,7 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
         checkpoint::construct_checkpoint(
             dexes,
             &aggregated_pools,
-            block_number.as_u64(),
+            current_block.as_u64(),
             save_checkpoint,
         )
     }

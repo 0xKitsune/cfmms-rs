@@ -18,63 +18,163 @@ use crate::{
     dex::{Dex, DexVariant},
     errors::CFMMError,
     pool::{Pool, UniswapV2Pool, UniswapV3Pool},
+    sync,
     throttle::RequestThrottle,
 };
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
 pub async fn sync_pairs_from_checkpoint<M: 'static + Middleware>(
     path_to_checkpoint: String,
+    step: usize,
     middleware: Arc<M>,
 ) -> Result<(Vec<Dex>, Vec<Pool>), CFMMError<M>> {
-    sync_pairs_from_checkpoint_with_throttle(path_to_checkpoint, middleware, 0).await
+    sync_pairs_from_checkpoint_with_throttle(path_to_checkpoint, step, 0, middleware).await
 }
 
 //Get all pairs from last synced block and sync reserve values for each Dex in the `dexes` vec.
 pub async fn sync_pairs_from_checkpoint_with_throttle<M: 'static + Middleware>(
     path_to_checkpoint: String,
-    middleware: Arc<M>,
+    step: usize,
     requests_per_second_limit: usize,
+    middleware: Arc<M>,
 ) -> Result<(Vec<Dex>, Vec<Pool>), CFMMError<M>> {
+    let current_block = middleware
+        .get_block_number()
+        .await
+        .map_err(CFMMError::MiddlewareError)?;
+
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
     //Initialize multi progress bar
     let multi_progress_bar = MultiProgress::new();
-    let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
 
     //Read in checkpoint
-    let (dexes, mut pools, checkpoint_block_number) = deconstruct_checkpoint(path_to_checkpoint);
+    let (dexes, mut pools, checkpoint_block_number) =
+        deconstruct_checkpoint(path_to_checkpoint.clone());
+    let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
+    progress_bar.set_length(pools.len() as u64);
+    progress_bar.set_style(
+        ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7}")
+            .expect("Error when setting progress bar style")
+            .progress_chars("##-"),
+    );
+    progress_bar.set_message(format!("Syncing existing pools from checkpoint"));
 
-    //Create the filter with all the pair created events
-
-    for dex in dexes {
-        let pools = dex
-            .get_all_pools_from_logs_within_range(
-                middleware,
-                from_block,
-                to_block,
-                step,
-                request_throttle,
-                progress_bar,
-            )
-            .await?;
+    //Update reserves for all pools
+    for pool in pools.iter_mut() {
+        request_throttle.lock().unwrap().increment_or_sleep(1);
+        pool.sync_pool(middleware.clone()).await?;
+        progress_bar.inc(1);
     }
 
-    //TODO: get all pools created in length and concat the list of pools
+    let new_pools = get_new_pools_from_range(
+        dexes.clone(),
+        checkpoint_block_number,
+        current_block.into(),
+        step,
+        request_throttle,
+        multi_progress_bar,
+        middleware.clone(),
+    )
+    .await?;
 
-    //TODO: separate the pools into groups depending on the dex
+    pools.extend(new_pools);
 
-    //TODO: batch get pool data for dexes
-
-    //TODO: concat all the pools and return the populated pools
-
-    // //Update reserves for all pools
-    // for pool in pools.iter_mut() {
-    //     request_throttle.lock().unwrap().increment_or_sleep(2);
-    //     pool.sync_pool(middleware.clone()).await?;
-    // }
-
-    //TODO: update the sync checkpoint
+    //update the sync checkpoint
+    construct_checkpoint(
+        dexes.clone(),
+        &pools,
+        current_block.as_u64(),
+        path_to_checkpoint,
+    );
 
     Ok((dexes, pools))
+}
+
+pub async fn get_new_pools_from_range<M: 'static + Middleware>(
+    dexes: Vec<Dex>,
+    from_block: BlockNumber,
+    to_block: BlockNumber,
+    step: usize,
+    request_throttle: Arc<Mutex<RequestThrottle>>,
+    multi_progress_bar: MultiProgress,
+    middleware: Arc<M>,
+) -> Result<Vec<Pool>, CFMMError<M>> {
+    //Create the filter with all the pair created events
+    //Aggregate the populated pools from each thread
+    let mut aggregated_pools: Vec<Pool> = vec![];
+    let mut handles = vec![];
+
+    for dex in dexes.clone() {
+        let middleware = middleware.clone();
+        let request_throttle = request_throttle.clone();
+        let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
+
+        //Spawn a new thread to get all pools and sync data for each dex
+        handles.push(tokio::spawn(async move {
+            progress_bar.set_style(
+                ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7}")
+                    .expect("Error when setting progress bar style")
+                    .progress_chars("##-"),
+            );
+
+            //Get all of the pools from the dex
+            progress_bar.set_message(format!("Getting all pools from: {}", dex.factory_address()));
+
+            let mut pools = dex
+                .get_all_pools_from_logs_within_range(
+                    from_block,
+                    to_block,
+                    step,
+                    request_throttle.clone(),
+                    progress_bar.clone(),
+                    middleware.clone(),
+                )
+                .await?;
+
+            progress_bar.reset();
+            progress_bar.set_style(
+                ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7}")
+                    .expect("Error when setting progress bar style")
+                    .progress_chars("##-"),
+            );
+
+            //Get all of the pool data and sync the pool
+            progress_bar.set_message(format!(
+                "Getting all pool data for: {}",
+                dex.factory_address()
+            ));
+            progress_bar.set_length(pools.len() as u64);
+
+            dex.get_all_pool_data(
+                &mut pools,
+                request_throttle.clone(),
+                progress_bar.clone(),
+                middleware.clone(),
+            )
+            .await?;
+
+            //Clean empty pools
+            pools = sync::remove_empty_pools(pools);
+
+            Ok::<_, CFMMError<M>>(pools)
+        }));
+    }
+
+    for handle in handles {
+        match handle.await {
+            Ok(sync_result) => aggregated_pools.extend(sync_result?),
+            Err(err) => {
+                {
+                    if err.is_panic() {
+                        // Resume the panic on the main task
+                        resume_unwind(err.into_panic());
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(aggregated_pools)
 }
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
@@ -210,7 +310,7 @@ pub async fn sync_pools_from_checkpoint_with_throttle<M: Middleware>(
     );
 
     //Read in checkpoint
-    let (dexes, mut pools) = deconstruct_checkpoint(path_to_checkpoint);
+    let (dexes, mut pools, latest_synced_block) = deconstruct_checkpoint(path_to_checkpoint);
 
     progress_bar.set_length(pools.len() as u64);
     progress_bar.set_message("Syncing reserves");

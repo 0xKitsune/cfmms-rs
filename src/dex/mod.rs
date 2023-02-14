@@ -88,11 +88,11 @@ impl Dex {
                     .map_err(CFMMError::MiddlewareError)?;
 
                 self.get_all_pools_from_logs(
-                    middleware,
                     current_block.into(),
                     step,
                     request_throttle,
                     progress_bar,
+                    middleware,
                 )
                 .await
             }
@@ -291,11 +291,11 @@ impl Dex {
     //Function to get all pair created events for a given Dex factory address and sync pool data
     pub async fn get_all_pools_from_logs<M: 'static + Middleware>(
         self,
-        middleware: Arc<M>,
         current_block: BlockNumber,
         step: usize,
         request_throttle: Arc<Mutex<RequestThrottle>>,
         progress_bar: ProgressBar,
+        middleware: Arc<M>,
     ) -> Result<Vec<Pool>, CFMMError<M>> {
         //Unwrap can be used here because the creation block was verified within `Dex::new()`
         let from_block = self
@@ -355,12 +355,12 @@ impl Dex {
     //Function to get all pair created events for a given Dex factory address and sync pool data
     pub async fn get_all_pools_from_logs_within_range<M: 'static + Middleware>(
         self,
-        middleware: Arc<M>,
         from_block: BlockNumber,
         to_block: BlockNumber,
         step: usize,
         request_throttle: Arc<Mutex<RequestThrottle>>,
         progress_bar: ProgressBar,
+        middleware: Arc<M>,
     ) -> Result<Vec<Pool>, CFMMError<M>> {
         //Unwrap can be used here because the creation block was verified within `Dex::new()`
         let from_block = from_block
