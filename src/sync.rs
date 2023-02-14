@@ -39,6 +39,11 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
     requests_per_second_limit: usize,
     save_checkpoint: Option<String>,
 ) -> Result<Vec<Pool>, CFMMError<M>> {
+    let block_number = middleware
+        .get_block_number()
+        .await
+        .map_err(CFMMError::MiddlewareError)?;
+
     //Initialize a new request throttle
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
 
@@ -122,15 +127,10 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
     if save_checkpoint.is_some() {
         let save_checkpoint = save_checkpoint.unwrap();
 
-        let latest_block = middleware
-            .get_block_number()
-            .await
-            .map_err(CFMMError::MiddlewareError)?;
-
         checkpoint::construct_checkpoint(
             dexes,
             &aggregated_pools,
-            latest_block.as_u64(),
+            block_number.as_u64(),
             save_checkpoint,
         )
     }

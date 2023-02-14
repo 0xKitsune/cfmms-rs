@@ -9,7 +9,7 @@ use std::{
 
 use ethers::{
     providers::Middleware,
-    types::{H160, U256},
+    types::{BlockNumber, Filter, H160, U256},
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use serde_json::{Map, Value};
@@ -38,18 +38,41 @@ pub async fn sync_pairs_from_checkpoint_with_throttle<M: 'static + Middleware>(
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
     //Initialize multi progress bar
     let multi_progress_bar = MultiProgress::new();
-    let _progress_bar = multi_progress_bar.add(ProgressBar::new(0));
+    let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
 
     //Read in checkpoint
-    let (dexes, mut pools) = deconstruct_checkpoint(path_to_checkpoint);
+    let (dexes, mut pools, checkpoint_block_number) = deconstruct_checkpoint(path_to_checkpoint);
 
-    //TODO: set progress bar length and style
+    //Create the filter with all the pair created events
 
-    //Update reserves for all pools
-    for pool in pools.iter_mut() {
-        request_throttle.lock().unwrap().increment_or_sleep(2);
-        pool.sync_pool(middleware.clone()).await?;
+    for dex in dexes {
+        let pools = dex
+            .get_all_pools_from_logs_within_range(
+                middleware,
+                from_block,
+                to_block,
+                step,
+                request_throttle,
+                progress_bar,
+            )
+            .await?;
     }
+
+    //TODO: get all pools created in length and concat the list of pools
+
+    //TODO: separate the pools into groups depending on the dex
+
+    //TODO: batch get pool data for dexes
+
+    //TODO: concat all the pools and return the populated pools
+
+    // //Update reserves for all pools
+    // for pool in pools.iter_mut() {
+    //     request_throttle.lock().unwrap().increment_or_sleep(2);
+    //     pool.sync_pool(middleware.clone()).await?;
+    // }
+
+    //TODO: update the sync checkpoint
 
     Ok((dexes, pools))
 }
@@ -211,7 +234,7 @@ pub async fn sync_pools_from_checkpoint_with_throttle<M: Middleware>(
     Ok((dexes, pools))
 }
 
-pub fn deconstruct_checkpoint(path_to_checkpoint: String) -> (Vec<Dex>, Vec<Pool>) {
+pub fn deconstruct_checkpoint(path_to_checkpoint: String) -> (Vec<Dex>, Vec<Pool>, BlockNumber) {
     let mut dexes = vec![];
 
     let checkpoint_json: serde_json::Value = serde_json::from_str(
@@ -220,6 +243,12 @@ pub fn deconstruct_checkpoint(path_to_checkpoint: String) -> (Vec<Dex>, Vec<Pool
             .as_str(),
     )
     .expect("Error when converting checkpoint file contents to serde_json::Value");
+
+    let block_number = checkpoint_json
+        .get("block_number")
+        .expect("Could not get block_number from checkpoint")
+        .as_u64()
+        .expect("Could not convert block_number to u64");
 
     for dex_data in checkpoint_json
         .get("dexes")
@@ -246,7 +275,7 @@ pub fn deconstruct_checkpoint(path_to_checkpoint: String) -> (Vec<Dex>, Vec<Pool
 
     let pools = deconstruct_pools_from_checkpoint(pools_array);
 
-    (dexes, pools)
+    (dexes, pools, BlockNumber::Number(block_number.into()))
 }
 
 pub fn deconstruct_dex_from_checkpoint(dex_map: &Map<String, Value>) -> Dex {
@@ -417,12 +446,12 @@ pub fn construct_checkpoint(
         checkpoint_timestamp.into(),
     );
 
+    checkpoint.insert(String::from("block_number"), latest_block.into());
+
     //Add dexes to checkpoint
     let mut dexes_array: Vec<Value> = vec![];
     for dex in dexes {
         let mut dex_map = Map::new();
-
-        dex_map.insert(String::from("latest_synced_block"), latest_block.into());
 
         dex_map.insert(
             String::from("factory_address"),
