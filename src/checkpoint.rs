@@ -665,8 +665,6 @@ pub fn construct_checkpoint(
 
     checkpoint.insert(String::from("pools"), pools_array.into());
 
-    let checkpoint_file_name = String::from("./") + &checkpoint_file_name + ".json";
-
     std::fs::write(
         checkpoint_file_name,
         serde_json::to_string_pretty(&checkpoint).unwrap(),

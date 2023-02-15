@@ -17,19 +17,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
-    // let dexes = vec![
-    //     //Add Sushiswap
-    //     Dex::new(
-    //         H160::from_str("0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac").unwrap(),
-    //         DexVariant::UniswapV2,
-    //         10794229,
-    //     ),
-    // ];
+    let dexes = vec![
+        //Add Sushiswap
+        Dex::new(
+            H160::from_str("0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac").unwrap(),
+            DexVariant::UniswapV2,
+            10794229,
+        ),
+    ];
 
-    // // Sync pools and generate checkpoint
-    // generate_checkpoint(dexes, provider.clone(), String::from("checkpoint")).await?;
-
-    checkpoint::sync_pairs_from_checkpoint("./checkpoint.json".into(), 100, provider).await?;
+    // Sync pools and generate checkpoint
+    generate_checkpoint(dexes, provider.clone(), String::from("checkpoint")).await?;
 
     Ok(())
 }
