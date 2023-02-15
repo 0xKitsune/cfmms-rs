@@ -24,16 +24,16 @@ use crate::{
 };
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
-pub async fn sync_pairs_from_checkpoint<M: 'static + Middleware>(
+pub async fn sync_pools_from_checkpoint<M: 'static + Middleware>(
     path_to_checkpoint: &str,
     step: usize,
     middleware: Arc<M>,
 ) -> Result<(Vec<Dex>, Vec<Pool>), CFMMError<M>> {
-    sync_pairs_from_checkpoint_with_throttle(path_to_checkpoint, step, 0, middleware).await
+    sync_pools_from_checkpoint_with_throttle(path_to_checkpoint, step, 0, middleware).await
 }
 
 //Get all pairs from last synced block and sync reserve values for each Dex in the `dexes` vec.
-pub async fn sync_pairs_from_checkpoint_with_throttle<M: 'static + Middleware>(
+pub async fn sync_pools_from_checkpoint_with_throttle<M: 'static + Middleware>(
     path_to_checkpoint: &str,
     step: usize,
     requests_per_second_limit: usize,
@@ -259,13 +259,14 @@ pub async fn generate_checkpoint<M: 'static + Middleware>(
     checkpoint_file_name: &str,
 ) -> Result<(), CFMMError<M>> {
     //Sync pairs with throttle but set the requests per second limit to 0, disabling the throttle.
-    generate_checkpoint_with_throttle(dexes, middleware, 0, checkpoint_file_name).await
+    generate_checkpoint_with_throttle(dexes, middleware, 100000, 0, checkpoint_file_name).await
 }
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
 pub async fn generate_checkpoint_with_throttle<M: 'static + Middleware>(
     dexes: Vec<Dex>,
     middleware: Arc<M>,
+    step: usize,
     requests_per_second_limit: usize,
     checkpoint_file_name: &str,
 ) -> Result<(), CFMMError<M>> {
@@ -295,7 +296,7 @@ pub async fn generate_checkpoint_with_throttle<M: 'static + Middleware>(
             let mut pools = dex
                 .get_all_pools(
                     request_throttle.clone(),
-                    100000,
+                    step,
                     progress_bar.clone(),
                     async_provider.clone(),
                 )
@@ -357,56 +358,6 @@ pub async fn generate_checkpoint_with_throttle<M: 'static + Middleware>(
     );
 
     Ok(())
-}
-
-//Syncs all reserve values for pools in checkpoint and returns a vec of Pool
-pub async fn sync_pools_from_checkpoint<M: Middleware>(
-    path_to_checkpoint: &str,
-    middleware: Arc<M>,
-) -> Result<(Vec<Dex>, Vec<Pool>), CFMMError<M>> {
-    sync_pools_from_checkpoint_with_throttle(path_to_checkpoint, middleware, 0).await
-}
-
-//Syncs all reserve values with throttle for pools in checkpoint and returns a vec of Pool
-pub async fn sync_pools_from_checkpoint_with_throttle<M: Middleware>(
-    path_to_checkpoint: &str,
-    middleware: Arc<M>,
-    requests_per_second_limit: usize,
-) -> Result<(Vec<Dex>, Vec<Pool>), CFMMError<M>> {
-    let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
-
-    let multi_progress_bar = MultiProgress::new();
-    let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
-
-    progress_bar.set_style(
-        ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7} Pairs")
-            .unwrap()
-            .progress_chars("##-"),
-    );
-
-    //Read in checkpoint
-    let (dexes, mut pools, _latest_synced_block) = deconstruct_checkpoint(path_to_checkpoint);
-
-    progress_bar.set_length(pools.len() as u64);
-    progress_bar.set_message("Syncing reserves");
-
-    //Update reserves for all pools
-    for pool in pools.iter_mut() {
-        request_throttle.lock().unwrap().increment_or_sleep(2);
-        progress_bar.inc(1);
-
-        match pool.sync_pool(middleware.clone()).await {
-            Ok(_) => {}
-            Err(pair_sync_error) => match pair_sync_error {
-                CFMMError::MiddlewareError(middleware_error) => {
-                    return Err(CFMMError::MiddlewareError(middleware_error))
-                }
-                _ => continue,
-            },
-        };
-    }
-
-    Ok((dexes, pools))
 }
 
 pub fn deconstruct_checkpoint(checkpoint_path: &str) -> (Vec<Dex>, Vec<Pool>, BlockNumber) {
