@@ -11,7 +11,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
-    let _pools = sync_pools_from_checkpoint("./pool_sync_checkpoint.json".into(), provider).await?;
+    let _pools = sync_pools_from_checkpoint("./pool_sync_checkpoint.json", provider).await?;
 
     Ok(())
 }
