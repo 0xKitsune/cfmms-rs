@@ -66,6 +66,8 @@ pub async fn sync_pairs_from_checkpoint_with_throttle<M: 'static + Middleware>(
         progress_bar.inc(1);
     }
 
+    //TODO: separate existing pools into a vec of each pool and their dexes so that you can batch call it
+
     let new_pools = get_new_pools_from_range(
         dexes.clone(),
         checkpoint_block_number,
@@ -394,8 +396,8 @@ pub fn deconstruct_dex_from_checkpoint(dex_map: &Map<String, Value>) -> Dex {
         }
     };
 
-    let latest_synced_block = dex_map
-        .get("latest_synced_block")
+    let block_number = dex_map
+        .get("block_number")
         .expect("Checkpoint formatted incorrectly, could not get dex latest_synced_block.")
         .as_u64()
         .expect("Could not convert latest_synced_block to u64");
@@ -409,7 +411,7 @@ pub fn deconstruct_dex_from_checkpoint(dex_map: &Map<String, Value>) -> Dex {
     )
     .expect("Could not convert checkpoint factory_address to H160.");
 
-    Dex::new(factory_address, dex_variant, latest_synced_block)
+    Dex::new(factory_address, dex_variant, block_number)
 }
 
 pub fn deconstruct_pools_from_checkpoint(pools_array: &Vec<Value>) -> Vec<Pool> {
@@ -557,6 +559,8 @@ pub fn construct_checkpoint(
             String::from("factory_address"),
             format!("{:?}", dex.factory_address()).into(),
         );
+
+        dex_map.insert(String::from("block_number"), latest_block.into());
 
         match dex {
             Dex::UniswapV2(_) => {
