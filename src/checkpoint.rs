@@ -1,6 +1,5 @@
 use core::panic;
 use std::{
-    collections::HashMap,
     fs::read_to_string,
     panic::resume_unwind,
     str::FromStr,
@@ -10,7 +9,7 @@ use std::{
 
 use ethers::{
     providers::Middleware,
-    types::{BlockNumber, Filter, H160, U256},
+    types::{BlockNumber, H160, U256},
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use serde_json::{Map, Value};
@@ -50,8 +49,7 @@ pub async fn sync_pairs_from_checkpoint_with_throttle<M: 'static + Middleware>(
     let multi_progress_bar = MultiProgress::new();
 
     //Read in checkpoint
-    let (dexes, pools, checkpoint_block_number) =
-        deconstruct_checkpoint(path_to_checkpoint.clone());
+    let (dexes, pools, checkpoint_block_number) = deconstruct_checkpoint(path_to_checkpoint);
 
     //Sort all of the pools from the checkpoint into uniswapv2 and uniswapv3 pools so we can sync them concurrently
     let (uinswap_v2_pools, uniswap_v3_pools) = sort_pool_variants(pools);
@@ -175,7 +173,7 @@ pub fn sort_pool_variants(pools: Vec<Pool>) -> (Vec<Pool>, Vec<Pool>) {
         }
     }
 
-    return (uniswap_v2_pools, uniswap_v3_pools);
+    (uniswap_v2_pools, uniswap_v3_pools)
 }
 
 pub async fn get_new_pools_from_range<M: 'static + Middleware>(
@@ -191,7 +189,7 @@ pub async fn get_new_pools_from_range<M: 'static + Middleware>(
     //Aggregate the populated pools from each thread
     let mut handles = vec![];
 
-    for dex in dexes.clone() {
+    for dex in dexes {
         let middleware = middleware.clone();
         let request_throttle = request_throttle.clone();
         let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
@@ -387,7 +385,7 @@ pub async fn sync_pools_from_checkpoint_with_throttle<M: Middleware>(
     );
 
     //Read in checkpoint
-    let (dexes, mut pools, latest_synced_block) = deconstruct_checkpoint(path_to_checkpoint);
+    let (dexes, mut pools, _latest_synced_block) = deconstruct_checkpoint(path_to_checkpoint);
 
     progress_bar.set_length(pools.len() as u64);
     progress_bar.set_message("Syncing reserves");

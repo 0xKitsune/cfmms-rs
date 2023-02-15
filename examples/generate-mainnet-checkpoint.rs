@@ -6,7 +6,7 @@ use ethers::{
 };
 
 use cfmms::{
-    checkpoint::{self, generate_checkpoint},
+    checkpoint::{generate_checkpoint},
     dex::{Dex, DexVariant},
 };
 
