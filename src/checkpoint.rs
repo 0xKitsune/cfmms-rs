@@ -1,5 +1,6 @@
 use core::panic;
 use std::{
+    collections::HashMap,
     fs::read_to_string,
     panic::resume_unwind,
     str::FromStr,
@@ -13,6 +14,7 @@ use ethers::{
 };
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use serde_json::{Map, Value};
+use tokio::task::JoinHandle;
 
 use crate::{
     dex::{Dex, DexVariant},
@@ -24,7 +26,7 @@ use crate::{
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
 pub async fn sync_pairs_from_checkpoint<M: 'static + Middleware>(
-    path_to_checkpoint: String,
+    path_to_checkpoint: &str,
     step: usize,
     middleware: Arc<M>,
 ) -> Result<(Vec<Dex>, Vec<Pool>), CFMMError<M>> {
@@ -33,7 +35,7 @@ pub async fn sync_pairs_from_checkpoint<M: 'static + Middleware>(
 
 //Get all pairs from last synced block and sync reserve values for each Dex in the `dexes` vec.
 pub async fn sync_pairs_from_checkpoint_with_throttle<M: 'static + Middleware>(
-    path_to_checkpoint: String,
+    path_to_checkpoint: &str,
     step: usize,
     requests_per_second_limit: usize,
     middleware: Arc<M>,
@@ -48,48 +50,132 @@ pub async fn sync_pairs_from_checkpoint_with_throttle<M: 'static + Middleware>(
     let multi_progress_bar = MultiProgress::new();
 
     //Read in checkpoint
-    let (dexes, mut pools, checkpoint_block_number) =
+    let (dexes, pools, checkpoint_block_number) =
         deconstruct_checkpoint(path_to_checkpoint.clone());
-    let progress_bar = multi_progress_bar.add(ProgressBar::new(0));
-    progress_bar.set_length(pools.len() as u64);
-    progress_bar.set_style(
-        ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7}")
-            .expect("Error when setting progress bar style")
-            .progress_chars("##-"),
-    );
-    progress_bar.set_message(format!("Syncing existing pools from checkpoint"));
 
-    //Update reserves for all pools
-    for pool in pools.iter_mut() {
-        request_throttle.lock().unwrap().increment_or_sleep(1);
-        pool.sync_pool(middleware.clone()).await?;
-        progress_bar.inc(1);
+    //Sort all of the pools from the checkpoint into uniswapv2 and uniswapv3 pools so we can sync them concurrently
+    let (uinswap_v2_pools, uniswap_v3_pools) = sort_pool_variants(pools);
+
+    let mut aggregated_pools = vec![];
+    let mut handles = vec![];
+
+    //Sync all uniswap v2 pools from checkpoint
+    if !uinswap_v2_pools.is_empty() {
+        handles.push(
+            batch_sync_pools_from_checkpoint(
+                uinswap_v2_pools,
+                DexVariant::UniswapV2,
+                multi_progress_bar.add(ProgressBar::new(0)),
+                request_throttle.clone(),
+                middleware.clone(),
+            )
+            .await,
+        );
     }
 
-    //TODO: separate existing pools into a vec of each pool and their dexes so that you can batch call it
+    //Sync all uniswap v3 pools from checkpoint
+    if !uniswap_v3_pools.is_empty() {
+        handles.push(
+            batch_sync_pools_from_checkpoint(
+                uniswap_v3_pools,
+                DexVariant::UniswapV3,
+                multi_progress_bar.add(ProgressBar::new(0)),
+                request_throttle.clone(),
+                middleware.clone(),
+            )
+            .await,
+        );
+    }
 
-    let new_pools = get_new_pools_from_range(
-        dexes.clone(),
-        checkpoint_block_number,
-        current_block.into(),
-        step,
-        request_throttle,
-        multi_progress_bar,
-        middleware.clone(),
-    )
-    .await?;
+    //Sync all pools from the since synced block
+    handles.extend(
+        get_new_pools_from_range(
+            dexes.clone(),
+            checkpoint_block_number,
+            current_block.into(),
+            step,
+            request_throttle,
+            multi_progress_bar,
+            middleware.clone(),
+        )
+        .await,
+    );
 
-    pools.extend(new_pools);
+    for handle in handles {
+        match handle.await {
+            Ok(sync_result) => aggregated_pools.extend(sync_result?),
+            Err(err) => {
+                {
+                    if err.is_panic() {
+                        // Resume the panic on the main task
+                        resume_unwind(err.into_panic());
+                    }
+                }
+            }
+        }
+    }
 
     //update the sync checkpoint
     construct_checkpoint(
         dexes.clone(),
-        &pools,
+        &aggregated_pools,
         current_block.as_u64(),
         path_to_checkpoint,
     );
 
-    Ok((dexes, pools))
+    Ok((dexes, aggregated_pools))
+}
+
+pub async fn batch_sync_pools_from_checkpoint<M: 'static + Middleware>(
+    mut pools: Vec<Pool>,
+    dex_variant: DexVariant,
+    progress_bar: ProgressBar,
+    request_throttle: Arc<Mutex<RequestThrottle>>,
+    middleware: Arc<M>,
+) -> JoinHandle<Result<Vec<Pool>, CFMMError<M>>> {
+    let dex = Dex::new(H160::zero(), dex_variant, 0);
+
+    //Spawn a new thread to get all pools and sync data for each dex
+    tokio::spawn(async move {
+        progress_bar.set_style(
+            ProgressStyle::with_template("{msg} {bar:40.cyan/blue} {pos:>7}/{len:7}")
+                .expect("Error when setting progress bar style")
+                .progress_chars("##-"),
+        );
+        progress_bar.set_length(pools.len() as u64);
+
+        match dex {
+            Dex::UniswapV2(_) => {
+                progress_bar.set_message("Syncing all Uniswap V2 pool variants from checkpoint");
+            }
+            Dex::UniswapV3(_) => {
+                progress_bar.set_message("Syncing all Uniswap V3 pool variants from checkpoint");
+            }
+        }
+
+        //Get all pool data via batched calls
+        dex.get_all_pool_data(&mut pools, request_throttle, progress_bar, middleware)
+            .await?;
+
+        //Clean empty pools
+        pools = sync::remove_empty_pools(pools);
+
+        Ok::<_, CFMMError<M>>(pools)
+    })
+}
+
+pub fn sort_pool_variants(pools: Vec<Pool>) -> (Vec<Pool>, Vec<Pool>) {
+    let mut uniswap_v2_pools = vec![];
+    let mut uniswap_v3_pools = vec![];
+
+    for pool in pools {
+        match pool {
+            Pool::UniswapV2(_) => uniswap_v2_pools.push(pool),
+            Pool::UniswapV3(_) => uniswap_v3_pools.push(pool),
+        }
+    }
+
+    return (uniswap_v2_pools, uniswap_v3_pools);
 }
 
 pub async fn get_new_pools_from_range<M: 'static + Middleware>(
@@ -100,10 +186,9 @@ pub async fn get_new_pools_from_range<M: 'static + Middleware>(
     request_throttle: Arc<Mutex<RequestThrottle>>,
     multi_progress_bar: MultiProgress,
     middleware: Arc<M>,
-) -> Result<Vec<Pool>, CFMMError<M>> {
+) -> Vec<JoinHandle<Result<Vec<Pool>, CFMMError<M>>>> {
     //Create the filter with all the pair created events
     //Aggregate the populated pools from each thread
-    let mut aggregated_pools: Vec<Pool> = vec![];
     let mut handles = vec![];
 
     for dex in dexes.clone() {
@@ -120,7 +205,10 @@ pub async fn get_new_pools_from_range<M: 'static + Middleware>(
             );
 
             //Get all of the pools from the dex
-            progress_bar.set_message(format!("Getting all pools from: {}", dex.factory_address()));
+            progress_bar.set_message(format!(
+                "Getting new all pools from: {}",
+                dex.factory_address()
+            ));
 
             let mut pools = dex
                 .get_all_pools_from_logs_within_range(
@@ -142,9 +230,10 @@ pub async fn get_new_pools_from_range<M: 'static + Middleware>(
 
             //Get all of the pool data and sync the pool
             progress_bar.set_message(format!(
-                "Getting all pool data for: {}",
+                "Getting all pool data for new pools from: {}",
                 dex.factory_address()
             ));
+
             progress_bar.set_length(pools.len() as u64);
 
             dex.get_all_pool_data(
@@ -162,28 +251,14 @@ pub async fn get_new_pools_from_range<M: 'static + Middleware>(
         }));
     }
 
-    for handle in handles {
-        match handle.await {
-            Ok(sync_result) => aggregated_pools.extend(sync_result?),
-            Err(err) => {
-                {
-                    if err.is_panic() {
-                        // Resume the panic on the main task
-                        resume_unwind(err.into_panic());
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(aggregated_pools)
+    handles
 }
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
 pub async fn generate_checkpoint<M: 'static + Middleware>(
     dexes: Vec<Dex>,
     middleware: Arc<M>,
-    checkpoint_file_name: String,
+    checkpoint_file_name: &str,
 ) -> Result<(), CFMMError<M>> {
     //Sync pairs with throttle but set the requests per second limit to 0, disabling the throttle.
     generate_checkpoint_with_throttle(dexes, middleware, 0, checkpoint_file_name).await
@@ -194,7 +269,7 @@ pub async fn generate_checkpoint_with_throttle<M: 'static + Middleware>(
     dexes: Vec<Dex>,
     middleware: Arc<M>,
     requests_per_second_limit: usize,
-    checkpoint_file_name: String,
+    checkpoint_file_name: &str,
 ) -> Result<(), CFMMError<M>> {
     //Initialize a new request throttle
     let request_throttle = Arc::new(Mutex::new(RequestThrottle::new(requests_per_second_limit)));
@@ -288,7 +363,7 @@ pub async fn generate_checkpoint_with_throttle<M: 'static + Middleware>(
 
 //Syncs all reserve values for pools in checkpoint and returns a vec of Pool
 pub async fn sync_pools_from_checkpoint<M: Middleware>(
-    path_to_checkpoint: String,
+    path_to_checkpoint: &str,
     middleware: Arc<M>,
 ) -> Result<(Vec<Dex>, Vec<Pool>), CFMMError<M>> {
     sync_pools_from_checkpoint_with_throttle(path_to_checkpoint, middleware, 0).await
@@ -296,7 +371,7 @@ pub async fn sync_pools_from_checkpoint<M: Middleware>(
 
 //Syncs all reserve values with throttle for pools in checkpoint and returns a vec of Pool
 pub async fn sync_pools_from_checkpoint_with_throttle<M: Middleware>(
-    path_to_checkpoint: String,
+    path_to_checkpoint: &str,
     middleware: Arc<M>,
     requests_per_second_limit: usize,
 ) -> Result<(Vec<Dex>, Vec<Pool>), CFMMError<M>> {
@@ -336,11 +411,11 @@ pub async fn sync_pools_from_checkpoint_with_throttle<M: Middleware>(
     Ok((dexes, pools))
 }
 
-pub fn deconstruct_checkpoint(path_to_checkpoint: String) -> (Vec<Dex>, Vec<Pool>, BlockNumber) {
+pub fn deconstruct_checkpoint(checkpoint_path: &str) -> (Vec<Dex>, Vec<Pool>, BlockNumber) {
     let mut dexes = vec![];
 
     let checkpoint_json: serde_json::Value = serde_json::from_str(
-        read_to_string(path_to_checkpoint)
+        read_to_string(checkpoint_path)
             .expect("Error when reading in checkpoint json")
             .as_str(),
     )
@@ -533,7 +608,7 @@ pub fn construct_checkpoint(
     dexes: Vec<Dex>,
     pools: &Vec<Pool>,
     latest_block: u64,
-    checkpoint_file_name: String,
+    checkpoint_path: &str,
 ) {
     let mut checkpoint = Map::new();
 
@@ -666,7 +741,7 @@ pub fn construct_checkpoint(
     checkpoint.insert(String::from("pools"), pools_array.into());
 
     std::fs::write(
-        checkpoint_file_name,
+        checkpoint_path,
         serde_json::to_string_pretty(&checkpoint).unwrap(),
     )
     .unwrap();

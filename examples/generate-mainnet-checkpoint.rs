@@ -27,7 +27,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     ];
 
     // Sync pools and generate checkpoint
-    generate_checkpoint(dexes, provider.clone(), String::from("checkpoint")).await?;
+    generate_checkpoint(dexes, provider.clone(), "checkpoint.json").await?;
 
     Ok(())
 }

@@ -14,10 +14,10 @@ use std::{
 pub async fn sync_pairs<M: 'static + Middleware>(
     dexes: Vec<Dex>,
     middleware: Arc<M>,
-    save_checkpoint: Option<String>,
+    checkpoint_path: Option<&str>,
 ) -> Result<Vec<Pool>, CFMMError<M>> {
     //Sync pairs with throttle but set the requests per second limit to 0, disabling the throttle.
-    sync_pairs_with_throttle(dexes, 100000, middleware, 0, save_checkpoint).await
+    sync_pairs_with_throttle(dexes, 100000, middleware, 0, checkpoint_path).await
 }
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
@@ -25,10 +25,10 @@ pub async fn sync_pairs_with_step<M: 'static + Middleware>(
     dexes: Vec<Dex>,
     step: usize,
     middleware: Arc<M>,
-    save_checkpoint: Option<String>,
+    checkpoint_path: Option<&str>,
 ) -> Result<Vec<Pool>, CFMMError<M>> {
     //Sync pairs with throttle but set the requests per second limit to 0, disabling the throttle.
-    sync_pairs_with_throttle(dexes, step, middleware, 0, save_checkpoint).await
+    sync_pairs_with_throttle(dexes, step, middleware, 0, checkpoint_path).await
 }
 
 //Get all pairs and sync reserve values for each Dex in the `dexes` vec.
@@ -37,7 +37,7 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
     step: usize, //TODO: Add docs on step. Step is the block range used to get all pools from a dex if syncing from event logs
     middleware: Arc<M>,
     requests_per_second_limit: usize,
-    save_checkpoint: Option<String>,
+    checkpoint_path: Option<&str>,
 ) -> Result<Vec<Pool>, CFMMError<M>> {
     let current_block = middleware
         .get_block_number()
@@ -124,14 +124,14 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
     }
 
     //Save a checkpoint if a path is provided
-    if save_checkpoint.is_some() {
-        let save_checkpoint = save_checkpoint.unwrap();
+    if checkpoint_path.is_some() {
+        let checkpoint_path = checkpoint_path.unwrap();
 
         checkpoint::construct_checkpoint(
             dexes,
             &aggregated_pools,
             current_block.as_u64(),
-            save_checkpoint,
+            checkpoint_path,
         )
     }
 
