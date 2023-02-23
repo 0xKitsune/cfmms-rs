@@ -410,13 +410,17 @@ impl UniswapV3Pool {
         self.address
     }
 
+    // pub async fn simulate_swap_with_cache() {}
+
     pub async fn simulate_swap<M: Middleware>(
         &self,
         token_in: H160,
         amount_in: U256,
         middleware: Arc<M>,
     ) -> Result<U256, CFMMError<M>> {
-        //TODO:  revert with as if amount specified is 0
+        if amount_in.is_zero() {
+            return Ok(U256::zero());
+        }
 
         //Initialize zero_for_one to true if token_in is token_a
         let zero_for_one = token_in == self.token_a;
@@ -428,6 +432,7 @@ impl UniswapV3Pool {
             MAX_SQRT_RATIO - 1
         };
 
+        //FIXME: batch this
         let block_number = middleware
             .get_block_number()
             .await
@@ -445,6 +450,8 @@ impl UniswapV3Pool {
             word_pos: self.calculate_word_pos_bit_pos(compressed).0,
         };
 
+        //FIXME: batch this
+        //FIXME: Also consider passing in some specification of how many words to fetch
         let mut word = self
             .get_word(
                 current_state.word_pos,
@@ -467,6 +474,8 @@ impl UniswapV3Pool {
 
             if word_pos != current_state.word_pos {
                 current_state.word_pos = word_pos;
+
+                //FIXME: consider caching as many words as specified at the beginning of the function
                 word = self
                     .get_word(
                         current_state.word_pos,
@@ -476,6 +485,7 @@ impl UniswapV3Pool {
                     .await?;
             }
 
+            //FIXME: consider caching as many words as specified at the beginning of the function
             //Get the next initialized tick within one word of the current tick
             (step.tick_next, step.initialized) =
                 uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
@@ -575,6 +585,7 @@ impl UniswapV3Pool {
     ) -> Result<U256, CFMMError<M>> {
         if block_number.is_some() {
             //TODO: in the future, create a batch call to get this and liquidity net within the same call
+
             Ok(abi::IUniswapV3Pool::new(self.address, middleware.clone())
                 .tick_bitmap(word_pos)
                 .block(block_number.unwrap())
