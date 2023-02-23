@@ -71,7 +71,7 @@ contract GetUniswapV3TickDataBatchRequest {
 
             //Set the current tick to the next tick and repeat
             currentTick = nextTick;
-            
+
             //Break if we hit the max/min tick
             if (currentTick == MAX_TICK || currentTick == MIN_TICK) {
                 break;
@@ -82,7 +82,8 @@ contract GetUniswapV3TickDataBatchRequest {
         // note: abi.encode add a first 32 bytes word with the address of the original data
         bytes memory abiEncodedData = abi.encode(
             initializedTicks,
-            liquidityNets
+            liquidityNets,
+            block.number
         );
 
         assembly {
