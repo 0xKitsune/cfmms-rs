@@ -6,6 +6,10 @@ pragma solidity ^0.8.0;
       deployment bytecode as payload.
  */
 contract GetUniswapV3TickDataBatchRequest {
+
+    int24 internal constant MIN_TICK = -887272;
+    int24 internal constant MAX_TICK = -MIN_TICK;
+
     constructor(
         address pool,
         bool zeroForOne,
@@ -47,6 +51,14 @@ contract GetUniswapV3TickDataBatchRequest {
                     tickSpacing,
                     zeroForOne
                 );
+
+            //Make sure not to overshoot the max/min tick
+            if (nextTick < MIN_TICK) {
+                nextTick= MIN_TICK;
+            } else if (nextTick > MAX_TICK) {
+                nextTick = MAX_TICK;
+            }
+
             //Make sure the next tick is initialized
             if (initialized) {
                 (, int128 liquidityNet, , , , , , ) = IUniswapV3PoolState(pool)
@@ -59,6 +71,11 @@ contract GetUniswapV3TickDataBatchRequest {
 
             //Set the current tick to the next tick and repeat
             currentTick = nextTick;
+            
+            //Break if we hit the max/min tick
+            if (currentTick == MAX_TICK || currentTick == MIN_TICK) {
+                break;
+            }
         }
 
         // insure abi encoding, not needed here but increase reusability for different return types
