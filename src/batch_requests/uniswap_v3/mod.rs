@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, vec};
 
 use ethers::{
     abi::{ParamType, Token},
@@ -182,17 +182,28 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
     num_words: u32,
     middleware: Arc<M>,
 ) -> Result<(Vec<i128>, Vec<i32>, BlockNumber), CFMMError<M>> {
-    // let constructor_args = Token::Tuple(vec![
-    //     Token::Address(pool.address()),
-    //     Token::Bool(zero_for_one),
-    //     Token::Int(I256::from(pool.tick)),
-    //     Token::Uint(U256::from(num_words)),
-    //     Token::Uint(U256::from(pool.tick_spacing)),
-    // ]);
+    let constructor_args = Token::Tuple(vec![
+        Token::Address(pool.address()),
+        Token::Bool(zero_for_one),
+        Token::Int(I256::from(pool.tick)),
+        Token::Uint(U256::from(num_words)),
+        Token::Uint(U256::from(pool.tick_spacing)),
+    ]);
 
-    // let deployer =
-    //     GetUniswapV3TickDataBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
+    let deployer =
+        GetUniswapV3TickDataBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
     
+    let return_data: Bytes = deployer.call_raw().await?;
+
+    let return_data_tokens = ethers::abi::decode(
+        &[ParamType::Tuple(vec![
+            ParamType::Array(Box::new(ParamType::Int(128))),
+            ParamType::Array(Box::new(ParamType::Int(24))),
+            ParamType::Uint(64),
+        ])],
+        &return_data,
+    )?;
+
     Ok((vec![], vec![], BlockNumber::Number(0.into())))
 }
 
