@@ -9,7 +9,7 @@ use ethers::{
 
 use crate::{
     errors::CFMMError,
-    pool::{Pool, UniswapV3Pool},
+    pool::{uniswap_v3::Tick, Pool, UniswapV3Pool},
 };
 
 abigen!(
@@ -184,7 +184,7 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
     block_number: Option<U64>,
     middleware: Arc<M>,
 ) -> Result<(Vec<i32>, Vec<i128>, U64), CFMMError<M>> {
-    dbg!("batching", num_ticks);
+    dbg!(tick_start);
 
     let constructor_args = Token::Tuple(vec![
         Token::Address(pool.address()),
@@ -234,7 +234,7 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
             .as_i32();
 
             let liquidity_net = I256::from_raw(
-                tick_data_tuple[0]
+                tick_data_tuple[1]
                     .to_owned()
                     .into_int()
                     .expect("Could not convert token to int"),

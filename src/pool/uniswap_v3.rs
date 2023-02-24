@@ -587,7 +587,7 @@ impl UniswapV3Pool {
         amount_in: U256,
         middleware: Arc<M>,
     ) -> Result<U256, CFMMError<M>> {
-        self.simulate_swap_with_cache(token_in, amount_in, 350, middleware)
+        self.simulate_swap_with_cache(token_in, amount_in, 150, middleware)
             .await
     }
 
