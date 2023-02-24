@@ -705,26 +705,27 @@ impl UniswapV3Pool {
 
             //If the price moved all the way to the next price, recompute the liquidity change for the next iteration
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
-                let mut liquidity_net = next_tick_data.liquidity_net;
+                if next_tick_data.initialized {
+                    let mut liquidity_net = next_tick_data.liquidity_net;
 
-                // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
-                if zero_for_one {
-                    liquidity_net = -liquidity_net;
+                    // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
+                    if zero_for_one {
+                        liquidity_net = -liquidity_net;
+                    }
+
+                    current_state.liquidity = if liquidity_net < 0 {
+                        current_state.liquidity - (-liquidity_net as u128)
+                    } else {
+                        current_state.liquidity + (liquidity_net as u128)
+                    };
+
+                    //Increment the current tick
+                    current_state.tick = if zero_for_one {
+                        step.tick_next.wrapping_sub(1)
+                    } else {
+                        step.tick_next
+                    }
                 }
-
-                current_state.liquidity = if liquidity_net < 0 {
-                    current_state.liquidity - (-liquidity_net as u128)
-                } else {
-                    current_state.liquidity + (liquidity_net as u128)
-                };
-
-                //Increment the current tick
-                current_state.tick = if zero_for_one {
-                    step.tick_next.wrapping_sub(1)
-                } else {
-                    step.tick_next
-                }
-
                 //If the current_state sqrt price is not equal to the step sqrt price, then we are not on the same tick.
                 //Update the current_state.tick to the tick at the current_state.sqrt_price_x_96
             } else if current_state.sqrt_price_x_96 != step.sqrt_price_start_x_96 {
