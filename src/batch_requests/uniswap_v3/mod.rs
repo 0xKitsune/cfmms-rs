@@ -181,7 +181,7 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
     tick_start: i32,
     zero_for_one: bool,
     num_words: u32,
-    block_number: Option<BlockNumber>,
+    block_number: Option<U64>,
     middleware: Arc<M>,
 ) -> Result<(Vec<i32>, Vec<i128>, U64), CFMMError<M>> {
     let constructor_args = Token::Tuple(vec![

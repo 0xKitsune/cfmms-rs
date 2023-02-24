@@ -479,7 +479,7 @@ impl UniswapV3Pool {
                         current_state.tick,
                         zero_for_one,
                         1,
-                        Som(block_number),
+                        Some(block_number),
                         middleware.clone(),
                     )
                     .await?;
