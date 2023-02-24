@@ -11,7 +11,8 @@ contract GetUniswapV3TickDataBatchRequest {
     int24 internal constant MAX_TICK = -MIN_TICK;
 
     struct TickData {
-        int24 initializedTick;
+        bool initialized;
+        int24 tick;
         int128 liquidityNet;
     }
 
@@ -39,35 +40,30 @@ contract GetUniswapV3TickDataBatchRequest {
                 );
 
             //Make sure the next tick is initialized
-            if (initialized) {
-                (, int128 liquidityNet, , , , , , ) = IUniswapV3PoolState(pool)
-                    .ticks(nextTick);
+            (, int128 liquidityNet, , , , , , ) = IUniswapV3PoolState(pool)
+                .ticks(nextTick);
 
-                tickData[counter].initializedTick = nextTick;
+            //Make sure not to overshoot the max/min tick
+            //If we do, break the loop, and set the last initialized tick to the max/min tick=
+            if (nextTick < MIN_TICK) {
+                nextTick = MIN_TICK;
+                tickData[counter].initialized = initialized;
+                tickData[counter].tick = nextTick;
                 tickData[counter].liquidityNet = liquidityNet;
-
-                counter++;
+                break;
+            } else if (nextTick > MAX_TICK) {
+                nextTick = MIN_TICK;
+                tickData[counter].initialized = initialized;
+                tickData[counter].tick = nextTick;
+                tickData[counter].liquidityNet = liquidityNet;
+                break;
             } else {
-                //Make sure not to overshoot the max/min tick
-                //If we do, break the loop, and set the last initialized tick to the max/min tick=
-                if (nextTick < MIN_TICK) {
-                    nextTick = MIN_TICK;
-                    tickData[counter].initializedTick = nextTick;
-                    (, int128 liquidityNet, , , , , , ) = IUniswapV3PoolState(
-                        pool
-                    ).ticks(nextTick);
-                    tickData[counter].liquidityNet = liquidityNet;
-                    break;
-                } else if (nextTick > MAX_TICK) {
-                    nextTick = MAX_TICK;
-                    tickData[counter].initializedTick = nextTick;
-                    (, int128 liquidityNet, , , , , , ) = IUniswapV3PoolState(
-                        pool
-                    ).ticks(nextTick);
-                    tickData[counter].liquidityNet = liquidityNet;
-                    break;
-                }
+                tickData[counter].initialized = initialized;
+                tickData[counter].tick = nextTick;
+                tickData[counter].liquidityNet = liquidityNet;
             }
+
+            counter++;
 
             //Set the current tick to the next tick and repeat
             currentTick = zeroForOne ? nextTick - 1 : nextTick;

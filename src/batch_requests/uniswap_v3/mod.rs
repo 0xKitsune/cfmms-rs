@@ -176,6 +176,12 @@ pub async fn get_v3_pool_data_batch_request<M: Middleware>(
     Ok(())
 }
 
+pub struct UniswapV3TickData {
+    pub initialized: bool,
+    pub tick: i32,
+    pub liquidity_net: i128,
+}
+
 pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
     pool: &UniswapV3Pool,
     tick_start: i32,
@@ -183,9 +189,7 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
     num_ticks: u16,
     block_number: Option<U64>,
     middleware: Arc<M>,
-) -> Result<(Vec<i32>, Vec<i128>, U64), CFMMError<M>> {
-    dbg!(tick_start);
-
+) -> Result<(Vec<UniswapV3TickData>, U64), CFMMError<M>> {
     let constructor_args = Token::Tuple(vec![
         Token::Address(pool.address()),
         Token::Bool(zero_for_one),
@@ -206,6 +210,7 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
     let return_data_tokens = ethers::abi::decode(
         &[
             ParamType::Array(Box::new(ParamType::Tuple(vec![
+                ParamType::Bool,
                 ParamType::Int(24),
                 ParamType::Int(128),
             ]))),
@@ -220,13 +225,17 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
         .into_array()
         .expect("Failed to convert initialized_ticks from Vec<Token> to Vec<i128>");
 
-    let mut initialized_ticks = vec![];
-    let mut liquidity_nets = vec![];
+    let mut tick_data = vec![];
 
-    for tick_data in tick_data_array {
-        if let Some(tick_data_tuple) = tick_data.into_tuple() {
+    for tokens in tick_data_array {
+        if let Some(tick_data_tuple) = tokens.into_tuple() {
+            let initialized = tick_data_tuple[0]
+                .to_owned()
+                .into_bool()
+                .expect("Could not convert token to bool");
+
             let initialized_tick = I256::from_raw(
-                tick_data_tuple[0]
+                tick_data_tuple[1]
                     .to_owned()
                     .into_int()
                     .expect("Could not convert token to int"),
@@ -234,15 +243,18 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
             .as_i32();
 
             let liquidity_net = I256::from_raw(
-                tick_data_tuple[1]
+                tick_data_tuple[2]
                     .to_owned()
                     .into_int()
                     .expect("Could not convert token to int"),
             )
             .as_i128();
 
-            initialized_ticks.push(initialized_tick);
-            liquidity_nets.push(liquidity_net);
+            tick_data.push(UniswapV3TickData {
+                initialized,
+                tick: initialized_tick,
+                liquidity_net,
+            });
         }
     }
 
@@ -251,11 +263,7 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
         .into_uint()
         .expect("Failed to convert block_number from Token to U64");
 
-    Ok((
-        initialized_ticks,
-        liquidity_nets,
-        U64::from(block_number.as_u64()),
-    ))
+    Ok((tick_data, U64::from(block_number.as_u64())))
 }
 
 pub async fn sync_v3_pool_batch_request<M: Middleware>(

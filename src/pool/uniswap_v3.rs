@@ -426,7 +426,7 @@ impl UniswapV3Pool {
         let zero_for_one = token_in == self.token_a;
 
         //TODO: make this a queue instead of vec and then an iterator FIXME::
-        let (mut initialized_ticks, mut liquidity_nets, block_number) =
+        let (mut tick_data, block_number) =
             batch_requests::uniswap_v3::get_uniswap_v3_tick_data_batch_request(
                 self,
                 self.tick,
@@ -437,8 +437,7 @@ impl UniswapV3Pool {
             )
             .await?;
 
-        let (mut initialized_tick_iter, mut liquidity_net_iter) =
-            (initialized_ticks.iter(), liquidity_nets.iter());
+        let mut tick_data_iter = tick_data.iter();
 
         //Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending on zero_for_one
         let sqrt_price_limit_x_96 = if zero_for_one {
@@ -468,12 +467,12 @@ impl UniswapV3Pool {
                 ..Default::default()
             };
 
-            let next_initialized_tick = initialized_tick_iter.next();
+            let mut next_tick_data = tick_data_iter.next();
 
-            step.tick_next = if next_initialized_tick.is_some() {
-                next_initialized_tick.unwrap().to_owned()
+            step.tick_next = if next_tick_data.is_some() {
+                next_tick_data.unwrap().tick
             } else {
-                (initialized_ticks, liquidity_nets, _) =
+                (tick_data, _) =
                     batch_requests::uniswap_v3::get_uniswap_v3_tick_data_batch_request(
                         self,
                         current_state.tick,
@@ -484,11 +483,12 @@ impl UniswapV3Pool {
                     )
                     .await?;
 
-                (initialized_tick_iter, liquidity_net_iter) =
-                    (initialized_ticks.iter(), liquidity_nets.iter());
+                tick_data_iter = tick_data.iter();
 
-                if let Some(tick) = initialized_tick_iter.next() {
-                    tick.to_owned()
+                next_tick_data = tick_data_iter.next();
+
+                if let Some(tick_data) = next_tick_data {
+                    tick_data.tick
                 } else {
                     //This should never happen, but if it does, we should return an error because something is wrong
                     return Err(CFMMError::NoInitializedTicks);
@@ -542,10 +542,8 @@ impl UniswapV3Pool {
 
             //If the price moved all the way to the next price, recompute the liquidity change for the next iteration
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
-                let liquidity_net_next = liquidity_net_iter.next();
-
-                let mut liquidity_net = if liquidity_net_next.is_some() {
-                    liquidity_net_next.unwrap().to_owned()
+                let mut liquidity_net = if next_tick_data.is_some() {
+                    next_tick_data.unwrap().liquidity_net
                 } else {
                     //This should never happen, but if it does, we should return an error because something is wrong
                     return Err(CFMMError::NoLiquidityNet);
