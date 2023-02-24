@@ -12,6 +12,11 @@ contract GetUniswapV3TickDataBatchRequest {
     int24 internal constant MIN_TICK = -887272;
     int24 internal constant MAX_TICK = -MIN_TICK;
 
+    struct TickData {
+        int24 initializedTick;
+        int128 liquidityNet;
+    }
+
     constructor(
         address pool,
         bool zeroForOne,
@@ -19,20 +24,11 @@ contract GetUniswapV3TickDataBatchRequest {
         uint16 numTicks,
         int24 tickSpacing
     ) {
-        //TODO: set the length for something that will for sure contain it, then at the end adjust the length
-
-        // uint256 length = (2**24) / uint256(int256(tickSpacing));
-        int24[] memory initializedTicks = new int24[](numTicks);
-        int128[] memory liquidityNets = new int128[](numTicks);
-
-        //Take in some amount of values for:
-        // How many words to get
-        // Every initialized tick within all of the words returned
+        TickData[] memory tickData = new TickData[](numTicks);
 
         //Instantiate current word position to keep track of the word count
         uint256 counter = 0;
 
-        console.log("getting Here");
         while (counter < numTicks) {
             (
                 int24 nextTick,
@@ -49,27 +45,28 @@ contract GetUniswapV3TickDataBatchRequest {
                 (, int128 liquidityNet, , , , , , ) = IUniswapV3PoolState(pool)
                     .ticks(nextTick);
 
-                initializedTicks[counter] = nextTick;
-                liquidityNets[counter] = liquidityNet;
+                tickData[counter].initializedTick = nextTick;
+                tickData[counter].liquidityNet = liquidityNet;
+
                 counter++;
             } else {
                 //Make sure not to overshoot the max/min tick
                 //If we do, break the loop, and set the last initialized tick to the max/min tick=
                 if (nextTick < MIN_TICK) {
                     nextTick = MIN_TICK;
-                    initializedTicks[counter] = nextTick;
+                    tickData[counter].initializedTick = nextTick;
                     (, int128 liquidityNet, , , , , , ) = IUniswapV3PoolState(
                         pool
                     ).ticks(nextTick);
-                    liquidityNets[counter] = liquidityNet;
+                    tickData[counter].liquidityNet = liquidityNet;
                     break;
                 } else if (nextTick > MAX_TICK) {
                     nextTick = MAX_TICK;
-                    initializedTicks[counter] = nextTick;
+                    tickData[counter].initializedTick = nextTick;
                     (, int128 liquidityNet, , , , , , ) = IUniswapV3PoolState(
                         pool
                     ).ticks(nextTick);
-                    liquidityNets[counter] = liquidityNet;
+                    tickData[counter].liquidityNet = liquidityNet;
                     break;
                 }
             }
@@ -78,21 +75,9 @@ contract GetUniswapV3TickDataBatchRequest {
             currentTick = nextTick;
         }
 
-        console.log("gothere");
-
-        //Reassign length of each array.
-        assembly {
-            mstore(initializedTicks, add(counter, 1))
-            mstore(liquidityNets, add(counter, 1))
-        }
-
         // ensure abi encoding, not needed here but increase reusability for different return types
         // note: abi.encode add a first 32 bytes word with the address of the original data
-        bytes memory abiEncodedData = abi.encode(
-            initializedTicks,
-            liquidityNets,
-            block.number
-        );
+        bytes memory abiEncodedData = abi.encode(tickData, block.number);
 
         assembly {
             // Return from the start of the data (discarding the original data address)
@@ -123,8 +108,14 @@ contract GetUniswapV3TickDataBatchRequest {
             int24 compressed = tick / tickSpacing;
             if (tick < 0 && tick % tickSpacing != 0) compressed--; // round towards negative infinity
 
+            console.log(tick < 0 && tick % tickSpacing != 0);
+
             if (lte) {
                 (int16 wordPos, uint8 bitPos) = position(compressed);
+
+                console.logInt(wordPos);
+                console.log(bitPos);
+
                 // all the 1s at or to the right of the current bitPos
                 uint256 mask = (1 << bitPos) - 1 + (1 << bitPos);
                 uint256 masked = IUniswapV3PoolState(pool).tickBitmap(wordPos) &

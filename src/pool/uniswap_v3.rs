@@ -416,7 +416,7 @@ impl UniswapV3Pool {
         &self,
         token_in: H160,
         amount_in: U256,
-        num_words: u16,
+        num_ticks: u16,
         middleware: Arc<M>,
     ) -> Result<U256, CFMMError<M>> {
         if amount_in.is_zero() {
@@ -431,7 +431,7 @@ impl UniswapV3Pool {
                 self,
                 self.tick,
                 zero_for_one,
-                num_words,
+                num_ticks,
                 None,
                 middleware.clone(),
             )
@@ -478,7 +478,7 @@ impl UniswapV3Pool {
                         self,
                         current_state.tick,
                         zero_for_one,
-                        1,
+                        num_ticks,
                         Some(block_number),
                         middleware.clone(),
                     )
@@ -587,7 +587,7 @@ impl UniswapV3Pool {
         amount_in: U256,
         middleware: Arc<M>,
     ) -> Result<U256, CFMMError<M>> {
-        self.simulate_swap_with_cache(token_in, amount_in, 2, middleware)
+        self.simulate_swap_with_cache(token_in, amount_in, 350, middleware)
             .await
     }
 
@@ -868,7 +868,7 @@ mod test {
     ]"#;);
 
     #[tokio::test]
-    async fn test_simulate_swap() {
+    async fn test_simulate_swap_0() {
         let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
             .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());

@@ -1,7 +1,7 @@
 use std::{sync::Arc, vec};
 
 use ethers::{
-    abi::{ParamType, Token},
+    abi::{Param, ParamType, Token},
     prelude::abigen,
     providers::{call_raw::CallBuilder, Middleware},
     types::{BlockId, BlockNumber, Bytes, I256, U256, U64},
@@ -180,15 +180,17 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
     pool: &UniswapV3Pool,
     tick_start: i32,
     zero_for_one: bool,
-    num_words: u16,
+    num_ticks: u16,
     block_number: Option<U64>,
     middleware: Arc<M>,
 ) -> Result<(Vec<i32>, Vec<i128>, U64), CFMMError<M>> {
+    dbg!("batching", num_ticks);
+
     let constructor_args = Token::Tuple(vec![
         Token::Address(pool.address()),
         Token::Bool(zero_for_one),
         Token::Int(I256::from(tick_start).into_raw()),
-        Token::Uint(U256::from(num_words)),
+        Token::Uint(U256::from(num_ticks)),
         Token::Int(I256::from(pool.tick_spacing).into_raw()),
     ]);
 
@@ -201,55 +203,50 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
         deployer.call_raw().await?
     };
 
-    dbg!(return_data.clone());
-
     let return_data_tokens = ethers::abi::decode(
-        &[ParamType::Tuple(vec![
-            ParamType::Array(Box::new(ParamType::Int(24))),
-            ParamType::Array(Box::new(ParamType::Int(128))),
-            ParamType::Uint(64),
-        ])],
+        &[
+            ParamType::Array(Box::new(ParamType::Tuple(vec![
+                ParamType::Int(24),
+                ParamType::Int(128),
+            ]))),
+            ParamType::Uint(32),
+        ],
         &return_data,
     )?;
 
     //TODO: handle these errors instead of using expect
-    let initialized_tick_tokens = return_data_tokens[0]
+    let tick_data_array = return_data_tokens[0]
         .to_owned()
         .into_array()
         .expect("Failed to convert initialized_ticks from Vec<Token> to Vec<i128>");
 
     let mut initialized_ticks = vec![];
-    for token in initialized_tick_tokens {
-        let initialized_tick = I256::from_raw(
-            token
-                .to_owned()
-                .into_int()
-                .expect("Could not convert token to int"),
-        )
-        .as_i32();
-
-        initialized_ticks.push(initialized_tick);
-    }
-
-    let liquidity_net_tokens = return_data_tokens[1]
-        .to_owned()
-        .into_array()
-        .expect("Failed to convert liquidity_nets from Vec<Token> to Vec<i32>");
-
     let mut liquidity_nets = vec![];
-    for token in liquidity_net_tokens {
-        let liquidity_net = I256::from_raw(
-            token
-                .to_owned()
-                .into_int()
-                .expect("Could not convert token to int"),
-        )
-        .as_i128();
 
-        liquidity_nets.push(liquidity_net);
+    for tick_data in tick_data_array {
+        if let Some(tick_data_tuple) = tick_data.into_tuple() {
+            let initialized_tick = I256::from_raw(
+                tick_data_tuple[0]
+                    .to_owned()
+                    .into_int()
+                    .expect("Could not convert token to int"),
+            )
+            .as_i32();
+
+            let liquidity_net = I256::from_raw(
+                tick_data_tuple[0]
+                    .to_owned()
+                    .into_int()
+                    .expect("Could not convert token to int"),
+            )
+            .as_i128();
+
+            initialized_ticks.push(initialized_tick);
+            liquidity_nets.push(liquidity_net);
+        }
     }
 
-    let block_number = return_data_tokens[2]
+    let block_number = return_data_tokens[1]
         .to_owned()
         .into_uint()
         .expect("Failed to convert block_number from Token to U64");
