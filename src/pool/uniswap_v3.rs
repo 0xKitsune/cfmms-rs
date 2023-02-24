@@ -416,7 +416,7 @@ impl UniswapV3Pool {
         &self,
         token_in: H160,
         amount_in: U256,
-        num_words: u32,
+        num_words: u16,
         middleware: Arc<M>,
     ) -> Result<U256, CFMMError<M>> {
         if amount_in.is_zero() {
@@ -1013,11 +1013,15 @@ mod test {
 
         let amount_in_3 = U256::from_dec_str("100000000000000").unwrap(); // 100_000_000 USDC
 
+        dbg!(pool.tick);
+        dbg!(pool.tick_spacing);
+
         let current_block = middleware.get_block_number().await.unwrap();
         let amount_out_3 = pool
             .simulate_swap(pool.token_a, amount_in_3, middleware.clone())
             .await
             .unwrap();
+
         let expected_amount_out_3 = quoter
             .quote_exact_input_single(
                 pool.token_a,

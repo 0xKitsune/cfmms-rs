@@ -180,7 +180,7 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
     pool: &UniswapV3Pool,
     tick_start: i32,
     zero_for_one: bool,
-    num_words: u32,
+    num_words: u16,
     block_number: Option<U64>,
     middleware: Arc<M>,
 ) -> Result<(Vec<i32>, Vec<i128>, U64), CFMMError<M>> {
@@ -189,7 +189,7 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
         Token::Bool(zero_for_one),
         Token::Int(I256::from(tick_start).into_raw()),
         Token::Uint(U256::from(num_words)),
-        Token::Uint(U256::from(pool.tick_spacing)),
+        Token::Int(I256::from(pool.tick_spacing).into_raw()),
     ]);
 
     let deployer =
@@ -200,6 +200,8 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
     } else {
         deployer.call_raw().await?
     };
+
+    dbg!(return_data.clone());
 
     let return_data_tokens = ethers::abi::decode(
         &[ParamType::Tuple(vec![

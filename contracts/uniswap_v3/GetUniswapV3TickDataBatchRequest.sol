@@ -5,6 +5,9 @@ pragma solidity ^0.8.0;
  @dev This contract is not meant to be deployed. Instead, use a static call with the
       deployment bytecode as payload.
  */
+
+import "../test/Console.sol";
+
 contract GetUniswapV3TickDataBatchRequest {
     int24 internal constant MIN_TICK = -887272;
     int24 internal constant MAX_TICK = -MIN_TICK;
@@ -13,34 +16,24 @@ contract GetUniswapV3TickDataBatchRequest {
         address pool,
         bool zeroForOne,
         int24 currentTick,
-        uint16 numWords,
+        uint16 numTicks,
         int24 tickSpacing
     ) {
-        int24[] memory initializedTicks;
-        int128[] memory liquidityNets;
+        //TODO: set the length for something that will for sure contain it, then at the end adjust the length
+
+        // uint256 length = (2**24) / uint256(int256(tickSpacing));
+        int24[] memory initializedTicks = new int24[](numTicks);
+        int128[] memory liquidityNets = new int128[](numTicks);
 
         //Take in some amount of values for:
         // How many words to get
         // Every initialized tick within all of the words returned
-        // Array of same size corresponding to the liquidity nets of every initialized tick
-        uint256 incrementWordCount = 0;
 
         //Instantiate current word position to keep track of the word count
-        int16 currentWordPos;
         uint256 counter = 0;
-        while (incrementWordCount <= numWords) {
-            //Get the current word position of the tick
-            (int16 wordPos, ) = position(currentTick);
 
-            //If the word position of the current tick is not the current word position
-            //increment the word count
-            if (wordPos != currentWordPos) {
-                incrementWordCount++;
-            }
-
-            //Set the current word position to the word position of currentTick
-            currentWordPos = wordPos;
-
+        console.log("getting Here");
+        while (counter < numTicks) {
             (
                 int24 nextTick,
                 bool initialized
@@ -51,24 +44,6 @@ contract GetUniswapV3TickDataBatchRequest {
                     zeroForOne
                 );
 
-            //Make sure not to overshoot the max/min tick
-            //If we do, break the loop, and set the last initialized tick to the max/min tick=
-            if (nextTick < MIN_TICK) {
-                nextTick = MIN_TICK;
-                initializedTicks[counter] = nextTick;
-                (, int128 liquidityNet, , , , , , ) = IUniswapV3PoolState(pool)
-                    .ticks(nextTick);
-                liquidityNets[counter] = liquidityNet;
-                break;
-            } else if (nextTick > MAX_TICK) {
-                nextTick = MAX_TICK;
-                initializedTicks[counter] = nextTick;
-                (, int128 liquidityNet, , , , , , ) = IUniswapV3PoolState(pool)
-                    .ticks(nextTick);
-                liquidityNets[counter] = liquidityNet;
-                break;
-            }
-
             //Make sure the next tick is initialized
             if (initialized) {
                 (, int128 liquidityNet, , , , , , ) = IUniswapV3PoolState(pool)
@@ -77,10 +52,38 @@ contract GetUniswapV3TickDataBatchRequest {
                 initializedTicks[counter] = nextTick;
                 liquidityNets[counter] = liquidityNet;
                 counter++;
+            } else {
+                //Make sure not to overshoot the max/min tick
+                //If we do, break the loop, and set the last initialized tick to the max/min tick=
+                if (nextTick < MIN_TICK) {
+                    nextTick = MIN_TICK;
+                    initializedTicks[counter] = nextTick;
+                    (, int128 liquidityNet, , , , , , ) = IUniswapV3PoolState(
+                        pool
+                    ).ticks(nextTick);
+                    liquidityNets[counter] = liquidityNet;
+                    break;
+                } else if (nextTick > MAX_TICK) {
+                    nextTick = MAX_TICK;
+                    initializedTicks[counter] = nextTick;
+                    (, int128 liquidityNet, , , , , , ) = IUniswapV3PoolState(
+                        pool
+                    ).ticks(nextTick);
+                    liquidityNets[counter] = liquidityNet;
+                    break;
+                }
             }
 
             //Set the current tick to the next tick and repeat
             currentTick = nextTick;
+        }
+
+        console.log("gothere");
+
+        //Reassign length of each array.
+        assembly {
+            mstore(initializedTicks, add(counter, 1))
+            mstore(liquidityNets, add(counter, 1))
         }
 
         // ensure abi encoding, not needed here but increase reusability for different return types
