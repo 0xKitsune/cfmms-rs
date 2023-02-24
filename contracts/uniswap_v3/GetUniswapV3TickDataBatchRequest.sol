@@ -6,8 +6,6 @@ pragma solidity ^0.8.0;
       deployment bytecode as payload.
  */
 
-import "../test/Console.sol";
-
 contract GetUniswapV3TickDataBatchRequest {
     int24 internal constant MIN_TICK = -887272;
     int24 internal constant MAX_TICK = -MIN_TICK;
@@ -72,7 +70,7 @@ contract GetUniswapV3TickDataBatchRequest {
             }
 
             //Set the current tick to the next tick and repeat
-            currentTick = nextTick;
+            currentTick = zeroForOne ? nextTick - 1 : nextTick;
         }
 
         // ensure abi encoding, not needed here but increase reusability for different return types
@@ -108,13 +106,8 @@ contract GetUniswapV3TickDataBatchRequest {
             int24 compressed = tick / tickSpacing;
             if (tick < 0 && tick % tickSpacing != 0) compressed--; // round towards negative infinity
 
-            console.log(tick < 0 && tick % tickSpacing != 0);
-
             if (lte) {
                 (int16 wordPos, uint8 bitPos) = position(compressed);
-
-                console.logInt(wordPos);
-                console.log(bitPos);
 
                 // all the 1s at or to the right of the current bitPos
                 uint256 mask = (1 << bitPos) - 1 + (1 << bitPos);

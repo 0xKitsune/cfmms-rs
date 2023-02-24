@@ -13,7 +13,7 @@ contract GasTest is DSTest {
         address pool = 0x6c6Bc977E13Df9b0de53b251522280BB72383700;
         bool zeroForOne = true;
         (, int24 currentTick, , , , , ) = IUniswapV3Pool(pool).slot0();
-        uint16 numTicks = 1;
+        uint16 numTicks = 10;
         int24 tickSpacing = 10;
         GetUniswapV3TickDataBatchRequest batchContract = new GetUniswapV3TickDataBatchRequest(
                 pool,
