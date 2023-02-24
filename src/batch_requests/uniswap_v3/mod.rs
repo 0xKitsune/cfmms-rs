@@ -4,7 +4,7 @@ use ethers::{
     abi::{ParamType, Token},
     prelude::abigen,
     providers::Middleware,
-    types::{Bytes, I256},
+    types::{Bytes, I256, BlockNumber, U256},
 };
 
 use crate::{
@@ -17,6 +17,11 @@ abigen!(
     "src/batch_requests/uniswap_v3/GetUniswapV3PoolDataBatchRequest.json";
     SyncUniswapV3PoolBatchRequest,
     "src/batch_requests/uniswap_v3/SyncUniswapV3PoolBatchRequest.json";
+);
+
+abigen!(
+    GetUniswapV3TickDataBatchRequest,
+    "src/batch_requests/uniswap_v3/GetUniswapV3TickDataBatchRequest.json";
 );
 
 pub async fn get_pool_data_batch_request<M: Middleware>(
@@ -169,6 +174,26 @@ pub async fn get_v3_pool_data_batch_request<M: Middleware>(
         }
     }
     Ok(())
+}
+
+pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
+    pool: UniswapV3Pool,
+    zero_for_one: bool,
+    num_words: u32,
+    middleware: Arc<M>,
+) -> Result<(Vec<i128>, Vec<i32>, BlockNumber), CFMMError<M>> {
+    // let constructor_args = Token::Tuple(vec![
+    //     Token::Address(pool.address()),
+    //     Token::Bool(zero_for_one),
+    //     Token::Int(I256::from(pool.tick)),
+    //     Token::Uint(U256::from(num_words)),
+    //     Token::Uint(U256::from(pool.tick_spacing)),
+    // ]);
+
+    // let deployer =
+    //     GetUniswapV3TickDataBatchRequest::deploy(middleware.clone(), constructor_args).unwrap();
+    
+    Ok((vec![], vec![], BlockNumber::Number(0.into())))
 }
 
 pub async fn sync_v3_pool_batch_request<M: Middleware>(
