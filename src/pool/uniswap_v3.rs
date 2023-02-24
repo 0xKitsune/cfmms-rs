@@ -410,20 +410,35 @@ impl UniswapV3Pool {
         self.address
     }
 
-    // pub async fn simulate_swap_with_cache() {}
+    pub async fn simulate_swap_mut_with_cache() {}
 
-    pub async fn simulate_swap<M: Middleware>(
+    pub async fn simulate_swap_with_cache<M: Middleware>(
         &self,
         token_in: H160,
         amount_in: U256,
+        num_words: u32,
         middleware: Arc<M>,
     ) -> Result<U256, CFMMError<M>> {
         if amount_in.is_zero() {
             return Ok(U256::zero());
         }
 
-        //Initialize zero_for_one to true if token_in is token_a
         let zero_for_one = token_in == self.token_a;
+
+        //TODO: make this a queue instead of vec and then an iterator FIXME::
+        let (mut initialized_ticks, mut liquidity_nets, block_number) =
+            batch_requests::uniswap_v3::get_uniswap_v3_tick_data_batch_request(
+                self,
+                self.tick,
+                zero_for_one,
+                num_words,
+                None,
+                middleware.clone(),
+            )
+            .await?;
+
+        let (mut initialized_tick_iter, mut liquidity_net_iter) =
+            (initialized_ticks.iter(), liquidity_nets.iter());
 
         //Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending on zero_for_one
         let sqrt_price_limit_x_96 = if zero_for_one {
@@ -431,12 +446,6 @@ impl UniswapV3Pool {
         } else {
             MAX_SQRT_RATIO - 1
         };
-
-        //FIXME: batch this
-        let block_number = middleware
-            .get_block_number()
-            .await
-            .map_err(CFMMError::MiddlewareError)?;
 
         let compressed = self.calculate_compressed(self.tick);
 
@@ -450,16 +459,6 @@ impl UniswapV3Pool {
             word_pos: self.calculate_word_pos_bit_pos(compressed).0,
         };
 
-        //FIXME: batch this
-        //FIXME: Also consider passing in some specification of how many words to fetch
-        let mut word = self
-            .get_word(
-                current_state.word_pos,
-                Some(block_number),
-                middleware.clone(),
-            )
-            .await?;
-
         while current_state.amount_specified_remaining != I256::zero()
             && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96
         {
@@ -469,35 +468,35 @@ impl UniswapV3Pool {
                 ..Default::default()
             };
 
-            let compressed = self.calculate_compressed(current_state.tick);
-            let (word_pos, bit_pos) = self.calculate_word_pos_bit_pos(compressed);
+            let next_initialized_tick = initialized_tick_iter.next();
 
-            if word_pos != current_state.word_pos {
-                current_state.word_pos = word_pos;
-
-                //FIXME: consider caching as many words as specified at the beginning of the function
-                word = self
-                    .get_word(
-                        current_state.word_pos,
-                        Some(block_number),
+            step.tick_next = if next_initialized_tick.is_some() {
+                next_initialized_tick.unwrap().to_owned()
+            } else {
+                (initialized_ticks, liquidity_nets, _) =
+                    batch_requests::uniswap_v3::get_uniswap_v3_tick_data_batch_request(
+                        self,
+                        current_state.tick,
+                        zero_for_one,
+                        1,
+                        Som(block_number),
                         middleware.clone(),
                     )
                     .await?;
-            }
 
-            //FIXME: consider caching as many words as specified at the beginning of the function
-            //Get the next initialized tick within one word of the current tick
-            (step.tick_next, step.initialized) =
-                uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
-                    self.tick_spacing,
-                    zero_for_one,
-                    compressed,
-                    bit_pos,
-                    word,
-                )
-                .await?;
+                (initialized_tick_iter, liquidity_net_iter) =
+                    (initialized_ticks.iter(), liquidity_nets.iter());
+
+                if let Some(tick) = initialized_tick_iter.next() {
+                    tick.to_owned()
+                } else {
+                    //This should never happen, but if it does, we should return an error because something is wrong
+                    return Err(CFMMError::NoInitializedTicks);
+                }
+            };
 
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
+            //Note: this could be removed as we are clamping in the batch contract
             step.tick_next = step.tick_next.clamp(MIN_TICK, MAX_TICK);
 
             //Get the next sqrt price from the input amount
@@ -543,28 +542,33 @@ impl UniswapV3Pool {
 
             //If the price moved all the way to the next price, recompute the liquidity change for the next iteration
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
-                if step.initialized {
-                    let mut liquidity_net = self
-                        .get_liquidity_net(step.tick_next, middleware.clone())
-                        .await?;
+                let liquidity_net_next = liquidity_net_iter.next();
 
-                    // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
-                    if zero_for_one {
-                        liquidity_net = -liquidity_net;
-                    }
+                let mut liquidity_net = if liquidity_net_next.is_some() {
+                    liquidity_net_next.unwrap().to_owned()
+                } else {
+                    //This should never happen, but if it does, we should return an error because something is wrong
+                    return Err(CFMMError::NoLiquidityNet);
+                };
 
-                    current_state.liquidity = if liquidity_net < 0 {
-                        current_state.liquidity - (-liquidity_net as u128)
-                    } else {
-                        current_state.liquidity + (liquidity_net as u128)
-                    }
+                // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
+                if zero_for_one {
+                    liquidity_net = -liquidity_net;
                 }
+
+                current_state.liquidity = if liquidity_net < 0 {
+                    current_state.liquidity - (-liquidity_net as u128)
+                } else {
+                    current_state.liquidity + (liquidity_net as u128)
+                };
+
                 //Increment the current tick
                 current_state.tick = if zero_for_one {
                     step.tick_next.wrapping_sub(1)
                 } else {
                     step.tick_next
                 }
+
                 //If the current_state sqrt price is not equal to the step sqrt price, then we are not on the same tick.
                 //Update the current_state.tick to the tick at the current_state.sqrt_price_x_96
             } else if current_state.sqrt_price_x_96 != step.sqrt_price_start_x_96 {
@@ -575,6 +579,16 @@ impl UniswapV3Pool {
         }
 
         Ok((-current_state.amount_calculated).into_raw())
+    }
+
+    pub async fn simulate_swap<M: Middleware>(
+        &self,
+        token_in: H160,
+        amount_in: U256,
+        middleware: Arc<M>,
+    ) -> Result<U256, CFMMError<M>> {
+        self.simulate_swap_with_cache(token_in, amount_in, 2, middleware)
+            .await
     }
 
     pub async fn get_word<M: Middleware>(

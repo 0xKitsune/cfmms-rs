@@ -113,7 +113,7 @@ contract GetUniswapV2PoolDataBatchRequest {
             allPoolData[i] = poolData;
         }
 
-        // insure abi encoding, not needed here but increase reusability for different return types
+        // ensure abi encoding, not needed here but increase reusability for different return types
         // note: abi.encode add a first 32 bytes word with the address of the original data
         bytes memory _abiEncodedData = abi.encode(allPoolData);
 
