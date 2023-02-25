@@ -1,15 +1,15 @@
 use std::{sync::Arc, vec};
 
 use ethers::{
-    abi::{Param, ParamType, Token},
+    abi::{ParamType, Token},
     prelude::abigen,
-    providers::{call_raw::CallBuilder, Middleware},
-    types::{BlockId, BlockNumber, Bytes, I256, U256, U64},
+    providers::{Middleware},
+    types::{Bytes, I256, U256, U64},
 };
 
 use crate::{
     errors::CFMMError,
-    pool::{uniswap_v3::Tick, Pool, UniswapV3Pool},
+    pool::{Pool, UniswapV3Pool},
 };
 
 abigen!(

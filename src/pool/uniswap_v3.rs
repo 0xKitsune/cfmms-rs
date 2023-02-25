@@ -1,4 +1,4 @@
-use std::{ops::Add, sync::Arc};
+use std::sync::Arc;
 
 use ethers::{
     abi::{decode, ethabi::Bytes, ParamType, Token},
@@ -444,8 +444,6 @@ impl UniswapV3Pool {
             MAX_SQRT_RATIO - 1
         };
 
-        let compressed = self.calculate_compressed(self.tick);
-
         //Initialize a mutable state state struct to hold the dynamic simulated state of the pool
         let mut current_state = CurrentState {
             sqrt_price_x_96: self.sqrt_price, //Active price on the pool
@@ -453,7 +451,6 @@ impl UniswapV3Pool {
             amount_specified_remaining: I256::from_raw(amount_in), //Amount of token_in that has not been swapped
             tick: self.tick,                                       //Current i24 tick of the pool
             liquidity: self.liquidity, //Current available liquidity in the tick range
-            word_pos: self.calculate_word_pos_bit_pos(compressed).0,
         };
 
         let mut liquidity_net = self.liquidity_net;
@@ -613,8 +610,6 @@ impl UniswapV3Pool {
             MAX_SQRT_RATIO - 1
         };
 
-        let compressed = self.calculate_compressed(self.tick);
-
         //Initialize a mutable state state struct to hold the dynamic simulated state of the pool
         let mut current_state = CurrentState {
             sqrt_price_x_96: self.sqrt_price, //Active price on the pool
@@ -622,7 +617,6 @@ impl UniswapV3Pool {
             amount_specified_remaining: I256::from_raw(amount_in), //Amount of token_in that has not been swapped
             tick: self.tick,                                       //Current i24 tick of the pool
             liquidity: self.liquidity, //Current available liquidity in the tick range
-            word_pos: self.calculate_word_pos_bit_pos(compressed).0,
         };
 
         while current_state.amount_specified_remaining != I256::zero()
@@ -825,7 +819,6 @@ pub struct CurrentState {
     sqrt_price_x_96: U256,
     tick: i32,
     liquidity: u128,
-    word_pos: i16,
 }
 
 #[derive(Default)]
