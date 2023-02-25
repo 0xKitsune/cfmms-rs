@@ -3,7 +3,7 @@ use std::{sync::Arc, vec};
 use ethers::{
     abi::{ParamType, Token},
     prelude::abigen,
-    providers::{Middleware},
+    providers::Middleware,
     types::{Bytes, I256, U256, U64},
 };
 
