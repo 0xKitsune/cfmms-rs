@@ -456,6 +456,8 @@ impl UniswapV3Pool {
             word_pos: self.calculate_word_pos_bit_pos(compressed).0,
         };
 
+        let mut liquidity_net = self.liquidity_net;
+
         while current_state.amount_specified_remaining != I256::zero()
             && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96
         {
@@ -465,10 +467,8 @@ impl UniswapV3Pool {
                 ..Default::default()
             };
 
-            let mut next_tick_data = tick_data_iter.next();
-
-            step.tick_next = if next_tick_data.is_some() {
-                next_tick_data.unwrap().tick
+            let next_tick_data = if let Some(tick_data) = tick_data_iter.next() {
+                tick_data
             } else {
                 (tick_data, _) =
                     batch_requests::uniswap_v3::get_uniswap_v3_tick_data_batch_request(
@@ -483,15 +483,15 @@ impl UniswapV3Pool {
 
                 tick_data_iter = tick_data.iter();
 
-                next_tick_data = tick_data_iter.next();
-
-                if let Some(tick_data) = next_tick_data {
-                    tick_data.tick
+                if let Some(tick_data) = tick_data_iter.next() {
+                    tick_data
                 } else {
                     //This should never happen, but if it does, we should return an error because something is wrong
                     return Err(CFMMError::NoInitializedTicks);
                 }
             };
+
+            step.tick_next = next_tick_data.tick;
 
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
             //Note: this could be removed as we are clamping in the batch contract
@@ -540,31 +540,27 @@ impl UniswapV3Pool {
 
             //If the price moved all the way to the next price, recompute the liquidity change for the next iteration
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
-                let mut liquidity_net = if next_tick_data.is_some() {
-                    next_tick_data.unwrap().liquidity_net
-                } else {
-                    //This should never happen, but if it does, we should return an error because something is wrong
-                    return Err(CFMMError::NoLiquidityNet);
-                };
+                if next_tick_data.initialized {
+                    liquidity_net = next_tick_data.liquidity_net;
 
-                // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
-                if zero_for_one {
-                    liquidity_net = -liquidity_net;
+                    // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
+                    if zero_for_one {
+                        liquidity_net = -liquidity_net;
+                    }
+
+                    current_state.liquidity = if liquidity_net < 0 {
+                        current_state.liquidity - (-liquidity_net as u128)
+                    } else {
+                        current_state.liquidity + (liquidity_net as u128)
+                    };
+
+                    //Increment the current tick
+                    current_state.tick = if zero_for_one {
+                        step.tick_next.wrapping_sub(1)
+                    } else {
+                        step.tick_next
+                    }
                 }
-
-                current_state.liquidity = if liquidity_net < 0 {
-                    current_state.liquidity - (-liquidity_net as u128)
-                } else {
-                    current_state.liquidity + (liquidity_net as u128)
-                };
-
-                //Increment the current tick
-                current_state.tick = if zero_for_one {
-                    step.tick_next.wrapping_sub(1)
-                } else {
-                    step.tick_next
-                }
-
                 //If the current_state sqrt price is not equal to the step sqrt price, then we are not on the same tick.
                 //Update the current_state.tick to the tick at the current_state.sqrt_price_x_96
             } else if current_state.sqrt_price_x_96 != step.sqrt_price_start_x_96 {
@@ -573,6 +569,12 @@ impl UniswapV3Pool {
                 )?;
             }
         }
+
+        //Update the pool state
+        self.liquidity = current_state.liquidity;
+        self.sqrt_price = current_state.sqrt_price_x_96;
+        self.tick = current_state.tick;
+        self.liquidity_net = liquidity_net;
 
         Ok((-current_state.amount_calculated).into_raw())
     }
@@ -632,7 +634,7 @@ impl UniswapV3Pool {
                 ..Default::default()
             };
 
-            let mut next_tick_data = if let Some(tick_data) = tick_data_iter.next() {
+            let next_tick_data = if let Some(tick_data) = tick_data_iter.next() {
                 tick_data
             } else {
                 (tick_data, _) =
@@ -789,155 +791,8 @@ impl UniswapV3Pool {
         amount_in: U256,
         middleware: Arc<M>,
     ) -> Result<U256, CFMMError<M>> {
-        //Initialize zero_for_one to true if token_in is token_a
-        let zero_for_one = token_in == self.token_a;
-
-        //Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending on zero_for_one
-        let sqrt_price_limit_x_96 = if zero_for_one {
-            MIN_SQRT_RATIO + 1
-        } else {
-            MAX_SQRT_RATIO - 1
-        };
-
-        let block_number = middleware
-            .get_block_number()
+        self.simulate_swap_mut_with_cache(token_in, amount_in, 150, middleware)
             .await
-            .map_err(CFMMError::MiddlewareError)?;
-
-        let compressed = self.calculate_compressed(self.tick);
-
-        //Initialize a mutable state state struct to hold the dynamic simulated state of the pool
-        let mut current_state = CurrentState {
-            sqrt_price_x_96: self.sqrt_price, //Active price on the pool
-            amount_calculated: I256::zero(),  //Amount of token_out that has been calculated
-            amount_specified_remaining: I256::from_raw(amount_in), //Amount of token_in that has not been swapped
-            tick: self.tick,                                       //Current i24 tick of the pool
-            liquidity: self.liquidity, //Current available liquidity in the tick range
-            word_pos: self.calculate_word_pos_bit_pos(compressed).0,
-        };
-
-        let mut word = self
-            .get_word(
-                current_state.word_pos,
-                Some(block_number),
-                middleware.clone(),
-            )
-            .await?;
-
-        let mut liquidity_net = self.liquidity_net;
-
-        while current_state.amount_specified_remaining != I256::zero()
-            && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96
-        {
-            //Initialize a new step struct to hold the dynamic state of the pool at each step
-            let mut step = StepComputations {
-                sqrt_price_start_x_96: current_state.sqrt_price_x_96, //Set the sqrt_price_start_x_96 to the current sqrt_price_x_96
-                ..Default::default()
-            };
-
-            let compressed = self.calculate_compressed(current_state.tick);
-            let (word_pos, bit_pos) = self.calculate_word_pos_bit_pos(compressed);
-
-            if word_pos != current_state.word_pos {
-                current_state.word_pos = word_pos;
-                word = self
-                    .get_word(
-                        current_state.word_pos,
-                        Some(block_number),
-                        middleware.clone(),
-                    )
-                    .await?;
-            }
-
-            //Get the next initialized tick within one word of the current tick
-            (step.tick_next, step.initialized) =
-                uniswap_v3_math::tick_bit_map::next_initialized_tick_within_one_word(
-                    self.tick_spacing,
-                    zero_for_one,
-                    compressed,
-                    bit_pos,
-                    word,
-                )
-                .await?;
-
-            // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
-            step.tick_next = step.tick_next.clamp(MIN_TICK, MAX_TICK);
-
-            //Get the next sqrt price from the input amount
-            step.sqrt_price_next_x96 =
-                uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
-
-            //Target spot price
-            let swap_target_sqrt_ratio = if zero_for_one {
-                if step.sqrt_price_next_x96 < sqrt_price_limit_x_96 {
-                    sqrt_price_limit_x_96
-                } else {
-                    step.sqrt_price_next_x96
-                }
-            } else if step.sqrt_price_next_x96 > sqrt_price_limit_x_96 {
-                sqrt_price_limit_x_96
-            } else {
-                step.sqrt_price_next_x96
-            };
-
-            //Compute swap step and update the current state
-            (
-                current_state.sqrt_price_x_96,
-                step.amount_in,
-                step.amount_out,
-                step.fee_amount,
-            ) = uniswap_v3_math::swap_math::compute_swap_step(
-                current_state.sqrt_price_x_96,
-                swap_target_sqrt_ratio,
-                current_state.liquidity,
-                current_state.amount_specified_remaining,
-                self.fee,
-            )?;
-
-            //Decrement the amount remaining to be swapped and amount received from the step
-            current_state.amount_specified_remaining -=
-                I256::from_raw(step.amount_in.add(step.fee_amount));
-            current_state.amount_calculated -= I256::from_raw(step.amount_out);
-
-            //If the price moved all the way to the next price, recompute the liquidity change for the next iteration
-            if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
-                if step.initialized {
-                    liquidity_net = self
-                        .get_liquidity_net(step.tick_next, middleware.clone())
-                        .await?;
-
-                    // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
-                    if zero_for_one {
-                        liquidity_net = -liquidity_net;
-                    }
-
-                    current_state.liquidity = uniswap_v3_math::liquidity_math::add_delta(
-                        current_state.liquidity,
-                        liquidity_net,
-                    )?;
-                }
-                //Increment the current tick
-                current_state.tick = if zero_for_one {
-                    step.tick_next.wrapping_sub(1)
-                } else {
-                    step.tick_next
-                }
-                //If the current_state sqrt price is not equal to the step sqrt price, then we are not on the same tick.
-                //Update the current_state.tick to the tick at the current_state.sqrt_price_x_96
-            } else if current_state.sqrt_price_x_96 != step.sqrt_price_start_x_96 {
-                current_state.tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(
-                    current_state.sqrt_price_x_96,
-                )?;
-            }
-        }
-
-        //Update the pool state
-        self.liquidity = current_state.liquidity;
-        self.sqrt_price = current_state.sqrt_price_x_96;
-        self.tick = current_state.tick;
-        self.liquidity_net = liquidity_net;
-
-        Ok((-current_state.amount_calculated).into_raw())
     }
 
     pub fn swap_calldata(
