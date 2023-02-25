@@ -36,6 +36,10 @@ where
     PoolDataError,
     #[error("Arithmetic error")]
     ArithmeticError(#[from] ArithmeticError),
+    #[error("No initialized ticks during v3 swap simulation")]
+    NoInitializedTicks,
+    #[error("No liquidity net found during v3 swap simulation")]
+    NoLiquidityNet,
 }
 
 #[derive(Error, Debug)]

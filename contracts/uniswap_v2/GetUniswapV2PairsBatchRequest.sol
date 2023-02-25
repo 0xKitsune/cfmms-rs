@@ -25,7 +25,7 @@ contract GetUniswapV2PairsBatchRequest {
             allPairs[i] = IFactory(factory).allPairs(from + i);
         }
 
-        // insure abi encoding, not needed here but increase reusability for different return types
+        // ensure abi encoding, not needed here but increase reusability for different return types
         // note: abi.encode add a first 32 bytes word with the address of the original data
         bytes memory _abiEncodedData = abi.encode(allPairs);
 
