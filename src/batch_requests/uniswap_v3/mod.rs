@@ -1,4 +1,4 @@
-use std::{sync::Arc, vec};
+use std::{collections::HashMap, sync::Arc, vec};
 
 use ethers::{
     abi::{ParamType, Token},
@@ -189,7 +189,7 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
     num_ticks: u16,
     block_number: Option<U64>,
     middleware: Arc<M>,
-) -> Result<(Vec<UniswapV3TickData>, U64), CFMMError<M>> {
+) -> Result<(HashMap<i32, (bool, i128)>, U64), CFMMError<M>> {
     let constructor_args = Token::Tuple(vec![
         Token::Address(pool.address()),
         Token::Bool(zero_for_one),
@@ -263,7 +263,12 @@ pub async fn get_uniswap_v3_tick_data_batch_request<M: Middleware>(
         .into_uint()
         .expect("Failed to convert block_number from Token to U64");
 
-    Ok((tick_data, U64::from(block_number.as_u64())))
+    let mut tick_to_tick_data = HashMap::new();
+    for data in tick_data {
+        tick_to_tick_data.insert(data.tick, (data.initialized, data.liquidity_net));
+    }
+
+    Ok((tick_to_tick_data, U64::from(block_number.as_u64())))
 }
 
 pub async fn sync_v3_pool_batch_request<M: Middleware>(
