@@ -562,6 +562,7 @@ impl UniswapV3Pool {
                 //If the current_state sqrt price is not equal to the step sqrt price, then we are not on the same tick.
                 //Update the current_state.tick to the tick at the current_state.sqrt_price_x_96
             } else if current_state.sqrt_price_x_96 != step.sqrt_price_start_x_96 {
+                dbg!("hit here");
                 current_state.tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(
                     current_state.sqrt_price_x_96,
                 )?;
@@ -620,9 +621,7 @@ impl UniswapV3Pool {
             liquidity: self.liquidity, //Current available liquidity in the tick range
         };
 
-        while current_state.amount_specified_remaining != I256::zero()
-            && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96
-        {
+        while current_state.amount_specified_remaining > I256::zero() {
             //Initialize a new step struct to hold the dynamic state of the pool at each step
             let mut step = StepComputations {
                 sqrt_price_start_x_96: current_state.sqrt_price_x_96, //Set the sqrt_price_start_x_96 to the current sqrt_price_x_96
@@ -717,11 +716,10 @@ impl UniswapV3Pool {
                     };
 
                     //Increment the current tick
-                    current_state.tick = if zero_for_one {
-                        step.tick_next.wrapping_sub(1)
-                    } else {
-                        step.tick_next
-                    }
+                    //TODO: FIXME: NOTE: @0xKitsune @0xOsiris Sanity check this, we already decremented the tick by 1 in the batch contract,
+                    //So we simply set it to step.tick_next here
+                    //TODO: FIXME: Double triple check this
+                    current_state.tick = step.tick_next;
                 }
                 //If the current_state sqrt price is not equal to the step sqrt price, then we are not on the same tick.
                 //Update the current_state.tick to the tick at the current_state.sqrt_price_x_96
@@ -729,6 +727,14 @@ impl UniswapV3Pool {
                 current_state.tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(
                     current_state.sqrt_price_x_96,
                 )?;
+            }
+
+            if zero_for_one {
+                if current_state.sqrt_price_x_96 <= sqrt_price_limit_x_96 {
+                    break;
+                }
+            } else if current_state.sqrt_price_x_96 >= sqrt_price_limit_x_96 {
+                break;
             }
         }
 
@@ -1046,7 +1052,8 @@ mod test {
 
     #[tokio::test]
     async fn test_simulate_swap_4() {
-        let rpc_endpoint = "https://nameless-withered-spring.matic.quiknode.pro/7915e63a146cf8b4e372c88d2a372a21edb2d7e3/";
+        let rpc_endpoint = std::env::var("POLYGON_MAINNET_ENDPOINT")
+            .expect("Could not get POLYGON_MAINNET_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
         let pool = UniswapV3Pool::new_from_address(
@@ -1061,7 +1068,7 @@ mod test {
             middleware.clone(),
         );
 
-        let amount_in_3 = U256::from_dec_str("1110000000000000000000").unwrap(); // 100_000_000 USDC
+        let amount_in_3 = U256::from_dec_str("800000000000000000000").unwrap(); // 100_000_000 USDC
 
         dbg!(pool.tick);
         dbg!(pool.tick_spacing);
