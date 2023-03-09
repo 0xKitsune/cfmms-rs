@@ -3,7 +3,7 @@ use std::sync::Arc;
 use ethers::{
     abi::{decode, ethabi::Bytes, ParamType, Token},
     providers::Middleware,
-    types::{Log, H160, H256, I256, U256, U64, U512}, 
+    types::{Log, H160, H256, I256, U256, U512, U64},
 };
 use num_bigfloat::BigFloat;
 use uniswap_v3_math::sqrt_price_math::Q96;
@@ -386,17 +386,20 @@ impl UniswapV3Pool {
     pub fn calculate_price_64_x_64(&self, base_token: H160) -> Result<u128, ArithmeticError> {
         let decimal_shift = self.token_a_decimals as i8 - self.token_b_decimals as i8;
         let sqrt_price_512 = U512::from(self.sqrt_price);
-        let price = sqrt_price_512*sqrt_price_512;
-     
+        let price = sqrt_price_512 * sqrt_price_512;
 
         let price_squared_x_96 = if decimal_shift < 0 {
             price / 10_u128.pow((-decimal_shift) as u32)
         } else {
-            price*U512::from(10_u128.pow(decimal_shift as u32))
+            price * U512::from(10_u128.pow(decimal_shift as u32))
         };
 
         let price_x_64 = if base_token == self.token_a {
-            ((price_squared_x_96 / Q96).overflowing_mul(U512::from(Q128)).0 / Q96) >> 64
+            ((price_squared_x_96 / Q96)
+                .overflowing_mul(U512::from(Q128))
+                .0
+                / Q96)
+                >> 64
         } else {
             (U512::from(Q224) / (price_squared_x_96 / Q96)) >> 64
         };
@@ -1064,7 +1067,6 @@ mod test {
         dbg!(pool.tick_spacing);
 
         let current_block = middleware.get_block_number().await.unwrap();
-     
 
         let expected_amount_out_3 = quoter
             .quote_exact_input_single(
@@ -1079,19 +1081,14 @@ mod test {
             .await
             .unwrap();
 
+        dbg!("quoter", expected_amount_out_3);
 
-            dbg!("quoter", expected_amount_out_3);
-
-
-
-            let amount_out_3 = pool
+        let amount_out_3 = pool
             .simulate_swap(pool.token_a, amount_in_3, middleware.clone())
             .await
             .unwrap();
 
-    
-
-            dbg!(amount_out_3);
+        dbg!(amount_out_3);
 
         assert_eq!(amount_out_3, expected_amount_out_3);
     }
