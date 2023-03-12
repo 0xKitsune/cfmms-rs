@@ -31,7 +31,7 @@ impl Dex {
         creation_block: u64,
         fee: Option<u64>,
     ) -> Dex {
-        let fee = if fee.is_some() { fee.unwrap() } else { 300 };
+        let fee = if let Some(fee) = fee { fee } else { 300 };
 
         match dex_variant {
             DexVariant::UniswapV2 => Dex::UniswapV2(UniswapV2Dex::new(

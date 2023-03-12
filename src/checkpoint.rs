@@ -438,10 +438,9 @@ pub fn deconstruct_dex_from_checkpoint(dex_map: &Map<String, Value>) -> Dex {
     )
     .expect("Could not convert checkpoint factory_address to H160.");
 
-    let fee = match dex_map.get("fee") {
-        Some(fee) => Some(fee.as_u64().expect("Could not convert fee to u64")),
-        None => None,
-    };
+    let fee = dex_map
+        .get("fee")
+        .map(|fee| fee.as_u64().expect("Could not convert fee to u64"));
 
     Dex::new(factory_address, dex_variant, block_number, fee)
 }
