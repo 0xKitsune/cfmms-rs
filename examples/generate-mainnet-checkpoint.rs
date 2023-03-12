@@ -23,6 +23,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             H160::from_str("0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac").unwrap(),
             DexVariant::UniswapV2,
             10794229,
+            Some(300),
         ),
     ];
 
