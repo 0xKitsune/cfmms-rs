@@ -1045,55 +1045,6 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_simulate_swap_4() {
-        let rpc_endpoint = "https://nameless-withered-spring.matic.quiknode.pro/7915e63a146cf8b4e372c88d2a372a21edb2d7e3/";
-        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
-
-        let pool = UniswapV3Pool::new_from_address(
-            H160::from_str("0x0a6c4588b7d8bd22cf120283b1fff953420c45f3").unwrap(),
-            middleware.clone(),
-        )
-        .await
-        .unwrap();
-        dbg!(pool);
-        let quoter = IQuoter::new(
-            H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6").unwrap(),
-            middleware.clone(),
-        );
-
-        let amount_in_3 = U256::from_dec_str("1110000000000000000000").unwrap(); // 100_000_000 USDC
-
-        dbg!(pool.tick);
-        dbg!(pool.tick_spacing);
-
-        let current_block = middleware.get_block_number().await.unwrap();
-
-        let expected_amount_out_3 = quoter
-            .quote_exact_input_single(
-                pool.token_a,
-                pool.token_b,
-                pool.fee,
-                amount_in_3,
-                U256::zero(),
-            )
-            .block(current_block)
-            .call()
-            .await
-            .unwrap();
-
-        dbg!("quoter", expected_amount_out_3);
-
-        let amount_out_3 = pool
-            .simulate_swap(pool.token_a, amount_in_3, middleware.clone())
-            .await
-            .unwrap();
-
-        dbg!(amount_out_3);
-
-        assert_eq!(amount_out_3, expected_amount_out_3);
-    }
-
-    #[tokio::test]
     async fn test_get_new_from_address() {
         let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
             .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");

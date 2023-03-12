@@ -20,6 +20,7 @@ use super::DexVariant;
 pub struct UniswapV2Dex {
     pub factory_address: H160,
     pub creation_block: BlockNumber,
+    pub fee: u64,
 }
 
 pub const PAIR_CREATED_EVENT_SIGNATURE: H256 = H256([
@@ -28,10 +29,11 @@ pub const PAIR_CREATED_EVENT_SIGNATURE: H256 = H256([
 ]);
 
 impl UniswapV2Dex {
-    pub fn new(factory_address: H160, creation_block: BlockNumber) -> UniswapV2Dex {
+    pub fn new(factory_address: H160, creation_block: BlockNumber, fee: u64) -> UniswapV2Dex {
         UniswapV2Dex {
             factory_address,
             creation_block,
+            fee,
         }
     }
 

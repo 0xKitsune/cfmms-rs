@@ -25,11 +25,19 @@ pub enum Dex {
 }
 
 impl Dex {
-    pub fn new(factory_address: H160, dex_variant: DexVariant, creation_block: u64) -> Dex {
+    pub fn new(
+        factory_address: H160,
+        dex_variant: DexVariant,
+        creation_block: u64,
+        fee: Option<u64>,
+    ) -> Dex {
+        let fee = if fee.is_some() { fee.unwrap() } else { 300 };
+
         match dex_variant {
             DexVariant::UniswapV2 => Dex::UniswapV2(UniswapV2Dex::new(
                 factory_address,
                 BlockNumber::Number(creation_block.into()),
+                fee,
             )),
 
             DexVariant::UniswapV3 => Dex::UniswapV3(UniswapV3Dex::new(
