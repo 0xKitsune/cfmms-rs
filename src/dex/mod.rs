@@ -462,6 +462,7 @@ mod tests {
             H160::from_str("0x1F98431c8aD98523631AE4a59f267346ea31F984").unwrap(),
             DexVariant::UniswapV3,
             12369621,
+            None,
         );
 
         let usdc = H160::from_str("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48").unwrap();
