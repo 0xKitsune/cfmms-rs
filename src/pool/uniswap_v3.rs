@@ -8,8 +8,6 @@ use ethers::{
 use num_bigfloat::BigFloat;
 use uniswap_v3_math::sqrt_price_math::Q96;
 
-use super::fixed_point_math;
-
 use crate::{
     abi, batch_requests,
     errors::{ArithmeticError, CFMMError},
@@ -385,7 +383,7 @@ impl UniswapV3Pool {
         } else {
             1.0001_f64.powi(tick) * 10_f64.powi(shift as i32)
         };
-        
+
         if base_token == self.token_a {
             price
         } else {
