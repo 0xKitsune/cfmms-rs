@@ -349,7 +349,7 @@ impl UniswapV3Pool {
        ==> y = L^2*price
     */
     pub fn calculate_virtual_reserves(&self) -> Result<(u128, u128), ArithmeticError> {
-        let price: f64 = self.calculate_price(self.token_a)?;
+        let price: f64 = self.calculate_price(self.token_a);
 
         let sqrt_price = BigFloat::from_f64(price.sqrt());
         let liquidity = BigFloat::from_u128(self.liquidity);
@@ -377,10 +377,20 @@ impl UniswapV3Pool {
         ))
     }
 
-    pub fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError> {
-        Ok(fixed_point_math::q64_to_f64(
-            self.calculate_price_64_x_64(base_token)?,
-        ))
+    pub fn calculate_price(&self, base_token: H160) -> f64 {
+        let tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(self.sqrt_price).unwrap();
+        let shift = self.token_a_decimals as i8 - self.token_b_decimals as i8;
+        let price = if shift < 0 {
+            1.0001_f64.powi(tick) / 10_f64.powi(-shift as i32)
+        } else {
+            1.0001_f64.powi(tick) * 10_f64.powi(shift as i32)
+        };
+        
+        if base_token == self.token_a {
+            price
+        } else {
+            1.0 / price
+        }
     }
 
     pub fn calculate_price_64_x_64(&self, base_token: H160) -> Result<u128, ArithmeticError> {
@@ -1250,8 +1260,7 @@ mod test {
 
     #[tokio::test]
     async fn test_calculate_price() {
-        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
-            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+        let rpc_endpoint = "https://eth-mainnet.g.alchemy.com/v2/lwTMn3NipNHoVyjvVW7B_cpqxdQdL7Bv";
 
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
@@ -1270,13 +1279,9 @@ mod test {
         let sqrt_price = block_pool.slot_0().block(16515398).call().await.unwrap().0;
         pool.sqrt_price = sqrt_price;
 
-        let float_price_a = pool
-            .calculate_price(pool.token_a)
-            .expect("Could not calculate price");
+        let float_price_a = pool.calculate_price(pool.token_a);
 
-        let float_price_b = pool
-            .calculate_price(pool.token_b)
-            .expect("Could not calculate price");
+        let float_price_b = pool.calculate_price(pool.token_b);
 
         dbg!(pool);
 

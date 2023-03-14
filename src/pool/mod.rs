@@ -98,7 +98,7 @@ impl Pool {
     pub fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError> {
         match self {
             Pool::UniswapV2(pool) => pool.calculate_price(base_token),
-            Pool::UniswapV3(pool) => pool.calculate_price(base_token),
+            Pool::UniswapV3(pool) => Ok(pool.calculate_price(base_token)),
         }
     }
 
