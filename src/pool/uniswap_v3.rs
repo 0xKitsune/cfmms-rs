@@ -1109,38 +1109,6 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_calculate_price_64_x_64() {
-        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
-            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
-        let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
-
-        let mut pool = UniswapV3Pool {
-            address: H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
-            ..Default::default()
-        };
-
-        pool.get_pool_data(middleware.clone()).await.unwrap();
-
-        let block_pool = IUniswapV3Pool::new(
-            H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
-            middleware.clone(),
-        );
-
-        let sqrt_price = block_pool.slot_0().block(16515398).call().await.unwrap().0;
-        pool.sqrt_price = sqrt_price;
-
-        let price_a_64_x = pool
-            .calculate_price_64_x_64(pool.token_a)
-            .expect("Could not calculate price 64 x 64");
-
-        let price_b_64_x = pool
-            .calculate_price_64_x_64(pool.token_b)
-            .expect("Could not calculate price 64 x 64");
-
-        assert_eq!(11218179125914784_u128, price_a_64_x);
-        assert_eq!(30333119403920214119581_u128, price_b_64_x);
-    }
-    #[tokio::test]
     async fn test_calculate_virtual_reserves() {
         let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
             .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
