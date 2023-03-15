@@ -102,13 +102,6 @@ impl Pool {
         }
     }
 
-    pub fn calculate_price_64_x_64(&self, base_token: H160) -> Result<u128, ArithmeticError> {
-        match self {
-            Pool::UniswapV2(pool) => pool.calculate_price_64_x_64(base_token),
-            Pool::UniswapV3(pool) => pool.calculate_price_64_x_64(base_token),
-        }
-    }
-
     pub async fn get_pool_data<M: Middleware>(
         &mut self,
         middleware: Arc<M>,
