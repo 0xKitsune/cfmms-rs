@@ -3,10 +3,9 @@ use std::sync::Arc;
 use ethers::{
     abi::{decode, ethabi::Bytes, ParamType, Token},
     providers::Middleware,
-    types::{Log, H160, H256, I256, U256, U512, U64},
+    types::{Log, H160, H256, I256, U256, U64},
 };
 use num_bigfloat::BigFloat;
-use uniswap_v3_math::sqrt_price_math::Q96;
 
 use crate::{
     abi, batch_requests,
