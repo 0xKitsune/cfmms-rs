@@ -1,6 +1,6 @@
 [package]
 name = "cfmms"
-version = "0.6.1"
+version = "0.6.2"
 edition = "2021"
 license = "MIT"
 description = "CFMM lib built in Rust enabling pair syncing and swap simulation with pools on Ethereum."
