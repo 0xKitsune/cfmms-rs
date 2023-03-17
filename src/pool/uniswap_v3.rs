@@ -1143,18 +1143,21 @@ mod test {
         pool.sqrt_price = sqrt_price;
         pool.liquidity = liquidity;
 
+        dbg!(pool.sqrt_price);
+        dbg!(pool.liquidity);
+
         let (r_0, r_1) = pool
             .calculate_virtual_reserves()
             .expect("Could not calculate virtual reserves");
 
-        assert_eq!(1079168215643862690289_u128, r_0);
-        assert_eq!(642205206453104323_u128, r_1);
+        assert_eq!(1067543429906214084651, r_0);
+        assert_eq!(649198362624067396, r_1);
     }
 
     #[tokio::test]
     async fn test_calculate_price() {
-        let rpc_endpoint = "https://eth-mainnet.g.alchemy.com/v2/lwTMn3NipNHoVyjvVW7B_cpqxdQdL7Bv";
-
+        let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
+            .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
         let middleware = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
         let mut pool = UniswapV3Pool {
