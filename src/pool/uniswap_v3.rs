@@ -141,10 +141,7 @@ impl UniswapV3Pool {
     }
 
     pub fn data_is_populated(&self) -> bool {
-        !(self.token_a.is_zero()
-            || self.token_b.is_zero()
-            || self.liquidity == 0
-            || self.sqrt_price.is_zero())
+        !(self.token_a.is_zero() || self.token_b.is_zero())
     }
 
     pub async fn get_tick_word<M: Middleware>(

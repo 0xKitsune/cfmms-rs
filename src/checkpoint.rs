@@ -131,7 +131,7 @@ pub async fn batch_sync_pools_from_checkpoint<M: 'static + Middleware>(
     request_throttle: Arc<Mutex<RequestThrottle>>,
     middleware: Arc<M>,
 ) -> JoinHandle<Result<Vec<Pool>, CFMMError<M>>> {
-    let dex = Dex::new(H160::zero(), dex_variant, 0);
+    let dex = Dex::new(H160::zero(), dex_variant, 0, None);
 
     //Spawn a new thread to get all pools and sync data for each dex
     tokio::spawn(async move {
@@ -438,7 +438,11 @@ pub fn deconstruct_dex_from_checkpoint(dex_map: &Map<String, Value>) -> Dex {
     )
     .expect("Could not convert checkpoint factory_address to H160.");
 
-    Dex::new(factory_address, dex_variant, block_number)
+    let fee = dex_map
+        .get("fee")
+        .map(|fee| fee.as_u64().expect("Could not convert fee to u64"));
+
+    Dex::new(factory_address, dex_variant, block_number, fee)
 }
 
 pub fn deconstruct_pools_from_checkpoint(pools_array: &Vec<Value>) -> Vec<Pool> {
@@ -590,10 +594,15 @@ pub fn construct_checkpoint(
         dex_map.insert(String::from("block_number"), latest_block.into());
 
         match dex {
-            Dex::UniswapV2(_) => {
+            Dex::UniswapV2(uniswap_v2_dex) => {
                 dex_map.insert(
                     String::from("dex_variant"),
                     String::from("UniswapV2").into(),
+                );
+
+                dex_map.insert(
+                    String::from("fee"),
+                    format!("{:?}", uniswap_v2_dex.fee).into(),
                 );
             }
 

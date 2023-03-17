@@ -25,11 +25,19 @@ pub enum Dex {
 }
 
 impl Dex {
-    pub fn new(factory_address: H160, dex_variant: DexVariant, creation_block: u64) -> Dex {
+    pub fn new(
+        factory_address: H160,
+        dex_variant: DexVariant,
+        creation_block: u64,
+        fee: Option<u64>,
+    ) -> Dex {
+        let fee = if let Some(fee) = fee { fee } else { 300 };
+
         match dex_variant {
             DexVariant::UniswapV2 => Dex::UniswapV2(UniswapV2Dex::new(
                 factory_address,
                 BlockNumber::Number(creation_block.into()),
+                fee,
             )),
 
             DexVariant::UniswapV3 => Dex::UniswapV3(UniswapV3Dex::new(
@@ -454,6 +462,7 @@ mod tests {
             H160::from_str("0x1F98431c8aD98523631AE4a59f267346ea31F984").unwrap(),
             DexVariant::UniswapV3,
             12369621,
+            None,
         );
 
         let usdc = H160::from_str("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48").unwrap();
