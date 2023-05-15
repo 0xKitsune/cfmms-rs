@@ -28,7 +28,11 @@ Sync pairs simulate swaps, and interact with constant function market makers on 
 └── README.md
 ```
 
-
+The core logic is contained in the following files:
+* batch_requests - handles batch pool requests to the Ethereum endpoint
+* dex - contains interfaces that handle dex invariants
+* pool - contains pool interfaces that handle pools based on dex invariants
+* abi - generates bindings for the UniswapV2 and UniswapV3 contracts
 
 ## Supported Dexes
 
@@ -37,8 +41,12 @@ Sync pairs simulate swaps, and interact with constant function market makers on 
 | UniswapV2 variants  | ✅||
 | UniswapV3  | ✅||
 
+## Build, Run Tests, and Examples
+1. In order to build, clone the github repo:
+`git clone https://github.com/paradigmxyz/artemis
+cd artemis`
 
-## Running Examples
+2. Run tests with cargo `cargo test --all`
 
-To run any of the examples, first set a local environment variable called `ETHEREUM_MAINNET_ENDPOINT`. Then you can simply run `cargo run --example <example_name>`.
+3. To run any of the examples, first set a local environment variable called `ETHEREUM_MAINNET_ENDPOINT`. Then you can simply run `cargo run --example <example_name>`.
 
