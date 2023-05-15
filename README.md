@@ -10,6 +10,25 @@ Sync pairs simulate swaps, and interact with constant function market makers on 
 - [Crates.io](https://crates.io/crates/cfmms)
 - [Documentation in progress](https://docs.rs/cfmms/0.1.3/cfmms/)
 
+## Project Layout
+```./
+├── src/
+│   ├── batch_requests/
+│   ├── dex/
+│   ├── pool/
+│   ├── abi.rs
+│   ├── checkpoint.rs
+│   ├── errors.rs
+│   ├── lib.rs
+│   ├── sync.rs
+│   └── throttle.rs
+├── Cargo.lock
+├── Cargo.toml
+├── foundry.toml
+└── README.md
+```
+
+
 
 ## Supported Dexes
 
