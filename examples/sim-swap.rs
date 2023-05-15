@@ -17,13 +17,12 @@ r#"[
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    //load rpc endpoint from local environment
-    // let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
-    //     .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+    // load rpc endpoint from local environment
+    let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
+        .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
 
-    // let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+    let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
-    let provider = Arc::new(Provider::<Http>::try_from("https://eth.llamarpc.com").expect("cant load from endpoint"));
     
     //Instantiate Pools and Quoter
     let pool = UniswapV3Pool::new_from_address(
