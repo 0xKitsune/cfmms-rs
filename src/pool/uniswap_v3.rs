@@ -532,12 +532,12 @@ impl UniswapV3Pool {
                         current_state.liquidity + (liquidity_net as u128)
                     };
 
-                    //Increment the current tick
-                    current_state.tick = if zero_for_one {
-                        step.tick_next.wrapping_sub(1)
-                    } else {
-                        step.tick_next
-                    }
+                }
+                //Increment the current tick
+                current_state.tick = if zero_for_one {
+                    step.tick_next.wrapping_sub(1)
+                } else {
+                    step.tick_next
                 }
                 //If the current_state sqrt price is not equal to the step sqrt price, then we are not on the same tick.
                 //Update the current_state.tick to the tick at the current_state.sqrt_price_x_96
@@ -696,12 +696,12 @@ impl UniswapV3Pool {
                         current_state.liquidity + (liquidity_net as u128)
                     };
 
-                    //Increment the current tick
-                    current_state.tick = if zero_for_one {
-                        step.tick_next.wrapping_sub(1)
-                    } else {
-                        step.tick_next
-                    }
+                }
+                //Increment the current tick
+                current_state.tick = if zero_for_one {
+                    step.tick_next.wrapping_sub(1)
+                } else {
+                    step.tick_next
                 }
                 //If the current_state sqrt price is not equal to the step sqrt price, then we are not on the same tick.
                 //Update the current_state.tick to the tick at the current_state.sqrt_price_x_96
