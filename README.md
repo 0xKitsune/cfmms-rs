@@ -14,8 +14,16 @@ Sync pairs simulate swaps, and interact with constant function market makers on 
 ```./
 ├── src/
 │   ├── batch_requests/
+        |── uniswap_v2/
+        |── uniswap_v3/
 │   ├── dex/
+        |── mod.rs
+        |── uniswap_v2.rs
+        |── uniswap_v3.rs
 │   ├── pool/
+        |── mod.rs
+        |── uniswap_v2.rs
+        |── uniswap_v3.rs
 │   ├── abi.rs
 │   ├── checkpoint.rs
 │   ├── errors.rs
