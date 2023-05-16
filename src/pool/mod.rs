@@ -1,3 +1,8 @@
+//! # Pool
+//!
+//! A module that syncs multiple pool states between all dexes. 
+//! Contains logic for managing adding checkpoints during a sync, endpoint throttling requests, and removing inactive pools.
+//! 
 use std::{cmp::Ordering, sync::Arc};
 
 use ethers::{

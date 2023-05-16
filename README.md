@@ -33,6 +33,8 @@ The core logic is contained in the following files:
 * dex - contains interfaces that handle dex invariants
 * pool - contains pool interfaces that handle pools based on dex invariants
 * abi - generates bindings for the UniswapV2 and UniswapV3 contracts
+* sync - syncs multiple pool states between all dexes
+
 
 ## Supported Dexes
 
