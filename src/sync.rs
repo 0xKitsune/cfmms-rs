@@ -23,7 +23,6 @@ use std::{
 /// in `Vec<Dex>`. It utilizes the specified `middleware` for performing
 /// the synchronization. An optional `checkpoint_path` can be provided to resume the
 /// synchronization from a previously saved checkpoint.
-
 pub async fn sync_pairs<M: 'static + Middleware>(
     dexes: Vec<Dex>,
     middleware: Arc<M>,
