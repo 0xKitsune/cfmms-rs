@@ -1,4 +1,4 @@
-mod abi;
+pub mod abi;
 pub mod checkpoint;
 pub mod dex;
 pub mod errors;
