@@ -1,7 +1,8 @@
 //! # Sync
 //!
 //! Syncs multiple pool states between all dexes. 
-//! Contains logic for managing adding checkpoints during a sync, endpoint throttling requests, and removing inactive pools.
+//! Contains logic for managing adding checkpoints during a sync, 
+//! endpoint throttling requests, and removing inactive pools.
 
 use crate::{checkpoint, errors::CFMMError};
 
@@ -15,14 +16,17 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-/// Synchronizes all pairs and sync reserve values for each DEX in `Vec<Dex>` with **fixed** step size of `100000`. 
-/// Step is the block range used to get all pools from a dex if syncing from event logs. Use `sync_pairs_with_step` 
-/// to specify a custom step size. Sync pairs with throttle but the throttle is disabled because the default variable is fixed at 0.
+/// Synchronizes all pairs and sync reserve values for each DEX in `Vec<Dex>` with
+/// **fixed** step size of `100000`. Step is the block range used to get all pools
+/// from a dex if syncing from event logs. Use `sync_pairs_with_step` to specify a
+/// custom step size. Sync pairs with throttle but the throttle is disabled because
+/// the default variable is fixed at 0.
 ///
-/// This function synchronizes the pairs and reserve values for each DEX
-/// in `Vec<Dex>`. It utilizes the specified `middleware` for performing
-/// the synchronization. An optional `checkpoint_path` can be provided to resume the
-/// synchronization from a previously saved checkpoint.
+/// This function synchronizes the pairs and reserve values for each DEX in `Vec<Dex>`.
+/// It utilizes the specified `middleware` for performing the synchronization. An
+/// optional `checkpoint_path` can be provided to resume the synchronization from a
+/// previously saved checkpoint.
+
 pub async fn sync_pairs<M: 'static + Middleware>(
     dexes: Vec<Dex>,
     middleware: Arc<M>,
@@ -32,14 +36,16 @@ pub async fn sync_pairs<M: 'static + Middleware>(
     sync_pairs_with_throttle(dexes, 100000, middleware, 0, checkpoint_path).await
 }
 
-/// Synchronizes all pairs and sync reserve values for each DEX in `Vec<Dex>` with **variable** step size. 
-/// Step is the block range used to get all pools from a dex if syncing from event logs. 
-/// Sync pairs with throttle but the throttle is disabled because the default variable is fixed at 0.
+/// Synchronizes all pairs and sync reserve values for each DEX in `Vec<Dex>`
+/// with **variable** step size. Step is the block range used to get all pools
+/// from a dex if syncing from event logs. Sync pairs with throttle but the
+/// throttle is disabled because the default variable is fixed at 0.
 ///
 /// This function synchronizes the pairs and reserve values for each DEX
 /// in `Vec<Dex>`. It utilizes the specified `middleware` for performing
-/// the synchronization. An optional `checkpoint_path` can be provided to resume the
-/// synchronization from a previously saved checkpoint.
+/// the synchronization. An optional `checkpoint_path` can be provided to
+/// resume the synchronization from a previously saved checkpoint.
+
 pub async fn sync_pairs_with_step<M: 'static + Middleware>(
     dexes: Vec<Dex>,
     step: usize,
@@ -52,11 +58,13 @@ pub async fn sync_pairs_with_step<M: 'static + Middleware>(
 
 /// Get all pairs and sync reserve values for each DEX in `Vec<Dex>` with a throttle.
 ///
-/// This function asynchronously retrieves all pairs and synchronizes the reserve values for each DEX
-/// in `Vec<Dex>`. It uses a specified `step` to define the block range when syncing
-/// from event logs. The synchronization is performed using the given `middleware` and a `requests_per_second_limit`
-/// is applied to limit the number of requests per second. An optional `checkpoint_path` can be provided to
-/// save a checkpoint for resuming the synchronization from a specific point.
+/// This function asynchronously retrieves all pairs and synchronizes the reserve values
+/// for each DEX in `Vec<Dex>`. It uses a specified `step` to define the block range
+/// when syncing from event logs. The synchronization is performed using the given 
+/// `middleware` and a `requests_per_second_limit` is applied to limit the number of 
+/// requests per second. An optional `checkpoint_path` can be provided to save a 
+/// checkpoint for resuming the synchronization from a specific point.
+
 pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
     dexes: Vec<Dex>,
     step: usize,
