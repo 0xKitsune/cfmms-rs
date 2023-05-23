@@ -1,6 +1,6 @@
 //! Pool
 //!
-//! This module provides a collection of structures and functions related to Constant Function Market Maker (CFMM) pools. 
+//! This module provides a collection of structures and functions related to Constant Function Market Maker (CFMM) pools.
 //! The module includes support for two types of CFMM pools: Uniswap V2 and Uniswap V3.
 
 use std::{cmp::Ordering, sync::Arc};

@@ -375,9 +375,9 @@ impl UniswapV3Pool {
         ))
     }
 
-    /// Compute the token exchange rate at the current tick range. 
-    /// 
-    /// The token is called the base_token when it is equal to the token_a address in the Pool. 
+    /// Compute the token exchange rate at the current tick range.
+    ///
+    /// The token is called the base_token when it is equal to the token_a address in the Pool.
     pub fn calculate_price(&self, base_token: H160) -> f64 {
         let tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(self.sqrt_price).unwrap();
         let shift = self.token_a_decimals as i8 - self.token_b_decimals as i8;

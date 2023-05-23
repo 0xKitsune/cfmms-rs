@@ -2,19 +2,18 @@ use std::{error::Error, str::FromStr, sync::Arc};
 
 use ethers::{
     prelude::abigen,
-    providers::{Http, Provider, Middleware},
-    types::{H160},
+    providers::{Http, Middleware, Provider},
+    types::H160,
 };
 
-use cfmms::pool::UniswapV3Pool;
 use cfmms::abi::IUniswapV3Pool;
+use cfmms::pool::UniswapV3Pool;
 
 abigen!(
     IQuoter,
 r#"[
     function quoteExactInputSingle(address tokenIn, address tokenOut,uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitX96) external returns (uint256 amountOut)
 ]"#;);
-
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -26,7 +25,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     //Instantiate Pools and Quoter
     let mut pool = UniswapV3Pool::new_from_address(
-        H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),  // univ3 usdc/weth pool
+        H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(), // univ3 usdc/weth pool
         provider.clone(),
     )
     .await // use ? at end of await??
@@ -41,7 +40,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let current_block = provider.get_block_number().await.unwrap();
 
-    let sqrt_price = block_pool.slot_0().block(current_block).call().await.unwrap().0;
+    let sqrt_price = block_pool
+        .slot_0()
+        .block(current_block)
+        .call()
+        .await
+        .unwrap()
+        .0;
     pool.sqrt_price = sqrt_price;
 
     let float_price_a = pool.calculate_price(pool.token_a);
@@ -54,8 +59,5 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("Price A: {float_price_a}");
     println!("Price B: {float_price_b}");
 
-
-
     Ok(())
-
 }
