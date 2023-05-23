@@ -5,6 +5,10 @@ Tests are still being written, assume bugs until tested. If you would like to he
 
 # cfmms-rs
 
+`cfmms-rs` is a vertically integrated library for interacting with CFMMs (constant function market makers) on Ethereum. Features include:
+- batch sync token pair data from Uniswap V2 and V3 through optimized smart contracts that minimize the number of RPC calls
+- calculate token pair spot prices and simulate token swaps
+- execute transactions 
 Sync pairs simulate swaps, and interact with constant function market makers on Ethereum.
 
 - [Crates.io](https://crates.io/crates/cfmms)
@@ -37,7 +41,7 @@ Sync pairs simulate swaps, and interact with constant function market makers on 
 ```
 
 The core logic is contained in the following files:
-* batch_requests - handles batch pool requests to the Ethereum endpoint
+* batch_requests - handles batch pool requests to the Ethereum endpoint using solidity contracts in `contracts/`
 * dex - contains interfaces that handle dex invariants
 * pool - contains pool interfaces that handle pools based on dex invariants
 * abi - generates bindings for the UniswapV2 and UniswapV3 contracts
