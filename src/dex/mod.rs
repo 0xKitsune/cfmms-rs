@@ -425,6 +425,7 @@ impl Dex {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DexVariant {
     UniswapV2,
     UniswapV3,
