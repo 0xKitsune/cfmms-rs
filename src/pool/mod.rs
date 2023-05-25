@@ -47,7 +47,7 @@ impl Pool {
         }
     }
 
-    /// Returns the fee percentage associated with the pool.
+    /// Returns the fee associated with the pool, represented as a percentage
     pub fn fee(&self) -> u32 {
         match self {
             Pool::UniswapV2(pool) => pool.fee(),
