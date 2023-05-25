@@ -3,8 +3,9 @@ use std::sync::{Arc, Mutex};
 use ethers::{
     abi::ParamType,
     providers::Middleware,
-    types::{BlockNumber, Log, H160, H256, U256},
-};
+    types::{BlockNumber, Log, H160, U256},
+}; 
+use ethers::prelude::*;
 use indicatif::ProgressBar;
 
 use crate::{
@@ -22,6 +23,7 @@ pub struct UniswapV2Dex {
     pub creation_block: BlockNumber,
     pub fee: u64,
 }
+
 
 pub const PAIR_CREATED_EVENT_SIGNATURE: H256 = H256([
     13, 54, 72, 189, 15, 107, 168, 1, 52, 163, 59, 169, 39, 90, 197, 133, 217, 211, 21, 240, 173,
