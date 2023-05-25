@@ -39,9 +39,8 @@ impl UniswapV2Dex {
         }
     }
 
-    pub fn pool_created_event_signature(&self) -> H256 {
-         "0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9".parse::<H256>().unwrap()
-        // PAIR_CREATED_EVENT_SIGNATURE
+    pub const fn pool_created_event_signature(&self) -> H256 {
+        PAIR_CREATED_EVENT_SIGNATURE
     }
 
     pub async fn new_pool_from_event<M: Middleware>(
@@ -49,7 +48,7 @@ impl UniswapV2Dex {
         log: Log,
         middleware: Arc<M>,
     ) -> Result<Pool, CFMMError<M>> {
-        let tokens = ethers::abi::decode(&[ParamType::Address, ParamType::Uint(32)], &log.data)?;
+        let tokens = ethers::abi::decode(&[ParamType::Address, ParamType::Uint(256)], &log.data)?;
         let pair_address = tokens[0].to_owned().into_address().unwrap();
         Pool::new_from_address(pair_address, DexVariant::UniswapV2, middleware).await
     }
