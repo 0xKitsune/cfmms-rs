@@ -2,6 +2,7 @@ use std::{
     panic::resume_unwind,
     sync::{Arc, Mutex},
 };
+use serde::Serialize;
 
 use ethers::{
     abi::ParamType,
@@ -18,7 +19,7 @@ use crate::{
 
 use super::DexVariant;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize)]
 pub struct UniswapV3Dex {
     pub factory_address: H160,
     pub creation_block: BlockNumber,

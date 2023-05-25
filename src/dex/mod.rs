@@ -13,12 +13,14 @@ use crate::{
     throttle::RequestThrottle,
 };
 
+use serde::Serialize;
+
 use self::{uniswap_v2::UniswapV2Dex, uniswap_v3::UniswapV3Dex};
 
 pub mod uniswap_v2;
 pub mod uniswap_v3;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize)]
 pub enum Dex {
     UniswapV2(UniswapV2Dex),
     UniswapV3(UniswapV3Dex),
