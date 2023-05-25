@@ -23,6 +23,7 @@ pub const U256_TWO: U256 = U256([2, 0, 0, 0]);
 pub const Q128: U256 = U256([0, 0, 1, 0]);
 pub const Q224: U256 = U256([0, 0, 0, 4294967296]);
 #[derive(Clone, Copy, Debug, Default)]
+/// Contains all protocol specific data to represent a Uniswap V3 pool.
 pub struct UniswapV3Pool {
     pub address: H160,
     pub token_a: H160,
@@ -67,7 +68,7 @@ impl UniswapV3Pool {
         }
     }
 
-    //Creates a new instance of the pool from the pair address
+    /// Creates a new pool instance from the pair address.
     pub async fn new_from_address<M: Middleware>(
         pair_address: H160,
         middleware: Arc<M>,
@@ -95,6 +96,7 @@ impl UniswapV3Pool {
         Ok(pool)
     }
 
+    /// Creates a new pool with all pool data populated from an event log.
     pub async fn new_from_event_log<M: Middleware>(
         log: Log,
         middleware: Arc<M>,
@@ -104,6 +106,7 @@ impl UniswapV3Pool {
         UniswapV3Pool::new_from_address(pair_address, middleware).await
     }
 
+    /// Creates a `UniswapV3Pool` with all pool data populated from the pair address taken from the event log.     
     pub fn new_empty_pool_from_event_log<M: Middleware>(log: Log) -> Result<Self, CFMMError<M>> {
         let tokens = ethers::abi::decode(&[ParamType::Uint(32), ParamType::Address], &log.data)?;
         let token_a = H160::from(log.topics[0]);
@@ -130,6 +133,7 @@ impl UniswapV3Pool {
         self.fee
     }
 
+    /// Retrieve pool data in a way that minimizes number of RPC calls required to sync the pool state.
     pub async fn get_pool_data<M: Middleware>(
         &mut self,
         middleware: Arc<M>,
@@ -336,12 +340,12 @@ impl UniswapV3Pool {
 
         Ok(token1)
     }
-    /* Legend:
-       sqrt(price) = sqrt(y/x)
-       L = sqrt(x*y)
-       ==> x = L^2/price
-       ==> y = L^2*price
-    */
+
+    /// Legend:
+    ///    sqrt(price) = sqrt(y/x) \
+    ///    L = sqrt(x*y) \
+    ///    ==> x = L^2/price \
+    ///    ==> y = L^2*price \
     pub fn calculate_virtual_reserves(&self) -> Result<(u128, u128), ArithmeticError> {
         let price: f64 = self.calculate_price(self.token_a);
 
@@ -371,6 +375,9 @@ impl UniswapV3Pool {
         ))
     }
 
+    /// Compute the token exchange rate at the current tick range.
+    ///
+    /// The token is called the base_token when it is equal to the token_a address in the Pool.
     pub fn calculate_price(&self, base_token: H160) -> f64 {
         let tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(self.sqrt_price).unwrap();
         let shift = self.token_a_decimals as i8 - self.token_b_decimals as i8;
@@ -557,6 +564,7 @@ impl UniswapV3Pool {
         Ok((-current_state.amount_calculated).into_raw())
     }
 
+    /// Simulate a  swap using the cached current state of a `UniswapV3Pool`.
     pub async fn simulate_swap_with_cache<M: Middleware>(
         &self,
         token_in: H160,
@@ -715,6 +723,7 @@ impl UniswapV3Pool {
         Ok((-current_state.amount_calculated).into_raw())
     }
 
+    /// Simulate a swap through a route of pools.
     pub async fn simulate_swap<M: Middleware>(
         &self,
         token_in: H160,

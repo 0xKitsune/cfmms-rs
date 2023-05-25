@@ -1,3 +1,8 @@
+//! Pool
+//!
+//! This module provides a collection of structures and functions related to Constant Function Market Maker (CFMM) pools.
+//! The module includes support for two types of CFMM pools: Uniswap V2 and Uniswap V3.
+
 use std::{cmp::Ordering, sync::Arc};
 
 use ethers::{
@@ -22,8 +27,10 @@ pub enum Pool {
     UniswapV3(UniswapV3Pool),
 }
 
+/// Pool implementation serves as a common interface for any pool in a dex.
 impl Pool {
-    //Creates a new pool with all pool data populated from the pair address.
+    /// Creates a new pool with all pool data populated from a pair address.
+    /// This is useful if you know the address of the pool
     pub async fn new_from_address<M: Middleware>(
         pair_address: H160,
         dex_variant: DexVariant,
@@ -40,6 +47,7 @@ impl Pool {
         }
     }
 
+    /// Returns the fee associated with the pool, represented as a percentage
     pub fn fee(&self) -> u32 {
         match self {
             Pool::UniswapV2(pool) => pool.fee(),
@@ -47,7 +55,8 @@ impl Pool {
         }
     }
 
-    //Creates a new pool with all pool data populated from the pair address.
+    /// Creates a new pool with all pool data populated from an event log.
+    /// This is useful if you want to create a new pool from an event log without knowing the pool address a priori
     pub async fn new_from_event_log<M: Middleware>(
         log: Log,
         middleware: Arc<M>,
@@ -67,7 +76,7 @@ impl Pool {
         }
     }
 
-    //Creates a new pool with all pool data populated from the pair address.
+    /// Creates a new pool with all pool data populated from the pair address taken from the event log.
     pub fn new_empty_pool_from_event_log<M: Middleware>(log: Log) -> Result<Self, CFMMError<M>> {
         let event_signature = log.topics[0];
 
@@ -94,7 +103,8 @@ impl Pool {
         }
     }
 
-    //Get price of base token per pair token
+    /// Get price of base token per pair token where base token is the token you want the price denominated in.
+    /// E.G. If you want the price of ETH in ETH/DAI, then the base token is DAI.
     pub fn calculate_price(&self, base_token: H160) -> Result<f64, ArithmeticError> {
         match self {
             Pool::UniswapV2(pool) => pool.calculate_price(base_token),
@@ -120,6 +130,7 @@ impl Pool {
         }
     }
 
+    /// Simulate swap of token_in for token_out
     pub async fn simulate_swap<M: Middleware>(
         &self,
         token_in: H160,
@@ -148,6 +159,8 @@ impl Pool {
     }
 }
 
+/// Currently not implemented anywhere
+/// Converts the given amount from one decimal precision to another for a single token amount.
 pub fn convert_to_decimals(amount: U256, decimals: u8, target_decimals: u8) -> U256 {
     match target_decimals.cmp(&decimals) {
         Ordering::Less => amount / U256::from(10u128.pow((decimals - target_decimals) as u32)),
@@ -156,6 +169,8 @@ pub fn convert_to_decimals(amount: U256, decimals: u8, target_decimals: u8) -> U
     }
 }
 
+/// Currently not implemented anywhere
+/// Converts given amounts to a common decimal precision shared between two token amounts.
 pub fn convert_to_common_decimals(
     amount_a: U256,
     a_decimals: u8,
@@ -175,6 +190,7 @@ pub fn convert_to_common_decimals(
     }
 }
 
+/// Currently not implemented anywhere
 pub async fn simulate_route<M: Middleware>(
     mut token_in: H160,
     mut amount_in: U256,

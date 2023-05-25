@@ -1,3 +1,9 @@
+//! # Sync
+//!
+//! Syncs multiple pool states between all dexes.
+//! Contains logic for managing adding checkpoints during a sync,
+//! endpoint throttling requests, and removing inactive pools.
+
 use crate::{checkpoint, errors::CFMMError};
 
 use super::dex::Dex;
@@ -10,35 +16,63 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-//Get all pairs and sync reserve values for each Dex in the `dexes` vec.
+/// Synchronizes all pairs and sync reserve values for each DEX in `Vec<Dex>` with
+/// **fixed** step size of `100000`. Step is the block range used to get all pools
+/// from a dex if syncing from event logs. Use `sync_pairs_with_step` to specify a
+/// custom step size. Sync pairs with throttle but the throttle is disabled because
+/// the default variable is fixed at 0.
+///
+/// This function synchronizes the pairs and reserve values for each DEX in `Vec<Dex>`.
+/// It utilizes the specified `middleware` for performing the synchronization. An
+/// optional `checkpoint_path` can be provided to resume the synchronization from a
+/// previously saved checkpoint.
+
 pub async fn sync_pairs<M: 'static + Middleware>(
     dexes: Vec<Dex>,
     middleware: Arc<M>,
     checkpoint_path: Option<&str>,
 ) -> Result<Vec<Pool>, CFMMError<M>> {
-    //Sync pairs with throttle but set the requests per second limit to 0, disabling the throttle.
+    //throttle is disabled with a default value of 0
     sync_pairs_with_throttle(dexes, 100000, middleware, 0, checkpoint_path).await
 }
 
-//Get all pairs and sync reserve values for each Dex in the `dexes` vec.
+/// Synchronizes all pairs and sync reserve values for each DEX in `Vec<Dex>`
+/// with **variable** step size. Step is the block range used to get all pools
+/// from a dex if syncing from event logs. Sync pairs with throttle but the
+/// throttle is disabled because the default variable is fixed at 0.
+///
+/// This function synchronizes the pairs and reserve values for each DEX
+/// in `Vec<Dex>`. It utilizes the specified `middleware` for performing
+/// the synchronization. An optional `checkpoint_path` can be provided to
+/// resume the synchronization from a previously saved checkpoint.
+
 pub async fn sync_pairs_with_step<M: 'static + Middleware>(
     dexes: Vec<Dex>,
     step: usize,
     middleware: Arc<M>,
     checkpoint_path: Option<&str>,
 ) -> Result<Vec<Pool>, CFMMError<M>> {
-    //Sync pairs with throttle but set the requests per second limit to 0, disabling the throttle.
+    //throttle is disabled with a default value of 0
     sync_pairs_with_throttle(dexes, step, middleware, 0, checkpoint_path).await
 }
 
-//Get all pairs and sync reserve values for each Dex in the `dexes` vec.
+/// Get all pairs and sync reserve values for each DEX in `Vec<Dex>` with a throttle.
+///
+/// This function asynchronously retrieves all pairs and synchronizes the reserve values
+/// for each DEX in `Vec<Dex>`. It uses a specified `step` to define the block range
+/// when syncing from event logs. The synchronization is performed using the given
+/// `middleware` and a `requests_per_second_limit` is applied to limit the number of
+/// requests per second. An optional `checkpoint_path` can be provided to save a
+/// checkpoint for resuming the synchronization from a specific point.
+
 pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
     dexes: Vec<Dex>,
-    step: usize, //TODO: Add docs on step. Step is the block range used to get all pools from a dex if syncing from event logs
+    step: usize,
     middleware: Arc<M>,
     requests_per_second_limit: usize,
     checkpoint_path: Option<&str>,
 ) -> Result<Vec<Pool>, CFMMError<M>> {
+    //Get the current block number
     let current_block = middleware
         .get_block_number()
         .await
@@ -139,6 +173,10 @@ pub async fn sync_pairs_with_throttle<M: 'static + Middleware>(
     Ok(aggregated_pools)
 }
 
+/// Removes empty pools with empty `token_a` values from the `pools` vector.
+///
+/// This function iterates over the provided `pools` vector and removes any pools
+/// that have an empty `token_a` value. The cleaned vector is then returned.
 pub fn remove_empty_pools(pools: Vec<Pool>) -> Vec<Pool> {
     let mut cleaned_pools = vec![];
 
