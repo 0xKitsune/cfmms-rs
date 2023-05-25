@@ -17,8 +17,7 @@ r#"[
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     // load rpc endpoint from local environment
-    let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
-        .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+    let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")?;
 
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
@@ -27,8 +26,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(), // univ3 usdc/weth pool
         provider.clone(),
     )
-    .await // use ? at end of await??
-    .unwrap();
+    .await?;
 
     let quoter = IQuoter::new(
         H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6").unwrap(),
@@ -37,11 +35,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let amount_in = U256::from_dec_str("1000000000000000000").unwrap(); // 1 WETH
 
-    let current_block = provider.get_block_number().await.unwrap();
+    let current_block = provider.get_block_number().await?;
     let amount_out = pool
         .simulate_swap(pool.token_b, amount_in, provider.clone())
-        .await
-        .unwrap();
+        .await?;
 
     let expected_amount_out = quoter
         .quote_exact_input_single(
@@ -53,8 +50,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         )
         .block(current_block)
         .call()
-        .await
-        .unwrap();
+        .await?;
 
     assert_eq!(amount_out, expected_amount_out);
 
