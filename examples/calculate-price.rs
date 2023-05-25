@@ -38,12 +38,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let current_block = provider.get_block_number().await?;
 
-    let sqrt_price = block_pool
-        .slot_0()
-        .block(current_block)
-        .call()
-        .await?
-        .0;
+    let sqrt_price = block_pool.slot_0().block(current_block).call().await?.0;
     pool.sqrt_price = sqrt_price;
 
     let float_price_a = pool.calculate_price(pool.token_a);
