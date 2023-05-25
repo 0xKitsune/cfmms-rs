@@ -18,8 +18,7 @@ r#"[
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     // load rpc endpoint from local environment
-    let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")
-        .expect("Could not get ETHEREUM_MAINNET_ENDPOINT");
+    let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")?;
 
     let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
 
@@ -28,8 +27,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(), // univ3 usdc/weth pool
         provider.clone(),
     )
-    .await // use ? at end of await??
-    .unwrap();
+    .await?;
 
     pool.get_pool_data(provider.clone()).await.unwrap();
 
@@ -38,22 +36,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
         provider.clone(),
     );
 
-    let current_block = provider.get_block_number().await.unwrap();
+    let current_block = provider.get_block_number().await?;
 
     let sqrt_price = block_pool
         .slot_0()
         .block(current_block)
         .call()
-        .await
-        .unwrap()
+        .await?
         .0;
     pool.sqrt_price = sqrt_price;
 
     let float_price_a = pool.calculate_price(pool.token_a);
 
     let float_price_b = pool.calculate_price(pool.token_b);
-
-    dbg!(pool);
 
     println!("Current Block: {current_block}");
     println!("Price A: {float_price_a}");
