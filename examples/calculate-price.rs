@@ -20,19 +20,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // load rpc endpoint from local environment
     let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")?;
 
-    let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+    let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
     //Instantiate Pools and Quoter
     let mut pool = UniswapV3Pool::new_from_address(
-        H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(), // univ3 usdc/weth pool
+        H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640")?, // univ3 usdc/weth pool
         provider.clone(),
     )
     .await?;
 
-    pool.get_pool_data(provider.clone()).await.unwrap();
+    pool.get_pool_data(provider.clone()).await?;
 
     let block_pool = IUniswapV3Pool::new(
-        H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(),
+        H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640")?,
         provider.clone(),
     );
 
