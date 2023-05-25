@@ -19,21 +19,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // load rpc endpoint from local environment
     let rpc_endpoint = std::env::var("ETHEREUM_MAINNET_ENDPOINT")?;
 
-    let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint).unwrap());
+    let provider = Arc::new(Provider::<Http>::try_from(rpc_endpoint)?);
 
     //Instantiate Pools and Quoter
     let pool = UniswapV3Pool::new_from_address(
-        H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640").unwrap(), // univ3 usdc/weth pool
+        H160::from_str("0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640")?, // univ3 usdc/weth pool
         provider.clone(),
     )
     .await?;
 
     let quoter = IQuoter::new(
-        H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6").unwrap(),
+        H160::from_str("0xb27308f9f90d607463bb33ea1bebb41c27ce5ab6")?,
         provider.clone(),
     );
 
-    let amount_in = U256::from_dec_str("1000000000000000000").unwrap(); // 1 WETH
+    let amount_in = U256::from_dec_str("1000000000000000000")?; // 1 WETH
 
     let current_block = provider.get_block_number().await?;
     let amount_out = pool
