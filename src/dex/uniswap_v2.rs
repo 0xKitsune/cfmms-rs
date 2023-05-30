@@ -17,7 +17,7 @@ use crate::{
 
 use super::DexVariant;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Hash)]
 pub struct UniswapV2Dex {
     pub factory_address: H160,
     pub creation_block: BlockNumber,
