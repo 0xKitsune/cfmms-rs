@@ -6,12 +6,11 @@ use ethers::{
     types::{Log, H160, H256, U256},
 };
 
-
-use serde::{Serialize, Deserialize};
 use crate::{
     abi, batch_requests,
     errors::{ArithmeticError, CFMMError},
 };
+use serde::{Deserialize, Serialize};
 
 use super::fixed_point_math::{self};
 

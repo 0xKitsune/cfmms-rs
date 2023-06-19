@@ -13,8 +13,7 @@ use crate::{
     throttle::RequestThrottle,
 };
 
-use serde::{Serialize, Deserialize};
-
+use serde::{Deserialize, Serialize};
 
 use self::{uniswap_v2::UniswapV2Dex, uniswap_v3::UniswapV3Dex};
 

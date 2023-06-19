@@ -3,13 +3,13 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use serde::{Serialize, Deserialize};
 use ethers::{
     abi::ParamType,
     providers::Middleware,
     types::{BlockNumber, Log, ValueOrArray, H160, H256, U256},
 };
 use indicatif::ProgressBar;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     errors::CFMMError,

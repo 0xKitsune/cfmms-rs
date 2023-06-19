@@ -6,7 +6,7 @@ use ethers::{
     types::{BlockNumber, Log, H160, H256, U256},
 };
 use indicatif::ProgressBar;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     abi, batch_requests,

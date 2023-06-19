@@ -11,7 +11,7 @@ use crate::{
     abi, batch_requests,
     errors::{ArithmeticError, CFMMError},
 };
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 pub const MIN_SQRT_RATIO: U256 = U256([4295128739, 0, 0, 0]);
 pub const MAX_SQRT_RATIO: U256 = U256([6743328256752651558, 17280870778742802505, 4294805859, 0]);
@@ -532,7 +532,6 @@ impl UniswapV3Pool {
                     } else {
                         current_state.liquidity + (liquidity_net as u128)
                     };
-
                 }
                 //Increment the current tick
                 current_state.tick = if zero_for_one {
@@ -696,7 +695,6 @@ impl UniswapV3Pool {
                     } else {
                         current_state.liquidity + (liquidity_net as u128)
                     };
-
                 }
                 //Increment the current tick
                 current_state.tick = if zero_for_one {
