@@ -13,10 +13,11 @@ use crate::{
 pub mod fixed_point_math;
 pub mod uniswap_v2;
 pub mod uniswap_v3;
+use serde::{Deserialize, Serialize};
 pub use uniswap_v2::UniswapV2Pool;
 pub use uniswap_v3::UniswapV3Pool;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub enum Pool {
     UniswapV2(UniswapV2Pool),
     UniswapV3(UniswapV3Pool),
