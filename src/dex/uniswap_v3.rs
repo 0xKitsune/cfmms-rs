@@ -3,6 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use serde::{Serialize, Deserialize};
 use ethers::{
     abi::ParamType,
     providers::Middleware,
@@ -18,7 +19,7 @@ use crate::{
 
 use super::DexVariant;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Hash)]
 pub struct UniswapV3Dex {
     pub factory_address: H160,
     pub creation_block: BlockNumber,
